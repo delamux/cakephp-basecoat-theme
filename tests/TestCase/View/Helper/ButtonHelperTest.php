@@ -50,6 +50,31 @@ class ButtonHelperTest extends HelperTestCase
         $this->assertMatchesRegularExpression('#>Next<svg#', $end);
     }
 
+    public function testCollapseHidesLabelBelowBreakpointButKeepsItAccessible(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $out = $button->link('New user', '/users/add', ['icon' => 'plus', 'collapse' => 'md']);
+
+        $this->assertStringContainsString('<span class="sr-only md:not-sr-only">New user</span>', $out);
+        $this->assertStringContainsString('title="New user"', $out);
+        $this->assertStringNotContainsString('collapse=', $out);
+    }
+
+    public function testCollapseTrueUsesSmallBreakpointAndKeepsCustomTitle(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $out = $button->render('Export', ['icon' => 'arrow-down', 'collapse' => true, 'title' => 'Export as PDF']);
+
+        $this->assertStringContainsString('<span class="sr-only sm:not-sr-only">Export</span>', $out);
+        $this->assertStringContainsString('title="Export as PDF"', $out);
+    }
+
+    public function testCollapseWithoutIconIsIgnored(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $this->assertSame('<button type="button" class="btn">Save</button>', $button->render('Save', ['collapse' => 'sm']));
+    }
+
     public function testLinkUsesUrlHelper(): void
     {
         $button = new ButtonHelper($this->View);

@@ -15,18 +15,20 @@ namespace BasecoatTheme\View\Helper;
  *     ['caption' => 'Recent invoices', 'escape' => false],
  * );
  *
- * // Sortable headers (uses the core PaginatorHelper)
+ * // Sortable headers (uses the core PaginatorHelper). They show a sort indicator
+ * // (neutral / ascending / descending) and the active column gets `aria-sort`.
  * echo $this->Table->render(['title' => ['label' => 'Title', 'sort' => true]], $rows);
  * ```
  *
  * @property \Cake\View\Helper\PaginatorHelper $Paginator
+ * @property \BasecoatTheme\View\Helper\IconHelper $Icon
  */
 class TableHelper extends AbstractComponentHelper
 {
     /**
      * @var array<int|string, string|array<string, mixed>>
      */
-    protected array $helpers = ['Paginator'];
+    protected array $helpers = ['Paginator', 'BasecoatTheme.Icon'];
 
     /**
      * Default configuration.
@@ -38,7 +40,16 @@ class TableHelper extends AbstractComponentHelper
         'attributes' => [],
         'container' => true,
         'empty' => null,
+        // Icons of sortable headers per state, or false to render plain sort links.
+        'sortIcons' => [
+            'none' => 'chevrons-up-down',
+            'asc' => 'arrow-up',
+            'desc' => 'arrow-down',
+        ],
         'classes' => [
+            'sortLabel' => 'inline-flex items-center gap-1',
+            'sortIcon' => 'size-3.5 shrink-0 text-muted-foreground',
+            'sortIconActive' => 'size-3.5 shrink-0',
             'container' => null,
             'caption' => null,
             'head' => null,
@@ -67,7 +78,8 @@ class TableHelper extends AbstractComponentHelper
      *
      * `$columns` is a map `key => label` or `key => [options]`. Column options:
      * - `label`: Header text.
-     * - `sort`: `true` or a field name: renders `PaginatorHelper::sort()`.
+     * - `sort`: `true` or a field name: renders `PaginatorHelper::sort()` with a sort
+     *   indicator (config `sortIcons`, `false` to disable) and `aria-sort` on the active column.
      * - `class`: Applied to the `<th>` and every `<td>` of the column.
      * - `headerOptions` / `cellOptions`: Attributes of the `<th>` / `<td>`.
      * - `escape`: Escape the cells of this column (defaults to the table `escape`).
@@ -206,16 +218,75 @@ class TableHelper extends AbstractComponentHelper
     protected function headerCell(string $key, array $column): string
     {
         $label = (string)$column['label'];
+        $attributes = (array)($column['headerOptions'] ?? []);
         if (!empty($column['sort'])) {
             $field = is_string($column['sort']) ? $column['sort'] : $key;
-            $content = $this->Paginator->sort($field, $label, ['escape' => $column['escape']]);
+            $direction = $this->activeSortDirection($field);
+            if ($direction !== null) {
+                $attributes['aria-sort'] = $direction === 'desc' ? 'descending' : 'ascending';
+            }
+            $content = $this->sortLink($field, $label, (bool)$column['escape'], $direction);
         } else {
             $content = $this->text($label, (bool)$column['escape']);
         }
-        $attributes = (array)($column['headerOptions'] ?? []);
         $attributes['class'] = $this->mergeClasses($column['class'] ?? null, $attributes['class'] ?? null);
 
         return $this->renderTemplate('th', $this->partAttributes('th', $attributes), ['content' => $content]);
+    }
+
+    /**
+     * Renders the sort link of a header, with its state icon.
+     *
+     * @param string $field Sort field.
+     * @param string $label Header label.
+     * @param bool $escape Escape the label.
+     * @param string|null $direction Active direction (`asc`/`desc`) or null when not sorted by this field.
+     * @return string
+     */
+    protected function sortLink(string $field, string $label, bool $escape, ?string $direction): string
+    {
+        $icons = $this->getConfig('sortIcons');
+        if (!$icons) {
+            return $this->Paginator->sort($field, $label, ['escape' => $escape]);
+        }
+
+        $state = $direction ?? 'none';
+        $icon = $this->Icon->render((string)($icons[$state] ?? $icons['none']), [
+            'class' => $this->getConfig($direction === null ? 'classes.sortIcon' : 'classes.sortIconActive'),
+            'replaceClass' => true,
+            'data-sort-icon' => $state,
+        ]);
+        $title = sprintf(
+            '<span class="%s">%s%s</span>',
+            h((string)$this->getConfig('classes.sortLabel')),
+            $this->text($label, $escape),
+            $icon,
+        );
+
+        return $this->Paginator->sort($field, $title, ['escape' => false]);
+    }
+
+    /**
+     * Current sort direction when the paginated results are sorted by `$field`.
+     *
+     * The paging `sort` param may be aliased (`Articles.title`) while the column uses the
+     * bare field (`title`), or the other way around: both are considered the same field.
+     *
+     * @param string $field Sort field of the column.
+     * @return string|null `asc`, `desc` or null when not sorted by this field.
+     */
+    protected function activeSortDirection(string $field): ?string
+    {
+        $sort = $this->Paginator->param('sort');
+        if (!is_string($sort) || $sort === '') {
+            return null;
+        }
+        $bare = fn(string $name): string => str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
+        if ($sort !== $field && $bare($sort) !== $bare($field)) {
+            return null;
+        }
+
+        return strtolower((string)$this->Paginator->param('direction')) === 'desc' ? 'desc' : 'asc';
     }
 
     /**

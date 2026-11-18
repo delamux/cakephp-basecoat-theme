@@ -47,16 +47,57 @@ class TableHelperTest extends HelperTestCase
         );
     }
 
-    public function testSortableHeaderUsesPaginator(): void
+    /**
+     * Registers a paginated result so PaginatorHelper knows the current sort.
+     */
+    private function setPaging(?string $sort = null, ?string $direction = null): void
     {
         $this->View->set('articles', new PaginatedResultSet(new ArrayIterator([]), [
             'count' => 0, 'currentPage' => 1, 'perPage' => 20, 'totalCount' => 0, 'pageCount' => 1,
-            'hasPrevPage' => false, 'hasNextPage' => false, 'sort' => null, 'direction' => null,
+            'hasPrevPage' => false, 'hasNextPage' => false, 'sort' => $sort, 'direction' => $direction,
             'sortDefault' => false, 'directionDefault' => false, 'completeSort' => [], 'alias' => 'Articles',
             'scope' => null, 'limit' => null, 'start' => 0, 'end' => 0, 'requestedPage' => 1,
         ]));
-        $table = new TableHelper($this->View);
+    }
+
+    public function testSortableHeaderUsesPaginatorWithoutIcons(): void
+    {
+        $this->setPaging();
+        $table = new TableHelper($this->View, ['sortIcons' => false]);
         $out = $table->render(['title' => ['label' => 'Title', 'sort' => true]], []);
         $this->assertStringContainsString('<th><a href="/articles?sort=title&amp;direction=asc">Title</a></th>', $out);
+    }
+
+    public function testUnsortedSortableColumnShowsNeutralIndicator(): void
+    {
+        $this->setPaging();
+        $out = (new TableHelper($this->View))->render(['title' => ['label' => 'Title<b>', 'sort' => true]], []);
+
+        $this->assertStringContainsString('href="/articles?sort=title&amp;direction=asc"', $out);
+        $this->assertStringContainsString('Title&lt;b&gt;', $out, 'The label is still escaped');
+        $this->assertStringContainsString('data-sort-icon="none"', $out);
+        $this->assertStringNotContainsString('aria-sort', $out);
+    }
+
+    public function testActiveAscendingColumnShowsArrowAndAriaSort(): void
+    {
+        $this->setPaging('title', 'asc');
+        $out = (new TableHelper($this->View))->render([
+            'title' => ['label' => 'Title', 'sort' => true],
+            'created' => ['label' => 'Created', 'sort' => true],
+        ], []);
+
+        $this->assertMatchesRegularExpression('/<th aria-sort="ascending"><a [^>]*sort=title&amp;direction=desc/', $out);
+        $this->assertStringContainsString('data-sort-icon="asc"', $out);
+        $this->assertMatchesRegularExpression('/<th><a [^>]*sort=created[^>]*>.*data-sort-icon="none"/', $out);
+    }
+
+    public function testActiveDescendingColumnUsesFieldNameFromSortOption(): void
+    {
+        $this->setPaging('Articles.published', 'desc');
+        $out = (new TableHelper($this->View))->render(['date' => ['label' => 'Date', 'sort' => 'Articles.published']], []);
+
+        $this->assertStringContainsString('aria-sort="descending"', $out);
+        $this->assertStringContainsString('data-sort-icon="desc"', $out);
     }
 }

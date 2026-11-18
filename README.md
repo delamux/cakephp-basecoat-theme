@@ -158,9 +158,14 @@ echo $this->Button->render('Next', ['icon' => 'chevron-right', 'iconPosition' =>
 echo $this->Button->link('View', ['action' => 'view', $project->id], ['variant' => 'link']);
 echo $this->Button->icon('panel-left', 'Toggle sidebar', ['variant' => 'ghost', 'size' => 'icon-sm']);
 echo $this->Button->submit('Send');
+
+// Icon-only below `sm` (label kept for screen readers and as `title`): ideal for `header_actions`
+echo $this->Button->link('New project', ['action' => 'add'], ['icon' => 'plus', 'size' => 'sm', 'collapse' => 'sm']);
 ```
 Variants: `primary` (default), `secondary`, `outline`, `ghost`, `link`, `destructive`.
 Sizes: `xs`, `sm`, `default`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`.
+`collapse`: `sm`, `md`, `lg`, `xl` or `true` (= `sm`); ignored on buttons without icon. Classes per
+breakpoint are configurable with `collapseClasses`.
 
 ### Badge
 ```php
@@ -202,6 +207,10 @@ echo $this->Table->render(
     ['caption' => 'Invoices', 'empty' => 'No results.', 'escape' => false, 'footer' => ['Total', '', '$250']],
 );
 ```
+Sortable headers show a sort indicator (`chevrons-up-down`, `arrow-up`, `arrow-down`) and the active
+column gets `aria-sort="ascending|descending"`. Change the icons with the `sortIcons` config
+(`['none' => ..., 'asc' => ..., 'desc' => ...]`) or pass `'sortIcons' => false` for plain links;
+classes: `classes.sortLabel`, `classes.sortIcon`, `classes.sortIconActive`.
 
 ### Pagination
 ```php
@@ -220,12 +229,15 @@ echo $this->Form->create($project);
 echo $this->Form->control('name');                       // <div class="field" role="group"><label class="label">… <input class="input">
 echo $this->Form->control('notes', ['type' => 'textarea']);
 echo $this->Form->control('team_id');                    // select.select
-echo $this->Form->control('favorite', ['type' => 'checkbox']);
+echo $this->Form->control('favorite', ['type' => 'checkbox']);  // horizontal field: input + label
+echo $this->Form->control('plan', ['type' => 'checkbox', 'nestedInput' => true]); // "choice card" (label wraps input)
 echo $this->Form->button('Delete', ['variant' => 'destructive']);
 echo $this->Form->submit('Save');
 echo $this->Form->end();
 ```
-Config: `widgetClasses` (class per widget), `button` (default `variant`/`size`), `skipClassWidgets`.
+Config: `widgetClasses` (class per widget), `button` (default `variant`/`size`), `skipClassWidgets`,
+`nestedCheckboxAndRadio` (`false` by default: Basecoat styles a label that wraps its input as a
+bordered "choice card", so single checkboxes/radios render input and label as siblings).
 Pass `'basecoat' => false` to a control to skip the class. Errors render as `<p role="alert">` and
 the field gets `data-invalid="true"`. Template-only alternative for the core helper:
 `'templates' => 'BasecoatTheme.form_templates'`.

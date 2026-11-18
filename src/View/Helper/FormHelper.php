@@ -46,8 +46,9 @@ class FormHelper extends CoreFormHelper
         'legend' => '<legend>{{text}}</legend>',
         'multicheckboxTitle' => '<legend>{{text}}</legend>',
         'multicheckboxWrapper' => '<fieldset class="fieldset"{{attrs}}>{{content}}</fieldset>',
-        'checkboxWrapper' => '<div class="flex items-center gap-3">{{label}}</div>',
-        'radioWrapper' => '<div class="flex items-center gap-3">{{label}}</div>',
+        // {{input}} is empty when nested (the input is inside {{label}})
+        'checkboxWrapper' => '<div class="flex items-center gap-3">{{input}}{{label}}</div>',
+        'radioWrapper' => '<div class="flex items-center gap-3">{{input}}{{label}}</div>',
         'submitContainer' => '<div class="flex gap-2">{{content}}</div>',
     ];
 
@@ -60,6 +61,10 @@ class FormHelper extends CoreFormHelper
     public function __construct(View $view, array $config = [])
     {
         $this->_defaultConfig['templates'] = $this->basecoatTemplates + $this->_defaultConfig['templates'];
+        // A single checkbox/radio is a plain horizontal `.field` (input + label siblings).
+        // Basecoat styles `label:has(input)` as a "choice card": opt in per control with
+        // `'nestedInput' => true` or globally with `'nestedCheckboxAndRadio' => true`.
+        $this->_defaultConfig['nestedCheckboxAndRadio'] = false;
         $this->_defaultConfig += [
             'widgetClasses' => [
                 'textarea' => 'textarea',

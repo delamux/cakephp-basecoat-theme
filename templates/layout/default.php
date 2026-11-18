@@ -38,11 +38,12 @@ $sidebarId = (string)$this->Sidebar->getConfig('id');
     <header class="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/90 px-4 backdrop-blur md:rounded-t-xl lg:px-6">
         <?= $this->Sidebar->toggle(['class' => '-ml-1', 'target' => $sidebarId]) ?>
         <span class="mx-1 h-4 w-px bg-border" aria-hidden="true"></span>
-        <div class="flex min-w-0 flex-col">
+        <div class="flex min-w-0 flex-1 flex-col">
             <h1 class="truncate text-base font-medium"><?= h(strip_tags($title)) ?></h1>
             <?= $this->fetch('breadcrumb') ?>
         </div>
-        <div class="ml-auto flex items-center gap-1">
+        <?php /* Actions never shrink: the title truncates instead. Use Button `collapse` for icon-only actions on mobile. */ ?>
+        <div class="ml-auto flex shrink-0 items-center gap-1">
             <?= $this->fetch('header_actions') ?>
             <?= $this->Theme->toggle() ?>
         </div>

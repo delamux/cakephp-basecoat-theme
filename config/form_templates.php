@@ -21,7 +21,8 @@ return [
     'legend' => '<legend>{{text}}</legend>',
     'multicheckboxTitle' => '<legend>{{text}}</legend>',
     'multicheckboxWrapper' => '<fieldset class="fieldset"{{attrs}}>{{content}}</fieldset>',
-    'checkboxWrapper' => '<div class="flex items-center gap-3">{{label}}</div>',
-    'radioWrapper' => '<div class="flex items-center gap-3">{{label}}</div>',
+    // {{input}} is empty when the input is nested in {{label}} (core default `nestedCheckboxAndRadio`)
+    'checkboxWrapper' => '<div class="flex items-center gap-3">{{input}}{{label}}</div>',
+    'radioWrapper' => '<div class="flex items-center gap-3">{{input}}{{label}}</div>',
     'submitContainer' => '<div class="flex gap-2">{{content}}</div>',
 ];

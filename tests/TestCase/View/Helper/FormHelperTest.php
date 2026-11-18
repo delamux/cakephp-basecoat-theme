@@ -16,10 +16,29 @@ class FormHelperTest extends HelperTestCase
         );
         $this->assertStringContainsString('<textarea name="body" id="body" class="textarea" rows="5"></textarea>', $form->control('body', ['type' => 'textarea']));
         $this->assertStringContainsString('<select name="kind" id="kind" class="select">', $form->control('kind', ['options' => ['a' => 'A']]));
-        $this->assertStringContainsString(
-            '<div class="field checkbox" role="group" data-orientation="horizontal"><input type="hidden" name="ok" value="0"><label for="ok" class="label gap-3"><input type="checkbox" name="ok" value="1" id="ok" class="input">Ok</label></div>',
+        $this->assertSame(
+            '<div class="field checkbox" role="group" data-orientation="horizontal"><input type="hidden" name="ok" value="0"><input type="checkbox" name="ok" value="1" id="ok" class="input"><label for="ok" class="label">Ok</label></div>',
             $form->control('ok', ['type' => 'checkbox']),
+            'A single checkbox is a plain horizontal field (input + label as siblings)',
         );
+    }
+
+    public function testNestedCheckboxRendersChoiceCard(): void
+    {
+        $form = new FormHelper($this->View);
+        $this->assertStringContainsString(
+            '<label for="ok" class="label gap-3"><input type="checkbox" name="ok" value="1" id="ok" class="input">Ok</label>',
+            $form->control('ok', ['type' => 'checkbox', 'nestedInput' => true]),
+        );
+    }
+
+    public function testRadioOptionsKeepInputAndLabelPerOption(): void
+    {
+        $form = new FormHelper($this->View);
+        $out = $form->control('kind', ['type' => 'radio', 'options' => ['a' => 'Alpha', 'b' => 'Beta']]);
+        $this->assertStringContainsString('<input type="radio" name="kind" value="a" id="kind-a" class="input">', $out);
+        $this->assertStringContainsString('<label for="kind-a"', $out);
+        $this->assertStringContainsString('Alpha</label>', $out);
     }
 
     public function testUserClassesAreKept(): void

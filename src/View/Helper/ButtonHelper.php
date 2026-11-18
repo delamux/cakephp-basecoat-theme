@@ -39,6 +39,14 @@ class ButtonHelper extends AbstractComponentHelper
         'classes' => [
             'icon' => null,
         ],
+        // `collapse` option: classes of the label per breakpoint (literal strings so a
+        // compiled Tailwind build can see them).
+        'collapseClasses' => [
+            'sm' => 'sr-only sm:not-sr-only',
+            'md' => 'sr-only md:not-sr-only',
+            'lg' => 'sr-only lg:not-sr-only',
+            'xl' => 'sr-only xl:not-sr-only',
+        ],
         'templates' => [
             'button' => '<button{{attrs}}>{{content}}</button>',
             'link' => '<a href="{{url}}"{{attrs}}>{{content}}</a>',
@@ -56,6 +64,9 @@ class ButtonHelper extends AbstractComponentHelper
      * - `icon`: Icon name or raw SVG.
      * - `iconPosition`: `start` (default) or `end`.
      * - `iconOptions`: Options for the icon.
+     * - `collapse`: `sm`, `md`, `lg`, `xl` (or `true` = `sm`): with an icon, the label is only
+     *   visible from that breakpoint (icon-only below it, label kept for screen readers and
+     *   as `title`). Handy for header actions on mobile.
      * - `escape`: Escape `$text` (default true).
      * - `class` and any HTML attribute.
      *
@@ -66,8 +77,9 @@ class ButtonHelper extends AbstractComponentHelper
     public function render(string $text, array $options = []): string
     {
         $options += ['type' => 'button'];
+        $options = $this->collapseOptions($text, $options);
         $content = $this->content($text, $options);
-        $attributes = $this->rootAttributes('btn', $options, ['icon', 'iconPosition', 'iconOptions']);
+        $attributes = $this->rootAttributes('btn', $options, ['icon', 'iconPosition', 'iconOptions', 'collapse']);
 
         return $this->renderTemplate('button', $attributes, ['content' => $content], $options['templateVars'] ?? []);
     }
@@ -99,9 +111,14 @@ class ButtonHelper extends AbstractComponentHelper
      */
     public function link(string $text, array|string|null $url = null, array $options = []): string
     {
+        $options = $this->collapseOptions($text, $options);
         $content = $this->content($text, $options);
         $href = $this->Url->build($url, ['fullBase' => (bool)($options['fullBase'] ?? false)]);
-        $attributes = $this->rootAttributes('btn', $options, ['icon', 'iconPosition', 'iconOptions', 'fullBase', 'href']);
+        $attributes = $this->rootAttributes(
+            'btn',
+            $options,
+            ['icon', 'iconPosition', 'iconOptions', 'fullBase', 'href', 'collapse'],
+        );
 
         return $this->renderTemplate(
             'link',
@@ -144,6 +161,9 @@ class ButtonHelper extends AbstractComponentHelper
     protected function content(string $text, array $options): string
     {
         $text = $this->formatTemplate('text', ['text' => $this->text($text, $options['escape'] ?? true)]);
+        if (!empty($options['collapse']) && $text !== '') {
+            $text = sprintf('<span class="%s">%s</span>', h((string)$options['collapse']), $text);
+        }
         $icon = '';
         if (!empty($options['icon'])) {
             $iconOptions = (array)($options['iconOptions'] ?? []);
@@ -152,5 +172,30 @@ class ButtonHelper extends AbstractComponentHelper
         }
 
         return ($options['iconPosition'] ?? 'start') === 'end' ? $text . $icon : $icon . $text;
+    }
+
+    /**
+     * Resolves the `collapse` option into the label classes and adds a `title`.
+     *
+     * Without an icon the option is dropped: an icon-only button needs an icon.
+     *
+     * @param string $text Button text.
+     * @param array<string, mixed> $options Options.
+     * @return array<string, mixed>
+     */
+    protected function collapseOptions(string $text, array $options): array
+    {
+        $collapse = $options['collapse'] ?? null;
+        unset($options['collapse']);
+        if (!$collapse || empty($options['icon']) || $text === '') {
+            return $options;
+        }
+
+        $breakpoint = $collapse === true ? 'sm' : (string)$collapse;
+        $classes = (array)$this->getConfig('collapseClasses');
+        $options['collapse'] = $classes[$breakpoint] ?? $classes['sm'];
+        $options['title'] ??= $options['escape'] ?? true ? $text : strip_tags($text);
+
+        return $options;
     }
 }
