@@ -282,6 +282,10 @@ class ThemeHelper extends AbstractComponentHelper
 
         return '@custom-variant dark (&:where(.dark, .dark *));'
             . '@theme inline {--font-sans: ' . $font . ';' . $colors . '}'
-            . '@layer base {*, ::before, ::after { border-color: var(--border); }}';
+            . '@layer base {*, ::before, ::after { border-color: var(--border); } '
+            // Tailwind v4 preflight leaves buttons with the default cursor
+            . 'button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary, select, label[for], input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled), input[type="file"]:not(:disabled) { cursor: pointer; } :disabled, [aria-disabled="true"] { cursor: not-allowed; }}'
+            // Basecoat menus, comboboxes and selects use cursor: default (components layer, so same layer here)
+            . '@layer components {.dropdown-menu :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]):not([aria-disabled="true"]), .command [role="menuitem"]:not([aria-disabled="true"]), .combobox [role="option"]:not([aria-disabled="true"]), .select:not(select) [role="option"]:not([aria-disabled="true"]), .combobox [data-clear]:not(:disabled) { cursor: pointer; }}';
     }
 }
