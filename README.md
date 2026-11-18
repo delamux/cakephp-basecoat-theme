@@ -21,7 +21,7 @@ classes, variants, sizes, attributes and string templates.
   templates, `FlashHelper` elements, `HtmlHelper`/`UrlHelper` for every URL and asset.
 - Zero build step by default (Basecoat CSS + Tailwind v4 browser build from jsDelivr), or plug in your own compiled CSS.
 
-Requirements: PHP 8.1+, CakePHP 5.x. Basecoat 1.1.0 markup (`data-variant` / `data-size` API).
+Requirements: PHP 8.2+, CakePHP 5.x. Basecoat 1.1.0 markup (`data-variant` / `data-size` API).
 
 ## Installation
 

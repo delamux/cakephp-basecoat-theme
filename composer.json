@@ -5,7 +5,7 @@
     "license": "MIT",
     "keywords": ["cakephp", "cakephp5", "plugin", "theme", "basecoat", "shadcn", "tailwind", "helpers"],
     "require": {
-        "php": ">=8.1",
+        "php": ">=8.2",
         "cakephp/cakephp": "^5.0"
     },
     "require-dev": {
