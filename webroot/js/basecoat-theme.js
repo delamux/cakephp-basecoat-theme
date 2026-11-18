@@ -5,7 +5,8 @@
  * - Sidebar toggle ([data-sidebar-toggle]), dialogs ([data-dialog-open], [data-dialog-close],
  *   [data-dialog-backdrop-close]), dismissible alerts ([data-alert-dismiss]) and flash toasts
  *   (template[data-basecoat-toast]): event delegation, no inline JS (CSP without 'unsafe-inline').
- * - Re-initializes charts and toasts in content swapped by htmx (htmx:load).
+ * - Progress bars ([data-progress-value]: width via CSSOM) and "Back" links ([data-history-back]).
+ * - Re-initializes charts, toasts and progress bars in content swapped by htmx (htmx:load).
  * Requires Basecoat JS (and Chart.js + Basecoat chart.js for charts) to be loaded first.
  */
 (() => {
@@ -45,6 +46,12 @@
     if (window.basecoat && typeof window.basecoat.init === 'function') window.basecoat.init('toast');
   };
 
+  const initProgress = (root = document) => {
+    root.querySelectorAll('[data-progress-value]').forEach((bar) => {
+      bar.style.width = `${parseFloat(bar.dataset.progressValue) || 0}%`;
+    });
+  };
+
   let backdropPress = null;
   document.addEventListener('pointerdown', (event) => {
     backdropPress = event.target instanceof HTMLDialogElement ? event.target : null;
@@ -73,6 +80,12 @@
       target.closest('dialog')?.close();
       return;
     }
+    const back = target.closest('[data-history-back]');
+    if (back && window.history.length > 1) {
+      event.preventDefault();
+      window.history.back();
+      return;
+    }
     if (target.closest('[data-alert-dismiss]')) {
       target.closest('.alert')?.remove();
       return;
@@ -83,7 +96,7 @@
     }
   });
 
-  const boot = () => { initCharts(); initToasts(); };
+  const boot = () => { initCharts(); initToasts(); initProgress(); };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {
@@ -91,7 +104,11 @@
   }
   window.addEventListener('load', boot);
   // htmx: content swapped in
-  document.addEventListener('htmx:load', (event) => { initCharts(event.target); initToasts(event.target); });
+  document.addEventListener('htmx:load', (event) => {
+    initCharts(event.target);
+    initToasts(event.target);
+    initProgress(event.target);
+  });
 
-  window.BasecoatTheme = { initCharts, initToasts, toggleTheme };
+  window.BasecoatTheme = { initCharts, initToasts, initProgress, toggleTheme };
 })();

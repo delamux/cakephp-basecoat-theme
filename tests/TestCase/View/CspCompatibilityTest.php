@@ -5,6 +5,7 @@ namespace BasecoatTheme\Test\TestCase\View;
 
 use BasecoatTheme\Test\TestCase\View\Helper\HelperTestCase;
 use BasecoatTheme\View\Helper\DialogHelper;
+use BasecoatTheme\View\Helper\ProgressHelper;
 use BasecoatTheme\View\Helper\SidebarHelper;
 use BasecoatTheme\View\Helper\ThemeHelper;
 use Cake\View\View;
@@ -60,6 +61,22 @@ class CspCompatibilityTest extends HelperTestCase
         $this->assertStringContainsString('data-alert-dismiss', $alert);
         $this->assertNoInlineJs($toast);
         $this->assertStringContainsString('<template data-basecoat-toast', $toast);
+    }
+
+    public function testProgressHasNoStyleAttribute(): void
+    {
+        $out = (new ProgressHelper($this->View))->render(42);
+
+        $this->assertStringNotContainsString('style=', $out, "Style attributes need 'unsafe-inline'");
+        $this->assertStringContainsString('data-progress-value="42"', $out, 'Width set by basecoat-theme.js (CSSOM)');
+    }
+
+    public function testErrorLayoutBackLinkIsNotAJavascriptUrl(): void
+    {
+        $layout = (string)file_get_contents(dirname(__DIR__, 3) . '/templates/layout/error.php');
+
+        $this->assertStringNotContainsString('javascript:', $layout);
+        $this->assertStringContainsString('data-history-back', $layout);
     }
 
     public function testThemeAssetsCarryTheCspNonce(): void

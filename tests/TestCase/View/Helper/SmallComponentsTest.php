@@ -94,11 +94,11 @@ class SmallComponentsTest extends HelperTestCase
     {
         $progress = new ProgressHelper($this->View);
         $this->assertSame(
-            '<div role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" class="progress"><span style="width: 60%;"></span></div>',
+            '<div role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100" class="progress"><span data-progress-value="60"></span></div>',
             $progress->render(60),
         );
-        $this->assertStringContainsString('width: 30%;', $progress->render(3, ['max' => 10]));
-        $this->assertStringContainsString('width: 100%;', $progress->render(150));
+        $this->assertStringContainsString('data-progress-value="30"', $progress->render(3, ['max' => 10]));
+        $this->assertStringContainsString('data-progress-value="100"', $progress->render(150));
     }
 
     public function testSkeleton(): void

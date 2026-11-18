@@ -336,11 +336,12 @@ Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CS
 
 - Interactivity uses data attributes handled by `webroot/js/basecoat-theme.js` (loaded by `Theme->head()` through the
   `pluginJs` option) with event delegation: `data-theme-toggle`, `data-sidebar-toggle`, `data-dialog-open`,
-  `data-dialog-close`, `data-dialog-backdrop-close`, `data-alert-dismiss`, and flash toasts as
+  `data-dialog-close`, `data-dialog-backdrop-close`, `data-alert-dismiss`, `data-history-back`, progress bars
+  (`data-progress-value`, width set through CSSOM instead of a style attribute) and flash toasts as
   `<template data-basecoat-toast>`. Keep `pluginJs` enabled.
 - The dark-mode script and the Tailwind browser `@theme` style carry the request's nonce (`cspScriptNonce` /
   `cspStyleNonce`); HtmlHelper adds it to the scripts and stylesheets.
-- Charts and toasts are initialized again in content swapped by htmx (`htmx:load`).
+- Charts, toasts and progress bars are initialized again in content swapped by htmx (`htmx:load`).
 - Toast `action`/`cancel` buttons with an `onclick` key are inline JS: under a strict CSP use `url`, or `attributes`
   with data-* handled by your own script.
 

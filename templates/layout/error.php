@@ -22,7 +22,7 @@ $this->element('BasecoatTheme.layout/helpers');
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
     <div>
-        <?= $this->Button->link(__d('basecoat_theme', 'Back'), 'javascript:history.back()', ['variant' => 'outline', 'icon' => 'arrow-left']) ?>
+        <?= $this->Button->link(__d('basecoat_theme', 'Back'), '/', ['variant' => 'outline', 'icon' => 'arrow-left', 'data-history-back' => 'true']) ?>
     </div>
 </main>
 </body>

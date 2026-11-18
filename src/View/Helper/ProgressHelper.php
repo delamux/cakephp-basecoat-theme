@@ -49,8 +49,9 @@ class ProgressHelper extends AbstractComponentHelper
         $percent = $max > 0 ? max(0.0, min(100.0, $value / $max * 100)) : 0.0;
         $percentText = rtrim(rtrim(number_format($percent, 2, '.', ''), '0'), '.');
 
-        $indicator = (array)($options['indicatorOptions'] ?? []);
-        $indicator['style'] = trim('width: ' . $percentText . '%;' . ' ' . ($indicator['style'] ?? ''));
+        // Width applied by webroot/js/basecoat-theme.js (CSSOM): a style attribute would need a CSP
+        // with 'unsafe-inline'
+        $indicator = (array)($options['indicatorOptions'] ?? []) + ['data-progress-value' => $percentText];
 
         $options += [
             'role' => 'progressbar',
