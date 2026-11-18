@@ -11,10 +11,10 @@ use function Cake\Core\h;
  * Named `EmptyState` because `empty` is a reserved word in PHP.
  *
  * ```
- * echo $this->EmptyState->render('No wines yet', [
- *     'description' => 'Scan your first bottle to start your cellar.',
+ * echo $this->EmptyState->render('No projects yet', [
+ *     'description' => 'Create your first project to get started.',
  *     'icon' => 'inbox',
- *     'actions' => $this->Button->link('Scan bottle', ['action' => 'add']),
+ *     'actions' => $this->Button->link('New project', ['action' => 'add']),
  * ]);
  * ```
  *

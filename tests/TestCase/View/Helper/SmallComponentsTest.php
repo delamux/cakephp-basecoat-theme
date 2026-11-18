@@ -74,9 +74,9 @@ class SmallComponentsTest extends HelperTestCase
     public function testEmptyState(): void
     {
         $empty = new EmptyStateHelper($this->View);
-        $out = $empty->render('No wines', ['description' => 'Scan one', 'icon' => 'inbox', 'actions' => '<a>Scan</a>', 'footer' => 'Help']);
+        $out = $empty->render('No projects', ['description' => 'Scan one', 'icon' => 'inbox', 'actions' => '<a>Scan</a>', 'footer' => 'Help']);
         $this->assertMatchesRegularExpression('#^<div class="empty"><header><figure><svg#', $out);
-        $this->assertStringContainsString('</figure><h3>No wines</h3><p>Scan one</p></header><section><a>Scan</a></section><footer>Help</footer></div>', $out);
+        $this->assertStringContainsString('</figure><h3>No projects</h3><p>Scan one</p></header><section><a>Scan</a></section><footer>Help</footer></div>', $out);
         $this->assertSame('<div class="empty"><header><h3>Only</h3></header></div>', $empty->render('Only'));
     }
 

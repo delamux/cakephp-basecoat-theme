@@ -14,8 +14,8 @@ use function Cake\Core\h;
  * echo $this->Icon->render('loader', ['class' => 'size-3.5 animate-spin']);
  *
  * // Register your own icons (inner SVG markup, 24x24 viewBox)
- * $this->addHelper('BasecoatTheme.Icon', ['icons' => ['wine' => '<path d="..."/>']]);
- * $this->Icon->add(['grape' => '<circle cx="12" cy="12" r="3"/>']);
+ * $this->addHelper('BasecoatTheme.Icon', ['icons' => ['rocket' => '<path d="..."/>']]);
+ * $this->Icon->add(['spark' => '<circle cx="12" cy="12" r="3"/>']);
  * ```
  *
  * Any string starting with `<` is considered raw SVG/HTML and returned untouched, so

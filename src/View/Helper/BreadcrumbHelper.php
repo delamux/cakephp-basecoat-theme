@@ -11,8 +11,8 @@ use function Cake\I18n\__d;
  * ```
  * echo $this->Breadcrumb->render([
  *     'Home' => '/',
- *     'Wines' => ['controller' => 'Wines', 'action' => 'index'],
- *     'Rioja 2019',                                   // current page (no URL)
+ *     'Projects' => ['controller' => 'Projects', 'action' => 'index'],
+ *     'Acme Website',                                 // current page (no URL)
  * ]);
  *
  * // Collapse middle items

@@ -53,7 +53,7 @@ Use the auth layout for login pages: `$this->viewBuilder()->setLayout('auth');`
 | Source (view var / `Configure`) | Purpose |
 | --- | --- |
 | `title` view var or `title` block | `<title>` and header heading |
-| `brand` / `BasecoatTheme.brand` | `['name' => 'Vinomio', 'url' => '/', 'icon' => 'circle']` |
+| `brand` / `BasecoatTheme.brand` | `['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle']` |
 | `sidebarMenu` / `BasecoatTheme.sidebar` | Menu for `SidebarHelper::render()` |
 | `sidebarActions` / `BasecoatTheme.sidebarActions` | HTML under the brand (e.g. "Quick create") |
 | `sidebarUser` | `['name', 'email', 'avatar', 'menu' => [...DropdownMenu items]]` |
@@ -65,12 +65,12 @@ Blocks: `sidebar` (replace the whole sidebar), `header_actions`, `breadcrumb`, `
 ```php
 // config/app_local.php (or bootstrap)
 'BasecoatTheme' => [
-    'brand' => ['name' => 'Kontavi', 'url' => '/', 'icon' => 'credit-card'],
+    'brand' => ['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle'],
     'sidebar' => [
         ['label' => 'Dashboard', 'url' => ['controller' => 'Dashboard', 'action' => 'index'], 'icon' => 'layout-dashboard'],
-        ['type' => 'group', 'label' => 'Accounting', 'items' => [
-            ['label' => 'Invoices', 'url' => ['controller' => 'Invoices', 'action' => 'index'], 'icon' => 'file-text'],
-            ['label' => 'Journal entries', 'url' => ['controller' => 'Entries', 'action' => 'index'], 'icon' => 'list'],
+        ['type' => 'group', 'label' => 'Documents', 'items' => [
+            ['label' => 'Reports', 'url' => ['controller' => 'Reports', 'action' => 'index'], 'icon' => 'file-text'],
+            ['label' => 'Projects', 'url' => ['controller' => 'Projects', 'action' => 'index'], 'icon' => 'folder'],
         ]],
         ['type' => 'group', 'attributes' => ['class' => 'mt-auto'], 'items' => [
             ['label' => 'Settings', 'url' => '/settings', 'icon' => 'settings-2'],
@@ -146,7 +146,7 @@ arguments (card body, tab panels, dialog body, footers) are HTML and never escap
 echo $this->Button->render('Save', ['type' => 'submit']);
 echo $this->Button->render('Delete', ['variant' => 'destructive', 'icon' => 'trash']);
 echo $this->Button->render('Next', ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline']);
-echo $this->Button->link('View', ['action' => 'view', $wine->id], ['variant' => 'link']);
+echo $this->Button->link('View', ['action' => 'view', $project->id], ['variant' => 'link']);
 echo $this->Button->icon('panel-left', 'Toggle sidebar', ['variant' => 'ghost', 'size' => 'icon-sm']);
 echo $this->Button->submit('Send');
 ```
@@ -207,10 +207,10 @@ To style the core helper globally: `$this->addHelper('Paginator', ['templates' =
 ```php
 $this->addHelper('Form', ['className' => 'BasecoatTheme.Form']);
 
-echo $this->Form->create($wine);
+echo $this->Form->create($project);
 echo $this->Form->control('name');                       // <div class="field" role="group"><label class="label">… <input class="input">
 echo $this->Form->control('notes', ['type' => 'textarea']);
-echo $this->Form->control('cellar_id');                  // select.select
+echo $this->Form->control('team_id');                    // select.select
 echo $this->Form->control('favorite', ['type' => 'checkbox']);
 echo $this->Form->button('Delete', ['variant' => 'destructive']);
 echo $this->Form->submit('Save');
@@ -278,12 +278,12 @@ Chart.js and the Basecoat chart adapter are loaded by the layout only when a cha
 
 ### Other components
 ```php
-echo $this->Avatar->render('Luis del Amo', ['src' => $user->avatar, 'size' => 'lg']);
+echo $this->Avatar->render('Jane Doe', ['src' => $user->avatar, 'size' => 'lg']);
 echo $this->Avatar->group($people, ['max' => 3]);
 echo $this->Accordion->render(['Is it accessible?' => 'Yes.'], ['multiple' => true]);
-echo $this->Breadcrumb->render(['Home' => '/', 'Wines' => ['controller' => 'Wines'], 'Rioja 2019'], ['collapse' => 4]);
+echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Acme Website'], ['collapse' => 4]);
 echo $this->ButtonGroup->render([['text' => 'Day'], ['text' => 'Week'], ['text' => 'Month']], ['aria-label' => 'Range']);
-echo $this->EmptyState->render('No wines yet', ['description' => 'Scan your first bottle.', 'icon' => 'inbox', 'actions' => $this->Button->link('Scan', ['action' => 'add'])]);
+echo $this->EmptyState->render('No projects yet', ['description' => 'Create your first project.', 'icon' => 'inbox', 'actions' => $this->Button->link('New project', ['action' => 'add'])]);
 echo $this->Progress->render(60);
 echo $this->Kbd->render(['Ctrl', 'K']);
 echo $this->Skeleton->lines(3);
@@ -291,7 +291,7 @@ echo $this->Tooltip->render($this->Button->render('?'), 'Help');
 echo $this->Button->render('Save', $this->Tooltip->attributes('Save changes', ['side' => 'bottom']));
 echo $this->Icon->render('circle-check', ['class' => 'text-green-500']);
 ```
-`IconHelper` ships a Lucide subset; register more with `['icons' => ['wine' => '<path d="…"/>']]`
+`IconHelper` ships a Lucide subset; register more with `['icons' => ['rocket' => '<path d="…"/>']]`
 or `$this->Icon->add([...])`. Any `icon` option also accepts raw SVG.
 
 ### Theme (assets)
@@ -316,7 +316,7 @@ rendered as Basecoat alerts (`templates/element/flash/*.php`). Params: `title`, 
 `icon`, `escape`, `dismissible`, `class`:
 
 ```php
-$this->Flash->success('Your wine was added.', ['params' => ['title' => 'Saved', 'dismissible' => true]]);
+$this->Flash->success('Your project was created.', ['params' => ['title' => 'Saved', 'dismissible' => true]]);
 // As a toast, from any theme:
 $this->Flash->set('Copied!', ['element' => 'toast', 'plugin' => 'BasecoatTheme', 'params' => ['category' => 'info']]);
 ```

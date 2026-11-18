@@ -9,7 +9,7 @@ use function Cake\Core\h;
  * Basecoat Avatar (`.avatar`) and avatar group (`.avatar-group`).
  *
  * ```
- * echo $this->Avatar->render('Luis del Amo');                         // initials "LA"
+ * echo $this->Avatar->render('Jane Doe');                             // initials "JD"
  * echo $this->Avatar->render('shadcn', ['src' => 'https://github.com/shadcn.png']);
  * echo $this->Avatar->render('Ana', ['size' => 'lg', 'class' => 'rounded-lg']);
  * echo $this->Avatar->group([['name' => 'A'], ['name' => 'B'], ['name' => 'C']], ['max' => 2]);
@@ -157,7 +157,7 @@ class AvatarHelper extends AbstractComponentHelper
     }
 
     /**
-     * Computes the initials of a name ("Luis del Amo" => "LA").
+     * Computes the initials of a name ("Jane van Doe" => "JD").
      *
      * @param string $name Name.
      * @return string

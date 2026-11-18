@@ -55,12 +55,12 @@ class ThemeTest extends TestCase
             'templatePath' => 'Articles',
             'template' => 'index',
             'viewVars' => [
-                'brand' => ['name' => 'Vinomio', 'url' => '/', 'icon' => 'circle'],
+                'brand' => ['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle'],
                 'sidebarMenu' => [
                     ['label' => 'Dashboard', 'url' => '/articles', 'icon' => 'layout-dashboard'],
                     ['type' => 'group', 'label' => 'Documents', 'items' => [['label' => 'Reports', 'url' => '/reports', 'icon' => 'file-chart']]],
                 ],
-                'sidebarUser' => ['name' => 'Luis', 'email' => 'luis@example.com', 'menu' => [['label' => 'Log out', 'url' => '/logout', 'icon' => 'log-out']]],
+                'sidebarUser' => ['name' => 'Jane Doe', 'email' => 'jane@example.com', 'menu' => [['label' => 'Log out', 'url' => '/logout', 'icon' => 'log-out']]],
             ],
         ]);
         $html = $view->render();
@@ -70,7 +70,7 @@ class ThemeTest extends TestCase
         $this->assertStringContainsString('chart.umd.js', $html, 'Chart.js is loaded because the page rendered a chart');
         $this->assertStringContainsString('<script src="/basecoat_theme/js/basecoat-theme.js" defer="defer"></script>', $html);
         $this->assertStringContainsString('<aside id="sidebar" data-side="left" aria-hidden="false" class="sidebar">', $html);
-        $this->assertStringContainsString('<span>Vinomio</span>', $html);
+        $this->assertStringContainsString('<span>Acme Inc.</span>', $html);
         $this->assertStringContainsString('<a href="/articles" aria-current="page">', $html);
         $this->assertStringContainsString('id="user-menu"', $html);
         $this->assertMatchesRegularExpression('#<div[^>]*role="alert"[^>]*class="alert"><svg.*<h2>Article saved</h2>#s', $html);

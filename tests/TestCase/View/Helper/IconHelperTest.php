@@ -26,16 +26,16 @@ class IconHelperTest extends HelperTestCase
 
     public function testConfigurableDefaultsAndCustomIcons(): void
     {
-        $icon = new IconHelper($this->View, ['class' => 'size-5', 'icons' => ['wine' => '<path d="M8 22h8"/>']]);
-        $out = $icon->render('wine', ['data-test' => 'x']);
+        $icon = new IconHelper($this->View, ['class' => 'size-5', 'icons' => ['rocket' => '<path d="M8 22h8"/>']]);
+        $out = $icon->render('rocket', ['data-test' => 'x']);
         $this->assertStringContainsString('class="size-5"', $out);
         $this->assertStringContainsString('data-test="x"', $out);
         $this->assertStringContainsString('<path d="M8 22h8"/>', $out);
 
-        $icon->add(['grape' => '<circle r="1"/>']);
-        $this->assertTrue($icon->has('grape'));
-        $this->assertTrue($icon->has('wine'));
-        $this->assertContains('grape', $icon->names());
+        $icon->add(['spark' => '<circle r="1"/>']);
+        $this->assertTrue($icon->has('spark'));
+        $this->assertTrue($icon->has('rocket'));
+        $this->assertContains('spark', $icon->names());
     }
 
     public function testTitleMakesIconAccessible(): void

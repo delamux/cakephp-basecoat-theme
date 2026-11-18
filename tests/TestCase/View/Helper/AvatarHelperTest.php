@@ -10,7 +10,7 @@ class AvatarHelperTest extends HelperTestCase
     public function testInitialsFallback(): void
     {
         $avatar = new AvatarHelper($this->View);
-        $this->assertSame('<span class="avatar"><span>LA</span></span>', $avatar->render('Luis del Amo'));
+        $this->assertSame('<span class="avatar"><span>JD</span></span>', $avatar->render('Jane van Doe'));
         $this->assertSame('SH', $avatar->initials('shadcn hello'));
     }
 
