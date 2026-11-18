@@ -21,7 +21,7 @@ if (array_key_exists('icon', $params)) {
 }
 if (!empty($params['dismissible'])) {
     $options['footer'] = sprintf(
-        '<button type="button" class="btn" data-variant="ghost" data-size="sm" onclick="this.closest(\'.alert\').remove()">%s</button>',
+        '<button type="button" class="btn" data-variant="ghost" data-size="sm" data-alert-dismiss="true">%s</button>',
         h(__d('basecoat_theme', 'Dismiss')),
     );
 }

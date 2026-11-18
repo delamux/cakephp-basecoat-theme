@@ -55,7 +55,7 @@ class SidebarHelperTest extends HelperTestCase
     {
         $sidebar = new SidebarHelper($this->View, ['id' => 'main-nav']);
         $out = $sidebar->toggle(['label' => 'Menu']);
-        $this->assertStringContainsString('onclick="document.getElementById(&#039;main-nav&#039;)?.toggle()"', $out);
+        $this->assertStringContainsString('data-sidebar-toggle="main-nav"', $out);
         $this->assertStringContainsString('aria-label="Menu"', $out);
         $this->assertStringContainsString('data-size="icon-sm"', $out);
     }

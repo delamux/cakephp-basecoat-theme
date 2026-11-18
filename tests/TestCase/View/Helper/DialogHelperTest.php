@@ -19,13 +19,13 @@ class DialogHelperTest extends HelperTestCase
         ]);
 
         $this->assertStringStartsWith(
-            '<button onclick="document.getElementById(&#039;profile&#039;).showModal()" aria-haspopup="dialog" type="button" class="btn" data-variant="outline">Edit</button><dialog id="profile" aria-labelledby="profile-title" aria-describedby="profile-description"',
+            '<button data-dialog-open="profile" aria-haspopup="dialog" type="button" class="btn" data-variant="outline">Edit</button><dialog id="profile" aria-labelledby="profile-title" aria-describedby="profile-description"',
             $out,
         );
         $this->assertStringContainsString('class="dialog w-full sm:max-w-[425px]"', $out);
         $this->assertStringContainsString('<div><header><h2 id="profile-title">Edit profile</h2><p id="profile-description">Make changes</p></header><section><form></form></section><footer><button>Save</button></footer>', $out);
         $this->assertStringContainsString('aria-label="Close dialog"', $out);
-        $this->assertStringContainsString('onpointerdown=', $out);
+        $this->assertStringContainsString('data-dialog-backdrop-close', $out);
     }
 
     public function testOptionsDisableExtras(): void
@@ -41,6 +41,6 @@ class DialogHelperTest extends HelperTestCase
     {
         $dialog = new DialogHelper($this->View, ['trigger' => ['variant' => 'secondary']]);
         $this->assertStringContainsString('data-variant="secondary"', $dialog->trigger('d', 'Open'));
-        $this->assertStringContainsString('this.closest(&#039;dialog&#039;).close()', $dialog->close('Cancel'));
+        $this->assertStringContainsString('data-dialog-close', $dialog->close('Cancel'));
     }
 }

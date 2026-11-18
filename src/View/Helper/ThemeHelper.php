@@ -75,8 +75,8 @@ class ThemeHelper extends AbstractComponentHelper
         'class' => null,
         'attributes' => [],
         'templates' => [
-            'darkModeScript' => '<script>{{content}}</script>',
-            'tailwindTheme' => '<style type="text/tailwindcss">{{content}}</style>',
+            'darkModeScript' => '<script{{attrs}}>{{content}}</script>',
+            'tailwindTheme' => '<style type="text/tailwindcss"{{attrs}}>{{content}}</style>',
             'toggleContent' => '<span class="hidden dark:inline">{{sun}}</span><span class="dark:hidden">{{moon}}</span>',
         ],
     ];
@@ -105,7 +105,10 @@ class ThemeHelper extends AbstractComponentHelper
             . "if(m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches))"
             . "{document.documentElement.classList.add('dark');}}catch(e){}})();";
 
-        return $this->formatTemplate('darkModeScript', ['content' => $js]);
+        return $this->formatTemplate('darkModeScript', [
+            'content' => $js,
+            'attrs' => $this->nonceAttribute('cspScriptNonce'),
+        ]);
     }
 
     /**
@@ -138,7 +141,10 @@ class ThemeHelper extends AbstractComponentHelper
         $out .= (string)$this->Html->css($css, ['block' => $block]);
 
         if ($this->getConfig('tailwindBrowser') && $this->getConfig('tailwindTheme')) {
-            $out .= $this->formatTemplate('tailwindTheme', ['content' => $this->tailwindTheme()]);
+            $out .= $this->formatTemplate('tailwindTheme', [
+                'content' => $this->tailwindTheme(),
+                'attrs' => $this->nonceAttribute('cspStyleNonce'),
+            ]);
         }
 
         return $out;
@@ -214,6 +220,20 @@ class ThemeHelper extends AbstractComponentHelper
         ];
 
         return $this->Button->render($content, $options);
+    }
+
+    /**
+     * ` nonce="…"` from the request's CSP nonce (CakePHP CspMiddleware), or '' without CSP.
+     * HtmlHelper adds it on its own to the scripts/stylesheets it renders.
+     *
+     * @param string $attribute `cspScriptNonce` or `cspStyleNonce`.
+     * @return string
+     */
+    protected function nonceAttribute(string $attribute): string
+    {
+        $nonce = $this->getView()->getRequest()->getAttribute($attribute);
+
+        return is_string($nonce) && $nonce !== '' ? ' nonce="' . h($nonce) . '"' : '';
     }
 
     /**

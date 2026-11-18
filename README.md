@@ -330,6 +330,22 @@ For production, compile Tailwind yourself with `basecoat-css` and disable the br
 $this->addHelper('BasecoatTheme.Theme', ['css' => ['app'], 'tailwindBrowser' => false]);
 ```
 
+## Content Security Policy
+
+Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CSP (CakePHP `CspMiddleware`):
+
+- Interactivity uses data attributes handled by `webroot/js/basecoat-theme.js` (loaded by `Theme->head()` through the
+  `pluginJs` option) with event delegation: `data-theme-toggle`, `data-sidebar-toggle`, `data-dialog-open`,
+  `data-dialog-close`, `data-dialog-backdrop-close`, `data-alert-dismiss`, and flash toasts as
+  `<template data-basecoat-toast>`. Keep `pluginJs` enabled.
+- The dark-mode script and the Tailwind browser `@theme` style carry the request's nonce (`cspScriptNonce` /
+  `cspStyleNonce`); HtmlHelper adds it to the scripts and stylesheets.
+- Charts and toasts are initialized again in content swapped by htmx (`htmx:load`).
+- Toast `action`/`cancel` buttons with an `onclick` key are inline JS: under a strict CSP use `url`, or `attributes`
+  with data-* handled by your own script.
+
+Without CSP everything renders and behaves the same (no nonce attributes).
+
 ## Flash messages
 
 With the theme set, `$this->Flash->success()`, `error()`, `warning()`, `info()` and `set()` are

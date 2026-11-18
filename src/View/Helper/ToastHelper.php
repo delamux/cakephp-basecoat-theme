@@ -111,7 +111,8 @@ class ToastHelper extends AbstractComponentHelper
      * - `description`: Secondary text.
      * - `duration`: Milliseconds; `-1` keeps it open.
      * - `icon`: Icon name/raw SVG; `false` for none. Defaults to the category icon.
-     * - `action`, `cancel`: `['label' => ..., 'url' => ...]` or `['label' => ..., 'onclick' => ...]`.
+     * - `action`, `cancel`: `['label' => ..., 'url' => ...]` or `['label' => ..., 'onclick' => ...]`
+     *   (an `onclick` is inline JS: under a strict CSP prefer `url` or `attributes` with data-* + your JS).
      * - `escape`: Escape title/description (default true).
      * - `class` and any attribute for the toast.
      *

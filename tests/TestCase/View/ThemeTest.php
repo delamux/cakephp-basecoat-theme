@@ -101,7 +101,8 @@ class ThemeTest extends TestCase
         $view = new View($this->request);
         $view->loadHelper('Flash');
         $html = $view->Flash->render();
-        $this->assertStringContainsString('<template data-basecoat-toast>', $html);
+        $this->assertStringContainsString('<template data-basecoat-toast data-toaster="toaster">', $html);
+        $this->assertStringNotContainsString('<script', $html, 'Moved by basecoat-theme.js, no inline script');
         $this->assertStringContainsString('data-category="info"', $html);
     }
 

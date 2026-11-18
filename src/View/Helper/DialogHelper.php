@@ -126,7 +126,7 @@ class DialogHelper extends AbstractComponentHelper
             $close = $this->Button->icon('x', __d('basecoat_theme', 'Close dialog'), [
                 'variant' => 'ghost',
                 'size' => 'icon-sm',
-                'onclick' => "this.closest('dialog').close()",
+                'data-dialog-close' => 'true',
             ]);
         }
 
@@ -137,10 +137,8 @@ class DialogHelper extends AbstractComponentHelper
             'open' => (bool)($options['open'] ?? false),
         ];
         if ($options['closeOnOverlay'] ?? $this->getConfig('closeOnOverlay')) {
-            $rootOptions += [
-                'onpointerdown' => 'this.dataset.backdropPress = event.target === this',
-                'onclick' => "if (event.target === this && this.dataset.backdropPress === 'true') this.close()",
-            ];
+            // Closing on a backdrop click is handled by webroot/js/basecoat-theme.js
+            $rootOptions += ['data-dialog-backdrop-close' => 'true'];
         }
         $attributes = $this->rootAttributes('dialog', $rootOptions, [
             'title', 'description', 'footer', 'trigger', 'closeButton', 'closeOnOverlay', 'titleTag',
@@ -177,7 +175,7 @@ class DialogHelper extends AbstractComponentHelper
     public function trigger(string $id, string $text, array $options = []): string
     {
         $options += (array)$this->getConfig('trigger') + [
-            'onclick' => sprintf("document.getElementById('%s').showModal()", addslashes($id)),
+            'data-dialog-open' => $id,
             'aria-haspopup' => 'dialog',
         ];
 
@@ -193,7 +191,7 @@ class DialogHelper extends AbstractComponentHelper
      */
     public function close(string $text, array $options = []): string
     {
-        $options += ['variant' => 'outline', 'onclick' => "this.closest('dialog').close()"];
+        $options += ['variant' => 'outline', 'data-dialog-close' => 'true'];
 
         return $this->Button->render($text, $options);
     }

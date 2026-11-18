@@ -211,7 +211,8 @@ class SidebarHelper extends AbstractComponentHelper
         $options += [
             'variant' => 'ghost',
             'size' => 'icon-sm',
-            'onclick' => sprintf("document.getElementById('%s')?.toggle()", addslashes($target)),
+            // Handled by webroot/js/basecoat-theme.js (no inline JS: CSP without 'unsafe-inline')
+            'data-sidebar-toggle' => $target,
             'aria-controls' => $target,
         ];
 
