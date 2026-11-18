@@ -1,0 +1,38 @@
+# BasecoatTheme CakePHP plugin - Español
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es\n"
+
+msgid "Back"
+msgstr "Volver"
+
+msgid "Breadcrumb"
+msgstr "Ruta de navegación"
+
+msgid "Close dialog"
+msgstr "Cerrar diálogo"
+
+msgid "Dismiss"
+msgstr "Descartar"
+
+msgid "Main navigation"
+msgstr "Navegación principal"
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "Page {{page}} of {{pages}}"
+msgstr "Página {{page}} de {{pages}}"
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid "Toggle sidebar"
+msgstr "Mostrar u ocultar menú"
+
+msgid "Toggle theme"
+msgstr "Cambiar tema"
+
+msgid "pagination"
+msgstr "paginación"

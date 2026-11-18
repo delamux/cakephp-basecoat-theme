@@ -1,0 +1,37 @@
+# BasecoatTheme CakePHP plugin
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Back"
+msgstr ""
+
+msgid "Breadcrumb"
+msgstr ""
+
+msgid "Close dialog"
+msgstr ""
+
+msgid "Dismiss"
+msgstr ""
+
+msgid "Main navigation"
+msgstr ""
+
+msgid "Next"
+msgstr ""
+
+msgid "Page {{page}} of {{pages}}"
+msgstr ""
+
+msgid "Previous"
+msgstr ""
+
+msgid "Toggle sidebar"
+msgstr ""
+
+msgid "Toggle theme"
+msgstr ""
+
+msgid "pagination"
+msgstr ""
