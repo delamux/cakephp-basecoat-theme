@@ -1,5 +1,14 @@
 # BasecoatTheme for CakePHP 5
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
+  <img alt="BasecoatTheme dashboard layout" src="docs/screenshots/dashboard-light.png">
+</picture>
+
+| Light | Dark |
+| --- | --- |
+| ![Dashboard, light mode](docs/screenshots/dashboard-light.png) | ![Dashboard, dark mode](docs/screenshots/dashboard-dark.png) |
+
 A CakePHP 5 **theme plugin** for [Basecoat UI](https://basecoatui.com) (the shadcn/ui look, no React).
 Every Basecoat component has its **own View Helper**, and every helper can be parametrized with
 classes, variants, sizes, attributes and string templates.
