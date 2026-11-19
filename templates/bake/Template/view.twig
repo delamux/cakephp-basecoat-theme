@@ -1,0 +1,104 @@
+{#
+/**
+ * BasecoatTheme bake template: view (details card, long texts, related records).
+ */
+#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set associations = {'BelongsTo': [], 'HasOne': [], 'HasMany': [], 'BelongsToMany': []}|merge(associations) %}
+{% set fieldsData = Bake.getViewFieldsData(fields, schema, associations) %}
+{% set associationFields = fieldsData.associationFields %}
+{% set groupedFields = fieldsData.groupedFields %}
+{% set pk = '$' ~ singularVar ~ '->' ~ primaryKey[0] %}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var \{{ entityClass }} ${{ singularVar }}
+ */
+$this->assign('title', (string)${{ singularVar }}->{{ displayField }});
+$this->start('breadcrumb');
+echo $this->Breadcrumb->render([{{ t|raw }}'{{ pluralHumanName }}') => ['action' => 'index'], h(${{ singularVar }}->{{ displayField }})]);
+$this->end();
+$this->start('header_actions');
+echo $this->Button->link({{ t|raw }}'Edit'), ['action' => 'edit', {{ pk|raw }}], ['icon' => 'pencil', 'variant' => 'outline', 'size' => 'sm', 'collapse' => 'sm']);
+echo $this->Dialog->trigger('delete-{{ singularVar|dasherize }}', {{ t|raw }}'Delete'), ['icon' => 'trash', 'variant' => 'destructive', 'size' => 'sm', 'collapse' => 'sm']);
+$this->end();
+
+$details = [
+{% for field in groupedFields['string'] %}
+    {%~ if associationFields[field] is defined %}
+        {%~ set details = associationFields[field] %}
+    {{ t|raw }}'{{ details.property|humanize }}') => ${{ singularVar }}->hasValue('{{ details.property }}') ? $this->Html->link(${{ singularVar }}->{{ details.property }}->{{ details.displayField }}, ['controller' => '{{ details.controller }}', 'action' => 'view', ${{ singularVar }}->{{ details.property }}->{{ details.primaryKey[0] }}], ['class' => 'hover:underline']) : '',
+    {%~ else %}
+    {{ t|raw }}'{{ field|humanize }}') => h(${{ singularVar }}->{{ field }}),
+    {%~ endif %}
+{% endfor %}
+{% for alias, details in associations.HasOne %}
+    {{ t|raw }}'{{ alias|underscore|singularize|humanize }}') => ${{ singularVar }}->hasValue('{{ details.property }}') ? $this->Html->link(${{ singularVar }}->{{ details.property }}->{{ details.displayField }}, ['controller' => '{{ details.controller }}', 'action' => 'view', ${{ singularVar }}->{{ details.property }}->{{ details.primaryKey[0] }}], ['class' => 'hover:underline']) : '',
+{% endfor %}
+{% for field in groupedFields.number %}
+    {{ t|raw }}'{{ field|humanize }}') => ${{ singularVar }}->{{ field }} === null ? '' : $this->Number->format(${{ singularVar }}->{{ field }}),
+{% endfor %}
+{% for field in groupedFields.enum %}
+    {%~ set supportsLabel = Bake.enumSupportsLabel(field, schema) %}
+    {{ t|raw }}'{{ field|humanize }}') => ${{ singularVar }}->{{ field }} === null ? '' : h(${{ singularVar }}->{{ field }}->{% if supportsLabel %}label(){% else %}value{% endif %}),
+{% endfor %}
+{% for field in groupedFields.date %}
+    {{ t|raw }}'{{ field|humanize }}') => h(${{ singularVar }}->{{ field }}),
+{% endfor %}
+{% for field in groupedFields.boolean %}
+    {{ t|raw }}'{{ field|humanize }}') => $this->Badge->render(${{ singularVar }}->{{ field }} ? {{ t|raw }}'Yes') : {{ t|raw }}'No'), ['variant' => ${{ singularVar }}->{{ field }} ? 'secondary' : 'outline']),
+{% endfor %}
+];
+$list = '<dl class="grid gap-4 text-sm sm:grid-cols-2">';
+foreach ($details as $label => $value) {
+    $value = (string)$value === '' ? '<span class="text-muted-foreground">—</span>' : $value;
+    $list .= '<div class="grid gap-1"><dt class="text-muted-foreground">' . h($label) . '</dt><dd class="font-medium break-words">' . $value . '</dd></div>';
+}
+$list .= '</dl>';
+?>
+<div class="grid gap-4 px-4 lg:px-6">
+    <?= $this->Card->render($list, ['title' => {{ t|raw }}'{{ singularHumanName }}')]) ?>
+{% for field in groupedFields.text %}
+    <?= $this->Card->render(
+        '<div class="prose prose-sm max-w-none dark:prose-invert">' . $this->Text->autoParagraph(h(${{ singularVar }}->{{ field }})) . '</div>',
+        ['title' => {{ t|raw }}'{{ field|humanize }}')],
+    ) ?>
+{% endfor %}
+{% set relations = associations.BelongsToMany|merge(associations.HasMany) %}
+{% for alias, details in relations %}
+    {%~ set otherSingularVar = alias|singularize|variable %}
+    {%~ if otherSingularVar == singularVar %}
+        {%~ set otherSingularVar = otherSingularVar ~ 'Related' %}
+    {%~ endif %}
+    {%~ set otherPluralHumanName = details.controller|underscore|humanize %}
+    {%~ set otherPk = '$' ~ otherSingularVar ~ '->' ~ details.primaryKey[0] %}
+    <?php
+    $related = [];
+    foreach (${{ singularVar }}->{{ details.property }} ?? [] as ${{ otherSingularVar }}) {
+        $related[] = [
+    {%~ for field in details.fields %}
+            '{{ field }}' => h(${{ otherSingularVar }}->{{ field }}),
+    {%~ endfor %}
+            'actions' => $this->Button->link({{ t|raw }}'View'), ['controller' => '{{ details.controller }}', 'action' => 'view', {{ otherPk|raw }}], ['variant' => 'ghost', 'size' => 'sm']),
+        ];
+    }
+    ?>
+    <?= $this->Card->render(
+        $related === []
+            ? '<p class="text-sm text-muted-foreground">' . {{ t|raw }}'No related {{ otherPluralHumanName|lower }}.') . '</p>'
+            : '<div class="overflow-x-auto rounded-lg border">' . $this->Table->render([
+    {%~ for field in details.fields %}
+                '{{ field }}' => {{ t|raw }}'{{ field|humanize }}'),
+    {%~ endfor %}
+                'actions' => ['label' => '', 'class' => 'w-8'],
+            ], $related, ['escape' => false, 'headOptions' => ['class' => 'bg-muted']]) . '</div>',
+        ['title' => {{ t|raw }}'Related {{ otherPluralHumanName }}')],
+    ) ?>
+{% endfor %}
+    <?= $this->Dialog->render('delete-{{ singularVar|dasherize }}', null, [
+        'title' => {{ t|raw }}'Delete {{ singularHumanName|lower }} {0}?', ${{ singularVar }}->{{ displayField }}),
+        'description' => {{ t|raw }}'This cannot be undone.'),
+        'footer' => $this->Dialog->close({{ t|raw }}'Cancel'))
+            . $this->Form->postButton({{ t|raw }}'Delete'), ['action' => 'delete', {{ pk|raw }}], ['variant' => 'destructive']),
+    ]) ?>
+</div>

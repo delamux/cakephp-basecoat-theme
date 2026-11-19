@@ -1,0 +1,104 @@
+{#
+/**
+ * BasecoatTheme bake template: index (Card + Table + Pagination, row menu, delete in a dialog).
+ * No inline JS (strict CSP): the delete confirmation is a Dialog opened through `data-dialog-open`.
+ */
+#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set fields = Bake.filterFields(fields, schema, modelObject, indexColumns, ['binary', 'text']) %}
+{% set pk = '$' ~ singularVar ~ '->' ~ primaryKey[0] %}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var iterable<\{{ entityClass }}> ${{ pluralVar }}
+ */
+$this->assign('title', {{ t|raw }}'{{ pluralHumanName }}'));
+$this->start('header_actions');
+echo $this->Button->link({{ t|raw }}'New {{ singularHumanName }}'), ['action' => 'add'], ['icon' => 'plus', 'size' => 'sm', 'collapse' => 'sm']);
+$this->end();
+
+$rows = [];
+$dialogs = '';
+foreach (${{ pluralVar }} as ${{ singularVar }}) {
+    $rows[] = [
+{% for field in fields %}
+    {%~ set isKey = false %}
+    {%~ if associations.BelongsTo is defined %}
+        {%~ for alias, details in associations.BelongsTo %}
+            {%~ if field == details.foreignKey %}
+                {%~ set isKey = true %}
+        '{{ field }}' => ${{ singularVar }}->hasValue('{{ details.property }}') ? $this->Html->link(${{ singularVar }}->{{ details.property }}->{{ details.displayField }}, ['controller' => '{{ details.controller }}', 'action' => 'view', ${{ singularVar }}->{{ details.property }}->{{ details.primaryKey[0] }}], ['class' => 'hover:underline']) : '',
+            {%~ endif %}
+        {%~ endfor %}
+    {%~ endif %}
+    {%~ if isKey is not same as(true) %}
+        {%~ set columnData = Bake.columnData(field, schema) %}
+        {%~ set supportsLabel = Bake.enumSupportsLabel(field, schema) %}
+        {%~ if field == displayField and field not in primaryKey %}
+        '{{ field }}' => $this->Html->link((string)${{ singularVar }}->{{ field }}, ['action' => 'view', {{ pk|raw }}], ['class' => 'font-medium hover:underline']),
+        {%~ elseif columnData.type starts with 'enum-' %}
+        '{{ field }}' => ${{ singularVar }}->{{ field }} === null ? '' : h(${{ singularVar }}->{{ field }}->{% if supportsLabel %}label(){% else %}value{% endif %}),
+        {%~ elseif columnData.type == 'boolean' %}
+        '{{ field }}' => $this->Badge->render(${{ singularVar }}->{{ field }} ? {{ t|raw }}'Yes') : {{ t|raw }}'No'), ['variant' => ${{ singularVar }}->{{ field }} ? 'secondary' : 'outline']),
+        {%~ elseif columnData.type in ['integer', 'float', 'decimal', 'biginteger', 'smallinteger', 'tinyinteger'] %}
+        '{{ field }}' => ${{ singularVar }}->{{ field }} === null ? '' : $this->Number->format(${{ singularVar }}->{{ field }}),
+        {%~ elseif columnData.type in ['date', 'datetime', 'datetimefractional', 'timestamp', 'timestampfractional', 'timestamptimezone', 'time'] %}
+        '{{ field }}' => '<span class="whitespace-nowrap text-muted-foreground">' . h(${{ singularVar }}->{{ field }}) . '</span>',
+        {%~ else %}
+        '{{ field }}' => h(${{ singularVar }}->{{ field }}),
+        {%~ endif %}
+    {%~ endif %}
+{% endfor %}
+        'actions' => $this->DropdownMenu->render('', [
+            ['label' => {{ t|raw }}'View'), 'url' => ['action' => 'view', {{ pk|raw }}], 'icon' => 'file-text'],
+            ['label' => {{ t|raw }}'Edit'), 'url' => ['action' => 'edit', {{ pk|raw }}], 'icon' => 'pencil'],
+            '-',
+            ['label' => {{ t|raw }}'Delete'), 'icon' => 'trash', 'variant' => 'destructive', 'attributes' => ['data-dialog-open' => 'delete-{{ singularVar|dasherize }}-' . {{ pk|raw }}]],
+        ], [
+            'align' => 'end',
+            'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'aria-label' => {{ t|raw }}'Actions')],
+        ]),
+    ];
+    $dialogs .= $this->Dialog->render('delete-{{ singularVar|dasherize }}-' . {{ pk|raw }}, null, [
+        'title' => {{ t|raw }}'Delete {{ singularHumanName|lower }} {0}?', ${{ singularVar }}->{{ displayField }}),
+        'description' => {{ t|raw }}'This cannot be undone.'),
+        'footer' => $this->Dialog->close({{ t|raw }}'Cancel'))
+            . $this->Form->postButton({{ t|raw }}'Delete'), ['action' => 'delete', {{ pk|raw }}], ['variant' => 'destructive']),
+    ]);
+}
+?>
+<div class="px-4 lg:px-6">
+    <?= $this->Card->render(
+        $rows === []
+            ? $this->EmptyState->render({{ t|raw }}'No {{ pluralHumanName|lower }} yet'), [
+                'icon' => 'folder',
+                'actions' => $this->Button->link({{ t|raw }}'New {{ singularHumanName }}'), ['action' => 'add'], ['icon' => 'plus']),
+            ])
+            : '<div class="min-w-0 overflow-x-auto rounded-lg border">' . $this->Table->render([
+{% for field in fields %}
+    {%~ set label = field|humanize %}
+    {%~ if associations.BelongsTo is defined %}
+        {%~ for alias, details in associations.BelongsTo %}
+            {%~ if field == details.foreignKey %}
+                {%~ set label = details.property|humanize %}
+            {%~ endif %}
+        {%~ endfor %}
+    {%~ endif %}
+    {%~ if loop.index > 3 %}
+                '{{ field }}' => ['label' => {{ t|raw }}'{{ label }}'), 'sort' => true, 'class' => 'hidden {{ field in ['created', 'modified', 'updated'] ? '@5xl' : '@3xl' }}/main:table-cell'],
+    {%~ else %}
+                '{{ field }}' => ['label' => {{ t|raw }}'{{ label }}'), 'sort' => true],
+    {%~ endif %}
+{% endfor %}
+                'actions' => ['label' => '', 'class' => 'w-8'],
+            ], $rows, ['escape' => false, 'headOptions' => ['class' => 'bg-muted']]) . '</div>',
+        [
+            'class' => 'min-w-0',
+            'title' => {{ t|raw }}'{{ pluralHumanName }}'),
+            'description' => $this->Paginator->counter({{ t|raw }}'{{ '{{' }}count{{ '}}' }} records')),
+            'footer' => $this->Pagination->render(['counter' => true]),
+            'footerOptions' => ['class' => 'justify-between'],
+        ],
+    ) ?>
+    <?= $dialogs ?>
+</div>

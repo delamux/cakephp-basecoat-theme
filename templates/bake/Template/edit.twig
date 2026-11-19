@@ -1,0 +1,22 @@
+{#
+/**
+ * BasecoatTheme bake template: edit (shared form in element/form.twig).
+ */
+#}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var \{{ entityClass }} ${{ singularVar }}
+{% if associations.BelongsTo is defined %}
+    {%~ for assocName, assocData in associations.BelongsTo %}
+ * @var \Cake\Collection\CollectionInterface|array<string> ${{ assocData.variable }}
+    {%~ endfor %}
+{% endif %}
+{% if associations.BelongsToMany is defined %}
+    {%~ for assocName, assocData in associations.BelongsToMany %}
+ * @var \Cake\Collection\CollectionInterface|array<string> ${{ assocData.variable }}
+    {%~ endfor %}
+{% endif %}
+ */
+?>
+{{ element('BasecoatTheme.form') }}

@@ -35,10 +35,10 @@ class FormHelper extends CoreFormHelper
      * @var array<string, string>
      */
     protected array $basecoatTemplates = [
-        'inputContainer' => '<div class="field {{type}}{{required}}" role="group">{{content}}</div>',
-        'inputContainerError' => '<div class="field {{type}}{{required}}" role="group" data-invalid="true">{{content}}{{error}}</div>',
-        'checkboxContainer' => '<div class="field {{type}}{{required}}" role="group" data-orientation="horizontal">{{content}}</div>',
-        'checkboxContainerError' => '<div class="field {{type}}{{required}}" role="group" data-orientation="horizontal" data-invalid="true">{{content}}{{error}}</div>',
+        'inputContainer' => '<div class="field{{required}}" role="group" data-type="{{type}}">{{content}}</div>',
+        'inputContainerError' => '<div class="field{{required}}" role="group" data-type="{{type}}" data-invalid="true">{{content}}{{error}}</div>',
+        'checkboxContainer' => '<div class="field{{required}}" role="group" data-type="{{type}}" data-orientation="horizontal">{{content}}</div>',
+        'checkboxContainerError' => '<div class="field{{required}}" role="group" data-type="{{type}}" data-orientation="horizontal" data-invalid="true">{{content}}{{error}}</div>',
         'error' => '<p class="text-sm" role="alert" id="{{id}}">{{content}}</p>',
         'errorList' => '<ul>{{content}}</ul>',
         'errorItem' => '<li>{{text}}</li>',

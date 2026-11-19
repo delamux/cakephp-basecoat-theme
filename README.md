@@ -238,7 +238,8 @@ echo $this->Form->end();
 Config: `widgetClasses` (class per widget), `button` (default `variant`/`size`), `skipClassWidgets`,
 `nestedCheckboxAndRadio` (`false` by default: Basecoat styles a label that wraps its input as a
 bordered "choice card", so single checkboxes/radios render input and label as siblings).
-Pass `'basecoat' => false` to a control to skip the class. Errors render as `<p role="alert">` and
+Pass `'basecoat' => false` to a control to skip the class. The control type goes in `data-type` on the
+`.field` wrapper (not as a class: `textarea` / `select` are component classes and would style the wrapper). Errors render as `<p role="alert">` and
 the field gets `data-invalid="true"`. Template-only alternative for the core helper:
 `'templates' => 'BasecoatTheme.form_templates'`.
 
@@ -329,6 +330,25 @@ For production, compile Tailwind yourself with `basecoat-css` and disable the br
 ```php
 $this->addHelper('BasecoatTheme.Theme', ['css' => ['app'], 'tailwindBrowser' => false]);
 ```
+
+## Bake templates
+
+`bin/cake bake` can generate CRUD screens with the theme components (Card, Table with sortable headers,
+Pagination, DropdownMenu row actions, Breadcrumb, Badge, Dialog):
+
+```bash
+bin/cake bake all Articles --theme BasecoatTheme
+# or once for every bake: Configure::write('Bake.theme', 'BasecoatTheme');
+```
+
+- `index`: card with the table (secondary columns hidden on narrow containers, `@container/main`), row menu
+  (view, edit, delete) and pagination with counter; empty state with a "New" action.
+- `view`: details card, a card per long text and the related records; Edit / Delete in `header_actions`.
+- `add` / `edit`: two-column form in a card, breadcrumb, Save + Cancel.
+- Deleting always asks in a `Dialog` (opened with `data-dialog-open`): no inline JS, works under a strict CSP.
+- `useDomain` (plugins) is honoured: strings use `__d('<plugin>', ...)`.
+
+Controllers, models and tests use bake's default templates.
 
 ## Content Security Policy
 
