@@ -124,3 +124,21 @@
 - [ ] **Step 3: Run** `vendor/bin/phpunit`, `composer docs -- --strict`, browser check (Chrome DevTools MCP) of `screens/index.html`, `screens/users.html`, `screens/notifications.html` and previews under `/cakephp-basecoat-theme/` (no console errors/404s, tabs, copy, theme toggle).
 - [ ] **Step 4:** `git grep -i` for third-party template site names → none; data invented.
 - [ ] **Step 5: Commit** `docs: README for bake screens and every script option`.
+
+---
+
+### Task 6: Icon accessibility audit (Lucide guidelines) — added mid-run at the user's request
+
+User request: follow https://lucide.dev/how-to/accessibility (incl. "choose universal symbols when possible"). Runs before Task 5's README so the README documents the final behaviour.
+
+**Files:** any helper in `src/View/Helper/`, `templates/**` (layouts, elements, bake screens), `webroot/js/basecoat-theme.js`, `docs/catalog/**` (examples, pages, catalog templates), their tests.
+
+- [ ] **Step 1: Audit** every icon use (IconHelper callers, Button `icon`, DropdownMenu triggers, Sidebar, Toast, Pagination, Breadcrumb, theme toggle, catalog copy buttons, screens). Write the findings table to the report: location, current markup, rule broken, fix.
+- [ ] **Step 2: Rules to enforce** (tests first where code changes):
+  - Decorative icons stay `aria-hidden="true"` (IconHelper default) — test any helper that renders an icon next to text keeps it hidden.
+  - Icon-only controls get their accessible name on the control as visually hidden text: `Button->icon()` renders `<span class="sr-only">{label}</span>` inside the button instead of (or in addition to keeping compatibility with) `aria-label` — decide and document; indicator text from Phase 1 must still be announced. Same for icon-only links, DropdownMenu triggers, sidebar/theme toggles, copy buttons.
+  - Never icon- or colour-only meaning: status/trend/unread carry text or sr-only text.
+  - Universal + consistent symbols: one icon per meaning across the plugin (e.g. row actions menu: pick one of `ellipsis`/`more-horizontal`/`ellipsis-vertical`; download/export; settings; check = done/read only). Fix inconsistencies in helpers, screens, examples and the home dashboard.
+  - Target size: evaluate 44×44 for icon-only controls; Basecoat's `size=icon` is 36px. Ruling to record: do not change Basecoat's sizes globally; document in README how to enlarge (`size` option / class) and use ≥44px where the plugin itself places icon-only controls on touch-first surfaces only if it does not break the design — state what you did.
+- [ ] **Step 3: Run** full suite + `composer docs -- --strict --out=build/task-6`.
+- [ ] **Step 4: Commit** `fix(a11y): icon accessibility per Lucide guidelines`.
