@@ -369,6 +369,12 @@ echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['20
 echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
 // `hidden` keeps page context (folder, layout…) when filtering and in the "Clear" link
 echo $this->TableToolbar->render(['filter' => $controls, 'hidden' => ['path' => $path, 'view' => $view]]);
+// A control's `attributes` go on its input / select (escaped; name, type, id, value stay the helper's),
+// e.g. the client-side filter hooks of basecoat-screens.js
+echo $this->TableToolbar->render(['filter' => [
+    'q' => ['type' => 'search', 'label' => 'Search', 'attributes' => ['data-filter-input' => '#rows']],
+    'status' => ['type' => 'select', 'label' => 'Status', 'options' => $statuses, 'attributes' => ['data-filter-facet' => '#rows', 'data-filter-key' => 'status']],
+]]);
 
 // Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it; `hotkey` changes the key,
 // pass the same value to trigger() so the hint and aria-keyshortcuts match)
@@ -396,9 +402,14 @@ echo $this->NotificationList->render($notifications, [
 ]);
 ```
 Notification keys: `id`, `type`, `title`, `body`, `time`, `unread`, `actor` (`name`, `avatar`), `url`,
-`actions` (your own HTML instead of Accept / Decline). Options: `types`, `icons`, `variants`, `urls`
-(strings or route arrays, `{id}` is replaced), `empty`, `escape`; config `actionTypes` (default
-`['access']`). Unread rows get a visually hidden "Unread" and `data-unread="true"`, so the state is never
+`actions` (your own HTML instead of Accept / Decline), `attributes` (extra `<li>` attributes). Options:
+`types`, `icons`, `variants`, `urls` (strings or route arrays, `{id}` is replaced), `empty`, `escape`;
+config `actionTypes` (default `['access']`). Data hooks without patching the HTML: `itemAttributes`
+(array, or `fn(array $notification, int $index): array`; `class` is appended), `dotAttributes` (unread
+dot), `actionAttributes` (`['accept' => [...], 'decline' => [...]]`, inert buttons only: POST buttons of
+`urls` are never changed), `actionsAttributes` (wraps the inert buttons in a `<span>` with these
+attributes) and `footer` (`fn(array $notification, int $index): string`, HTML appended to the row's
+footer). The `notifications` bake screen uses them for its client-side behaviour. Unread rows get a visually hidden "Unread" and `data-unread="true"`, so the state is never
 shown by colour alone.
 Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
 
@@ -681,12 +692,15 @@ How it behaves:
 ## Interactivity
 
 Two optional scripts make screens interactive in place: **`webroot/js/basecoat-dnd.js`** (drag and drop:
-sortable lists, kanban columns, 2D slot grids) and **`webroot/js/basecoat-screens.js`** (filter, view
-switch, select-all + bulk bar, toggles and counts, master-detail, composer, stepper). Vanilla JS, no
-dependencies, no build step; each file's header is the full reference of its data hooks.
+sortable lists, kanban columns, 2D slot grids, bound text) and **`webroot/js/basecoat-screens.js`**
+(filter, view switch, select-all + bulk bar, toggles and counts, remove, master-detail, composer,
+stepper, drop zone). Vanilla JS, no dependencies, no build step; each file's header is the full
+reference of its data hooks, the tables below summarise them.
 
 - **Progressive enhancement:** markup works without JS (links, GET forms, POST forms); the scripts read
-  `data-*` hooks, prevent the default and update the DOM in place.
+  `data-*` hooks, prevent the default and update the DOM in place. The baked screens keep their GET
+  links and forms, so a page without the scripts (or with JS off) behaves as a classic server-rendered
+  page.
 - **Loading:** per template, through the view blocks (HtmlHelper adds the CSP nonce):
 
   ```php
@@ -698,37 +712,51 @@ dependencies, no build step; each file's header is the full reference of its dat
   Both auto-initialize on `DOMContentLoaded` and on htmx `htmx:load` / `htmx:afterSwap`, are idempotent
   (loaded twice = one instance) and drop state of content removed by htmx (`htmx:beforeCleanupElement`).
   Content added by other means: `window.BasecoatDnd.init(root)` / `window.BasecoatScreens.init(root)`.
+  Other API: `BasecoatDnd.cancel()`, `.announce(text)`; `BasecoatScreens.refreshCounts()`,
+  `.applyFilters(root)`, `.announce(text)`.
 
 ### Drag and drop hooks (`basecoat-dnd.js`)
 
 | Hook | Where | Meaning |
 | --- | --- | --- |
-| `data-dnd-container` | list / column | Drop target. `data-dnd-group="x"`: move between containers of the group. `data-dnd-axis="y\|x"` (default `y`). `data-dnd-id`, `data-dnd-label` |
-| `data-dnd-item` | element that moves | Draggable. `data-dnd-id` (or `id`), `data-dnd-label` (announced; default: its text) |
-| `data-dnd-handle` | inside an item | Only the handle starts a drag and takes focus |
+| `data-dnd-container` | list / column | Drop target of list mode. `data-dnd-group="x"`: move between containers of the group. `data-dnd-label` (announced name), `data-id` / `data-dnd-id` |
+| `data-dnd-axis="y\|x\|both"` | container | List direction (default `y`). `both`: wrapping grid or CSS columns: the pointer drops next to the nearest item (x and y), every arrow walks the reading order |
+| `data-dnd-var-<name>="…"` | container | Extra value for bound text (`{name}`), e.g. `data-dnd-var-short="Tue 24 Nov"` |
+| `data-dnd-item` | element that moves | Draggable. `data-id` (or `data-dnd-id`, `id`), `data-dnd-label` (announced; default: its text) |
+| `data-dnd-handle` | inside an item | Only the handle starts a drag and takes focus; touch on it drags at once |
+| `data-dnd-touch="press"` | container, item or handle | Touch on the handle needs the 250ms press too, so a swipe still scrolls the page (calendar chips) |
 | `data-dnd-grid` | CSS grid | 2D mode. `data-dnd-classes='{"row": [...], "col": [...], "span": {"1": "row-span-1", ...}}'` (class per 0-based index / span), `data-dnd-rows`, `data-dnd-cols`, `data-dnd-resize-axis="row\|col"`, `data-dnd-span-max` |
+| `data-dnd-row-text='["06:00", …]'` / `data-dnd-col-text='["Rig", …]'` | grid | Text of each row boundary (rows + 1 entries) and of each column: bound text `{start}`, `{end}`, `{col}` |
 | `data-dnd-slot` + `data-dnd-row` / `data-dnd-col` | empty grid cells | Pointer drop targets; `data-dnd-label` names the slot ("Monday 09:00, Room A") |
 | `data-dnd-row` / `data-dnd-col` / `data-dnd-span` | grid item | Current placement (0-based) |
-| `data-dnd-resize` | inside a grid item | Drag handle that changes the span |
+| `data-dnd-resize` | inside a grid item | Drag handle that changes the span (also Shift + arrows) |
+| `data-dnd-mirror="css selector"` | item | Other elements showing the item (a List view row, an "Upcoming" entry): their bound text follows the moves |
+| `data-dnd-text="key"` | inside the item or a mirror | Text replaced after every placement change (also on revert / cancel). Grid keys: `start`, `end`, `col`, `row`, `span`; list keys: `container` (label of the new container), `container-id`, `position`, `total`, every `data-dnd-var-*`; both: `label` |
+| `data-dnd-aria="Yoga, {start}–{end}, {col}"` | item, mirror or inside | Template filled in as `aria-label` after every change |
+| `data-dnd-sort="{start}\|{col}"` | mirror | Sort key template: the mirror gets `data-dnd-sort-key` (render it server-side too) and is moved among its siblings that have one, in natural order (the List view stays sorted) |
+| `data-dnd-i18n-<key>` | container or ancestor | Translated messages (see Translations) |
 
 Grid items move by swapping their placement classes (no inline styles, nothing floats under the pointer;
 list items are the real nodes moved between targets). Overlapping grid items are allowed: they get
-`data-dnd-collision` and the overlap is announced. State attributes for styling: `data-dnd-dragging`
-(item), `data-dnd-over` (target container), `data-dnd-busy` (POST pending), `html[data-dnd-active]`.
+`data-dnd-collision` and the overlap is announced. State attributes for styling: `data-dnd-ready`
+(initialised container / item), `data-dnd-dragging` (item), `data-dnd-over` (target container),
+`data-dnd-busy` (POST pending), `data-dnd-collision`, `html[data-dnd-active]`.
 
 ### Screen behaviour hooks (`basecoat-screens.js`)
 
 | Behaviour | Hooks |
 | --- | --- |
-| Filter | `input[data-filter-input="#root"]`; facets `[data-filter-facet="#root"][data-filter-value="done\|!done\|[css]"]` (or a `<select>`); `[data-filter-item]` (`data-filter-text`, tokens from `data-state` + `data-filter-tags`), `[data-filter-group]`, `[data-filter-empty]`. Case and accent insensitive; hidden with `hidden` |
-| View switch | `[data-view-switch="grid"][data-view-target="#root"]`; root `data-view`; `[data-view-panel="grid"]`; `[data-view-classes='{"grid": "...", "list": "..."}']` |
-| Select-all + bulk bar | `input[data-select-all="#scope"]`, `input[data-select-item]` (value = id), `[data-bulk-bar="#scope"]` with `[data-bulk-count]`, `[data-bulk-clear]`; rows get `data-selected` |
-| Toggle | `[data-toggle="done"]` (checkbox or button) in `[data-toggle-item]` (`data-id`) → item `data-state="done"` (`data-toggle-attr`, `data-toggle-off`, `data-toggle-class`); `[data-toggle-for="done"]` with `data-text-on/off`, `data-toggle-hidden="on\|off"`; `[data-toggle-all="read"][data-toggle-scope="#list"]` |
-| Remove | `[data-remove-item="archive"]` removes its item |
-| Counts | `[data-count-for="css selector"]` (`data-count-visible`), refreshed after every interaction |
-| Master-detail | `[data-master="#pane"]` + `[data-master-item="template-id"]`: pane filled from the `<template>`, `aria-current`, `[data-master-clear]` removed (`data-master-focus` moves focus) |
-| Composer | `form[data-composer="#log"][data-composer-template="tpl"]` (`[data-composer-text]`, `[data-composer-time]` in the template), `data-composer-reply="tpl"` (canned answer), `[data-composer-fill="text"]` suggestions; Enter sends, Shift+Enter new line |
-| Stepper | `[data-stepper]` with `[data-step]` panels, `[data-step-next]`, `[data-step-prev]`, `[data-step-go="n"]`, `[data-step-finish]`, `[data-step-indicator]`, `[data-step-current]`, `[data-step-total]`, `[data-step-progress]`; Next validates the panel's required fields first |
+| Filter | `input[data-filter-input="#root"]` (Enter filters at once and never submits its no-JS form); facets `[data-filter-facet="#root"][data-filter-value="done\|!done\|[css]"]` (button / link, or a `<select>`); `data-filter-key="type"` on a facet: one facet per key, items must match every key (Status **and** Type); `[data-filter-item]` (`data-filter-text`, tokens from `data-state` + `data-filter-tags`), `[data-filter-group]`, `[data-filter-empty]`. Case and accent insensitive; hidden with `hidden` |
+| Active controls | Facet and view controls get `aria-current` (links) or `aria-pressed` (buttons) plus `data-active-class` / `data-inactive-class` and `data-active-variant` / `data-inactive-variant` (the button's `data-variant`; `""` removes it) |
+| View switch | `[data-view-switch="grid"][data-view-target="#root"]`; root `data-view`; `[data-view-panel="grid"]`; `[data-view-classes='{"grid": "...", "list": "..."}']`; links replace the URL |
+| Select-all + bulk bar | `input[data-select-all="#scope"]`, `input[data-select-item]` (value = id), `[data-bulk-bar="#scope"]` with `[data-bulk-count]`, `[data-bulk-clear]`; rows get `data-selected`; select-all only affects visible rows |
+| Toggle | `[data-toggle="done"]` (checkbox or button) in `[data-toggle-item]` (`data-id`), or anywhere with `data-toggle-target="#row"` → item `data-state="done"` (`data-toggle-attr`, `data-toggle-off`, `data-toggle-class`). `data-toggle-unset="data-unread"` (removed while on), `data-toggle-also="read answered"` (chained: also switched on, through their own control or as `data-<name>="true"`), `data-announce-on` / `data-announce-off="{label} starred."`, `data-toggle-focus="selector"` (focus target when the control hides itself; default: first control the toggle revealed, else the item). `[data-toggle-for="done"]` with `data-text-on/off`, `data-toggle-hidden="on\|off"`. `[data-toggle-all="read"][data-toggle-scope="#list"]` (+ `data-announce-on`) |
+| Remove | `[data-remove-item="archive"]` removes `data-remove-target="#row"` or its closest `[data-toggle-item]` / `[data-filter-item]` / `[data-remove-target]`; focus goes to the next visible row; message `removed` (`data-screens-i18n-removed="{label} archived."`) |
+| Counts | `[data-count-for="css selector"]` (`data-count-visible`), `data-count-offset="3"` (e.g. unread rows on other pages), `data-count-hide-zero[=".badge"]` (hides itself or that ancestor at 0); refreshed after every interaction |
+| Master-detail | `[data-master="#pane"]` + `[data-master-item="template-id"]` (`data-label`): pane filled from the `<template>`, `aria-current`, `[data-master-clear]` removed, "opened" announced; `data-master-focus` moves focus to the pane; `data-master-empty="template-id"` is shown when the open row is removed. Pane controls with `data-toggle-target` show the row's current state |
+| Composer | `form[data-composer="#log"][data-composer-template="tpl"]` (`[data-composer-text]`, `[data-composer-time]` in the template), `data-composer-reply="tpl"` (canned answer), `[data-composer-fill="text"]` suggestions (`data-composer-target`, `data-composer-send`); Enter sends, Shift+Enter new line |
+| Stepper | `[data-stepper]` (`data-stepper-start`) with `[data-step]` panels (`data-step-title`), `[data-step-next]`, `[data-step-prev]`, `[data-step-go="n"]`, `[data-step-finish]`, `[data-step-indicator]`, `[data-step-current]`, `[data-step-total]`, `[data-step-progress]`; Next validates the panel first; a field with `aria-errormessage="id"` shows its message there (announced, `aria-invalid`, `aria-describedby`) instead of the browser bubble; `[data-bind="field other"]` (`data-bind-empty`, `data-bind-map='{"value": "Text"}'`) mirrors field values (a Review step) |
+| Drop zone | `[data-dropzone]` with `input[type=file][data-dropzone-input]`, `[data-dropzone-list]` + `<template data-dropzone-item>` (`[data-dropzone-name]`, `[data-dropzone-size]`, `[data-dropzone-remove]` with `data-dropzone-remove-label="Remove {name}"`), `[data-dropzone-actions]` (`[data-dropzone-upload]`, `[data-dropzone-clear]`); zone `data-over` while dragging files. Files are only listed: Upload fires `basecoat:upload` |
 
 ### Events
 
@@ -739,10 +767,10 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
 | `basecoat:move` (cancelable) | item | list: `{mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}`; grid: `{mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}` |
 | `basecoat:resize` (cancelable) | grid item | same as a grid move |
 | `basecoat:move-error` | item | move detail + `status`, `reason` (`'response'` or `'origin'`: POST failed or refused, change reverted) |
-| `basecoat:filter` | filter root | `{query, facet, visible, total}` |
+| `basecoat:filter` | filter root | `{query, facet, facets, visible, total}` (`facets`: key => value) |
 | `basecoat:view` | view root | `{view}` |
 | `basecoat:select` | scope | `{selected: [values], count}` |
-| `basecoat:toggle` (cancelable) | item | `{item, id, name, on}` |
+| `basecoat:toggle` (cancelable) | item | `{item, id, name, on}` (chained toggles fire their own) |
 | `basecoat:toggle-error` | item | toggle detail + `status`, `reason` (reverted) |
 | `basecoat:remove` (cancelable) | item | `{item, id, action}` |
 | `basecoat:remove-error` | item | remove detail + `status`, `reason` (item put back) |
@@ -750,21 +778,37 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
 | `basecoat:send` (cancelable) | composer form | `{text, log, message}` |
 | `basecoat:send-error` | composer form | send detail + `status`, `reason` (bubble gets `data-state="failed"`) |
 | `basecoat:step` (cancelable) | stepper | `{from, to, total}` |
+| `basecoat:upload` (cancelable) | drop zone | `{files: File[]}` — send them yourself (`FormData` + CSRF token) |
 
 ### Keyboard model
 
-Focus an item (or its handle; items without one get `tabindex="0"` and an `aria-describedby` hint) →
-**Space** or **Enter** picks it up (Space only when the item is a link) → **arrows** move it (lists:
-along the axis reorder, across it go to the previous / next container of the group; **Home** / **End**)
-→ **Space** / **Enter** drops, **Escape** (or Tab away) cancels. Grids: arrows move by one slot;
-**Shift + arrows** along the resize axis change the span, also without picking up. Focus stays on the
-moved item; Enter never follows a link item while dragging. Pointer: mouse, pen, and touch on a
-`[data-dnd-handle]` / `[data-dnd-resize]` drag after 4px; touch elsewhere after a 250ms press (so the page
-still scrolls; give touch screens a handle). The item holds the pointer capture. Near (40px) the edge of a
-scrollable ancestor or of the window the view auto-scrolls. **Escape** or leaving the window cancels a
-pointer drag too. Every step is announced in one
-shared `aria-live="polite"` region (`[data-basecoat-announcer]`). `prefers-reduced-motion` turns off
-smooth scrolling, transitions and the composer reply delay.
+- **Drag and drop:** focus an item (or its handle; items without one get `tabindex="0"` and an
+  `aria-describedby` hint) → **Space** or **Enter** picks it up (Space only when the item is a link) →
+  **arrows** move it (lists: along the axis reorder, across it go to the previous / next container of the
+  group; `data-dnd-axis="both"`: every arrow walks the reading order; **Home** / **End**) → **Space** /
+  **Enter** drops, **Escape** (or Tab away) cancels. Grids: arrows move by one slot; **Shift + arrows**
+  along the resize axis change the span, also without picking up. Focus stays on the moved item; Enter
+  never follows a link item while dragging.
+- **Screens:** every control is a native link, button, checkbox, select or input, so Tab / Enter / Space
+  work as usual. Enter in a filter input filters instead of submitting. A control hidden by its own toggle
+  ("+3 more", Accept, Mark as read) hands focus to what it revealed, else to its row. Removing a row moves
+  focus to the next visible row (else the list). Opening a master item can move focus to the pane
+  (`data-master-focus`); the stepper focuses the new step's heading, Next focuses the first invalid field.
+- **Announcements:** one shared `aria-live="polite"` region (`[data-basecoat-announcer]`) for both
+  scripts: drag steps, drops, cancels, overlaps and resizes; filter results; selection count; toggles with
+  `data-announce-*`; removals; "opened"; step changes; inline errors; drop zone changes; save failures.
+- `prefers-reduced-motion` turns off smooth scrolling, transitions and the composer reply delay.
+
+### Touch model
+
+Pointer Events for mouse, pen and touch. Mouse and pen drag after 4px. Touch on a `[data-dnd-handle]` or
+`[data-dnd-resize]` drags after 4px (`touch-action: none` from `interactivity.css`); touch anywhere else on
+an item, or on a handle under `data-dnd-touch="press"`, needs a **250ms press** without moving (moving
+more than 8px first scrolls the page instead). During a drag the page does not scroll (non-passive
+`touchmove`), the long-press callout / context menu is suppressed, and the item holds the pointer capture.
+Near (40px) the edge of a scrollable ancestor or of the window the view auto-scrolls. **Escape**, a
+`pointercancel` or leaving the window cancels a pointer drag (the item goes back, the click is swallowed).
+Give touch screens a visible, named handle where an item has no natural one.
 
 **Ids:** the `id` in events and POSTs is `data-id`, else `data-dnd-id`, else the element `id` — the same
 lookup in both scripts, so one `data-id` serves a card that is both draggable and toggleable.
@@ -773,9 +817,10 @@ lookup in both scripts, so one `data-id` serves a card that is both draggable an
 element or an ancestor, or from a JSON block
 `<script type="application/json" data-dnd-i18n>{"dropped": "Soltado {label}…"}</script>`
 (`data-screens-i18n` for the screens script). Keys and placeholders are listed in `MESSAGES` at the top of
-each file (`picked-up`, `moved`, `dropped`, `cancelled`, `failed`, `grid-*`, `resized`, `collision`,
-`slot`, `instructions`; `results`, `step`, `removed`, `failed`, `send-failed`, `selected`). Pass them through
-`__()` in your template.
+each file — dnd: `instructions`, `grid-instructions`, `picked-up`, `moved`, `dropped`, `cancelled`,
+`failed`, `grid-picked-up`, `grid-moved`, `grid-dropped`, `grid-cancelled`, `resized`, `collision`,
+`slot`, `list`; screens: `results`, `step`, `removed`, `failed`, `send-failed`, `selected`, `opened`,
+`files-added`, `file-removed`, `files-cleared`. Pass them through `__()` in your template.
 
 ### Endpoints and CSRF
 
@@ -783,23 +828,29 @@ Without `data-endpoint` everything is client-only (the baked screens and the cat
 `data-endpoint="<?= $this->Url->build(['action' => 'move']) ?>"` to a container, item, form or an
 ancestor to also POST each change as JSON — `{action: 'move', id, from, to, index, fromIndex}` (lists),
 `{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}`,
-`{action: 'archive', id}`, `{action: 'send', text}` — with `X-CSRF-Token` taken from `data-csrf-token` on
-an ancestor, `<meta name="csrfToken">` or the page's `input[name=_csrfToken]` (CakePHP's
-`CsrfProtectionMiddleware` reads the header). The endpoint is resolved against `document.baseURI` and
-must be a **same-origin** `http(s)` URL: anything else (another host, `//host`, `javascript:`) is refused
-with a `console.error`, so the CSRF token never leaves the site. A refused endpoint, a non-2xx answer or a
-network error reverts the change, announces it and fires the matching `*-error` event. While a toggle is
-being saved its item has `data-busy` / `aria-busy` and ignores further toggles. In the controller: `$this->request->allowMethod('post'); $data = $this->request->getData();`
-(JSON bodies are parsed by `BodyParserMiddleware`).
+`{action: 'archive', id}` (the `data-remove-item` value), `{action: 'send', text}` — with `X-CSRF-Token`
+taken from `data-csrf-token` on an ancestor, `<meta name="csrfToken">` or the page's
+`input[name=_csrfToken]` (CakePHP's `CsrfProtectionMiddleware` reads the header).
+
+**Origin rule:** the endpoint is resolved against `document.baseURI` and must be a **same-origin**
+`http(s)` URL: anything else (another host, `//host`, `javascript:`, `data:`) is refused with a
+`console.error`, so the CSRF token never leaves the site. A refused endpoint (`reason: 'origin'`), a
+non-2xx answer or a network error (`reason: 'response'`) reverts the change, announces it and fires the
+matching `*-error` event. While a toggle is being saved its item has `data-busy` / `aria-busy` and ignores
+further toggles and removals. Chained toggles (`data-toggle-also`) are posted one by one. Uploads are never
+sent by the script (`basecoat:upload`). In the controller:
+`$this->request->allowMethod('post'); $data = $this->request->getData();` (JSON bodies are parsed by
+`BodyParserMiddleware`).
 
 ### CSP
 
 Both scripts are files (no inline code, no `eval`, no `innerHTML`: text through `textContent`, markup
 cloned from `<template>`) and set no `style` attribute: drag feedback is attributes styled by
 `interactivity.css`, grid moves swap classes, visibility uses `hidden`. They work under
-`script-src 'self'` / `style-src 'self'` plus the nonce for your other inline blocks. Classes listed in
-`data-dnd-classes` / `data-view-classes` must exist in your CSS (with the Tailwind browser build they are
-generated on the fly; with a compiled build make sure your templates are scanned).
+`script-src 'self'` / `style-src 'self'` plus the nonce for your other inline blocks; the JSON message
+blocks (`<script type="application/json">`) are data and need no nonce. Classes listed in
+`data-dnd-classes` / `data-view-classes` / `data-active-class` must exist in your CSS (with the Tailwind
+browser build they are generated on the fly; with a compiled build make sure your templates are scanned).
 
 ## Content Security Policy
 
@@ -937,6 +988,20 @@ Changes in this version that can affect existing apps:
   and `webroot/css/interactivity.css` (see [Interactivity](#interactivity)); nothing loads them unless a
   template asks. The catalog build now copies every `webroot/js/*.js` to `assets/` and to
   `basecoat_theme/js/` (their plugin asset URL).
+- **Interactive bake screens.** Re-baked screens load those scripts and carry `data-*` hooks (no endpoint
+  by default; TODO comments show where to set `data-endpoint`). Changes to watch when you re-bake: the
+  `kanban` List view column and the `calendar` "Upcoming" entries follow drags through `data-dnd-mirror`
+  (no `basecoat-kanban.js` / `basecoat-dropzone.js`: those intermediate files are gone, the drop zone is
+  part of `basecoat-screens.js` and its messages are `data-screens-i18n-files-added` / `-file-removed` /
+  `-files-cleared`); the `notifications` screen filters Status **and** Type client-side, its Accept /
+  Decline POST URLs move to a `$urls` variable at the top of the template, and its badge counts unread
+  rows of other pages through `data-count-offset`; the `onboarding` review lists the invited emails
+  instead of a count; `bookings` List rows carry `data-dnd-sort` keys; `mail` rows get `id="mail-row-N"`
+  and the reading pane gets working Star / Archive / Delete buttons.
+- **`TableToolbar` control `attributes`** and **`NotificationList` `itemAttributes`, `dotAttributes`,
+  `actionAttributes`, `actionsAttributes`, `footer`** (and a per-row `attributes` key): new, optional;
+  output is unchanged without them. A `NotificationList` row given `actionsAttributes` renders its inert
+  Accept / Decline inside a `<span>` (template `actionGroup`).
 
 - **Forms get a stacked layout by default.** `Form->create()` adds `grid gap-6 [&>.btn]:justify-self-start`
   (config `formLayout`) when the `class` option sets no layout of its own, so fields are evenly spaced
