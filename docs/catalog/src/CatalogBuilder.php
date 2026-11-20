@@ -301,6 +301,8 @@ final class CatalogBuilder
         $cdn = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/';
 
         return implode("\n", [
+            // No favicon: an empty icon stops the browser requesting /favicon.ico outside the site path.
+            '<link rel="icon" href="data:,">',
             '<link rel="stylesheet" href="' . $cdn . 'styles/github.min.css" data-hljs-theme="light">',
             '<link rel="stylesheet" href="' . $cdn . 'styles/github-dark.min.css" data-hljs-theme="dark" disabled>',
             '<link rel="stylesheet" href="/assets/catalog.css">',
