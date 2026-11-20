@@ -171,6 +171,18 @@ Sizes: `xs`, `sm`, `default`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`.
 `collapse`: `sm`, `md`, `lg`, `xl` or `true` (= `sm`); ignored on buttons without icon. Classes per
 breakpoint are configurable with `collapseClasses`.
 
+Notification indicator:
+```php
+echo $this->Button->icon('bell', 'Notifications', ['indicator' => true]);             // dot, "New" for screen readers
+echo $this->Button->icon('bell', 'Notifications', ['indicator' => $unread]);          // count badge, "3 new"
+echo $this->Button->render('Inbox', ['indicator' => '9+', 'indicatorLabel' => 'Unread messages']);
+```
+`indicator`: `true` shows a dot, a number or string shows a count badge (the button gets `relative`).
+`indicatorLabel` replaces the screen reader text (default "New" / "{0} new", pluralized); on
+`icon()` buttons it is appended to the `aria-label` ("Notifications, 3 new"). `false`, `null`, `''`,
+`0` and `'0'` render no indicator at all, so you can pass an unread count directly. Classes:
+`classes.indicatorDot`, `classes.indicatorCount`.
+
 ### Badge
 ```php
 echo $this->Badge->render('New');
@@ -319,7 +331,8 @@ echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['20
 // Filter bar above a table: a ListFilter (or its controls() array) plus actions
 echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
 
-// Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it)
+// Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it; `hotkey` changes the key,
+// pass the same value to trigger() so the hint and aria-keyshortcuts match)
 echo $this->CommandMenu->trigger('command');
 echo $this->CommandMenu->render(['Pages' => [['label' => 'Orders', 'url' => ['controller' => 'Orders'], 'icon' => 'list']]], ['id' => 'command']);
 

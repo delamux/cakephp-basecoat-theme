@@ -59,7 +59,10 @@ class TableToolbarHelper extends AbstractComponentHelper
      * - `htmx`: `false` or `['target' => 'results-id']`.
      * - `clear`: "Clear" link that resets the filters (keeping `sort` / `direction`). Default: shown for a
      *   `ListFilter` that is filtered, off for a controls array. `true` shows it (current URL), a string or
-     *   array is the URL to link to, `false` hides it.
+     *   array is the URL to link to (an existing query string is kept and merged), `false` hides it.
+     *
+     * Control labels, select options and the submit text are always escaped (there is no `escape`
+     * option); `actions` is HTML and is output as is.
      *
      * @param array<string, mixed> $options Options.
      * @return string

@@ -140,4 +140,25 @@ class ButtonHelperTest extends HelperTestCase
             $button->render('A', ['templateVars' => ['x' => '1']]),
         );
     }
+
+    public function testZeroIndicatorRendersNothing(): void
+    {
+        $button = new ButtonHelper($this->View);
+        foreach ([0, '0'] as $zero) {
+            $this->assertSame($button->icon('bell', 'Notifications'), $button->icon('bell', 'Notifications', ['indicator' => $zero]));
+            $this->assertSame($button->render('Inbox'), $button->render('Inbox', ['indicator' => $zero]));
+            $this->assertSame($button->link('Inbox', '/inbox'), $button->link('Inbox', '/inbox', ['indicator' => $zero]));
+            $out = $button->icon('bell', 'Notifications', ['indicator' => $zero, 'indicatorLabel' => 'Unread']);
+            $this->assertStringNotContainsString('relative', $out);
+            $this->assertStringNotContainsString('Unread', $out);
+            $this->assertStringContainsString('aria-label="Notifications"', $out);
+        }
+    }
+
+    public function testIndicatorCountIsPluralized(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $this->assertStringContainsString('<span class="sr-only">1 new</span>', $button->render('Inbox', ['indicator' => 1]));
+        $this->assertStringContainsString('<span class="sr-only">9+ new</span>', $button->render('Inbox', ['indicator' => '9+']));
+    }
 }

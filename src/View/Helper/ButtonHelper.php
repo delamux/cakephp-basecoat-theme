@@ -70,8 +70,9 @@ class ButtonHelper extends AbstractComponentHelper
      *   visible from that breakpoint (icon-only below it, label kept for screen readers and
      *   as `title`). Handy for header actions on mobile.
      * - `indicator`: `true` adds a notification dot; an int/string adds a count badge. The
-     *   button gets the `relative` class.
-     * - `indicatorLabel`: Screen reader text of the indicator (default "New" / "{0} new").
+     *   button gets the `relative` class. `false`, `null`, `''`, `0` and `'0'` render no indicator
+     *   at all (no badge, no screen reader text, no `relative` class), so a count can be passed as is.
+     * - `indicatorLabel`: Screen reader text of the indicator (default "New" / "{0} new", pluralized).
      * - `escape`: Escape `$text` (default true).
      * - `class` and any HTML attribute.
      *
@@ -237,7 +238,7 @@ class ButtonHelper extends AbstractComponentHelper
     {
         $indicator = $options['indicator'] ?? false;
 
-        return $indicator !== false && $indicator !== null && $indicator !== '';
+        return !in_array($indicator, [false, null, '', 0, '0'], true);
     }
 
     /**
@@ -279,8 +280,13 @@ class ButtonHelper extends AbstractComponentHelper
             return (string)$options['indicatorLabel'];
         }
 
-        return $options['indicator'] === true
-            ? __d('basecoat_theme', 'New')
-            : __d('basecoat_theme', '{0} new', (string)$options['indicator']);
+        $indicator = $options['indicator'];
+        if ($indicator === true) {
+            return __d('basecoat_theme', 'New');
+        }
+        // Non-numeric counts such as "9+" use the plural form.
+        $count = is_numeric($indicator) ? (int)$indicator : 2;
+
+        return __dn('basecoat_theme', '{0} new', '{0} new', $count, (string)$indicator);
     }
 }

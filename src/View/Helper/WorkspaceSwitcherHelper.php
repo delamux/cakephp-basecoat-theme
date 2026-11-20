@@ -61,6 +61,8 @@ class WorkspaceSwitcherHelper extends AbstractComponentHelper
      * - `side` / `align`: Popover position.
      * - `class` and any attribute for the dropdown root.
      *
+     * Workspace names, plans and labels are always escaped (there is no `escape` option).
+     *
      * @param array<array<string, mixed>> $workspaces Workspaces.
      * @param array<string, mixed> $options Options.
      * @return string

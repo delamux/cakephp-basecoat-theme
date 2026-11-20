@@ -73,7 +73,9 @@ class CommandMenuHelper extends AbstractComponentHelper
      * - `class` and any attribute for the `<dialog>`.
      *
      * Group items accept `label`, `url`, `icon`, `shortcut` (string or list of keys),
-     * `keywords`, `disabled`, `class` and `attributes`. Labels are always escaped.
+     * `keywords`, `disabled`, `class` and `attributes`. Labels, group headings, placeholder and
+     * empty text are always escaped (there is no `escape` option). The search input gets the
+     * placeholder as `aria-label` unless `inputOptions` sets one.
      *
      * @param array<string, array<array<string, mixed>>> $groups Items by group label.
      * @param array<string, mixed> $options Options.
@@ -137,8 +139,10 @@ class CommandMenuHelper extends AbstractComponentHelper
      *
      * ### Options
      *
-     * - `label`: Button text.
-     * - `keys`: Shortcut hint shown in the `Kbd` (default `⌘K`).
+     * - `label`: Button text (always escaped).
+     * - `hotkey`: Key that opens the menu with Ctrl/⌘ (default: the `hotkey` config, `k`). Sets the
+     *   `⌘K`-style hint and `aria-keyshortcuts`; pass the same value as to render().
+     * - `keys`: Shortcut hint shown in the `Kbd`, overrides the one derived from `hotkey`.
      * - `class`, `variant` and any attribute for the button.
      *
      * @param string $menuId Id of the command dialog.
@@ -148,12 +152,16 @@ class CommandMenuHelper extends AbstractComponentHelper
     public function trigger(string $menuId, array $options = []): string
     {
         $label = $options['label'] ?? __d('basecoat_theme', 'Search…');
-        $keys = $options['keys'] ?? '⌘K';
-        $options += ['variant' => 'outline', 'type' => 'button'];
+        $hotkey = mb_strtoupper((string)($options['hotkey'] ?? $this->getConfig('hotkey')));
+        $keys = $options['keys'] ?? ($hotkey !== '' ? '⌘' . $hotkey : null);
+        $options += ['variant' => 'outline', 'type' => 'button', 'aria-haspopup' => 'dialog'];
+        if ($hotkey !== '') {
+            $options += ['aria-keyshortcuts' => 'Control+' . $hotkey . ' Meta+' . $hotkey];
+        }
         $options['data-command-open'] = $menuId;
         $options['class'] = $this->mergeClasses($this->getConfig('classes.trigger'), $options['class'] ?? null);
 
-        $attributes = $this->cleanAttributes($this->stripOptions($options, ['label', 'keys']));
+        $attributes = $this->cleanAttributes($this->stripOptions($options, ['label', 'keys', 'hotkey', 'escape']));
         if (isset($options['variant'])) {
             $attributes['data-variant'] = $options['variant'];
         }
@@ -161,7 +169,7 @@ class CommandMenuHelper extends AbstractComponentHelper
         return $this->renderTemplate('trigger', $attributes, [
             'icon' => $this->Icon->render('search'),
             'label' => $this->text((string)$label),
-            'kbd' => $this->Kbd->render($keys),
+            'kbd' => $keys !== null && $keys !== '' ? $this->Kbd->render($keys) : '',
         ]);
     }
 

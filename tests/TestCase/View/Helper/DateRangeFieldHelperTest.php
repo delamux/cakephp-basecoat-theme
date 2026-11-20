@@ -82,4 +82,13 @@ class DateRangeFieldHelperTest extends HelperTestCase
         $this->assertStringNotContainsString('<i>p</i>', $out);
         $this->assertStringContainsString('&lt;b&gt;L&lt;/b&gt;', $out);
     }
+
+    public function testAccessibleNames(): void
+    {
+        $out = (new DateRangeFieldHelper($this->View))->render('created', ['label' => 'Created', 'id' => 'dr']);
+
+        $this->assertStringContainsString('<label for="dr-from" class="label">Created from</label>', $out);
+        $this->assertStringContainsString('<label for="dr-to" class="label">Created to</label>', $out);
+        $this->assertMatchesRegularExpression('#<button[^>]*id="dr-trigger"[^>]*>.*<span class="sr-only">Created, </span>.*</button>#s', $out, 'Trigger name includes the label');
+    }
 }

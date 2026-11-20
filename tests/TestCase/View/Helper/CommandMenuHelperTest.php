@@ -64,6 +64,29 @@ class CommandMenuHelperTest extends HelperTestCase
         $this->assertStringContainsString('<kbd', $html);
         $this->assertStringContainsString('⌘K', $html);
         $this->assertStringContainsString('<svg', $html);
+        $this->assertStringContainsString('aria-haspopup="dialog"', $html);
+        $this->assertStringContainsString('aria-keyshortcuts="Control+K Meta+K"', $html);
+    }
+
+    public function testTriggerHintFollowsHotkey(): void
+    {
+        $helper = new CommandMenuHelper($this->View);
+        $html = $helper->trigger('cm', ['hotkey' => 'j']);
+        $this->assertStringContainsString('⌘J', $html);
+        $this->assertStringNotContainsString('⌘K', $html);
+        $this->assertStringContainsString('aria-keyshortcuts="Control+J Meta+J"', $html);
+        $this->assertStringNotContainsString('hotkey=', $html);
+
+        $configured = new CommandMenuHelper($this->View, ['hotkey' => 'p']);
+        $this->assertStringContainsString('⌘P', $configured->trigger('cm'));
+        $this->assertStringContainsString('⌘/', $helper->trigger('cm', ['keys' => '⌘/']));
+    }
+
+    public function testInputAriaLabelCanBeOverridden(): void
+    {
+        $html = (new CommandMenuHelper($this->View))->render([], ['inputOptions' => ['aria-label' => 'Search Fernway']]);
+        $this->assertStringContainsString('aria-label="Search Fernway"', $html);
+        $this->assertStringNotContainsString('aria-label="Type a command or search…"', $html);
     }
 
     public function testUniqueIds(): void

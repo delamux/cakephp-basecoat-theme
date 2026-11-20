@@ -51,4 +51,14 @@ class MemberListHelperTest extends HelperTestCase
         $this->assertStringContainsString('Nobody', $helper->render([], ['empty' => 'Nobody']));
         $this->assertStringNotContainsString('<li', $helper->render([]));
     }
+
+    public function testEscapeOptionIsCastToBool(): void
+    {
+        $html = (new MemberListHelper($this->View))->render(
+            [['name' => '<b>Kofi</b>', 'email' => 'kofi@example.com', 'role' => 'member']],
+            ['roles' => ['member' => 'Member'], 'escape' => 0],
+        );
+        $this->assertStringContainsString('<b>Kofi</b>', $html);
+        $this->assertStringNotContainsString('escape=', $html);
+    }
 }

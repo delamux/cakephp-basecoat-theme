@@ -47,7 +47,7 @@ class DateRangeFieldHelper extends AbstractComponentHelper
         ],
         'templates' => [
             'root' => '<div{{attrs}}>{{trigger}}{{panel}}</div>',
-            'trigger' => '<button{{attrs}}>{{icon}}<span data-range-label data-placeholder="{{placeholder}}">{{text}}</span></button>',
+            'trigger' => '<button{{attrs}}>{{icon}}<span class="sr-only">{{label}}, </span><span data-range-label data-placeholder="{{placeholder}}">{{text}}</span></button>',
             'panel' => '<div data-popover{{attrs}}>{{content}}</div>',
             'field' => '<div class="grid gap-2"><label{{labelAttrs}}>{{label}}</label><input{{inputAttrs}}></div>',
             'presets' => '<div class="flex flex-wrap gap-2">{{content}}</div>',
@@ -100,6 +100,7 @@ class DateRangeFieldHelper extends AbstractComponentHelper
             'data-variant' => 'outline',
         ], 'btn'), [
             'icon' => $icon,
+            'label' => $this->text($label, $escape),
             'placeholder' => h($placeholder),
             'text' => h($text),
         ]);
@@ -107,7 +108,7 @@ class DateRangeFieldHelper extends AbstractComponentHelper
         $fields = '';
         foreach (['from', 'to'] as $edge) {
             $inputId = $id . '-' . $edge;
-            $labelText = $edge === 'from' ? __d('basecoat_theme', '{0} from', $label) : __d('basecoat_theme', 'to');
+            $labelText = $edge === 'from' ? __d('basecoat_theme', '{0} from', $label) : __d('basecoat_theme', '{0} to', $label);
             $fields .= $this->formatTemplate('field', [
                 'labelAttrs' => $this->formatAttributes(['for' => $inputId, 'class' => 'label']),
                 'label' => $this->text($labelText, $escape),

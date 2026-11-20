@@ -182,4 +182,25 @@ class TableToolbarHelperTest extends HelperTestCase
         $out = $helper->render(['filter' => $this->controls(), 'clear' => '/orders?view=all&tab=open']);
         $this->assertStringContainsString('href="/orders?view=all&amp;tab=open"', $out);
     }
+
+    public function testEscapes(): void
+    {
+        $out = (new TableToolbarHelper($this->View))->render([
+            'filter' => [
+                'q' => ['type' => 'search', 'label' => '<b>Find</b>'],
+                'status' => ['type' => 'select', 'label' => '<i>Status</i>', 'options' => ['x' => '<u>Open</u>']],
+                'owner' => ['type' => 'text', 'label' => '<s>Owner</s>'],
+            ],
+            'submit' => '<em>Go</em>',
+            'clear' => '/orders?a="b"',
+            'escape' => false,
+        ]);
+        foreach (['<b>Find', '<i>Status', '<u>Open', '<s>Owner', '<em>Go', '"b"'] as $raw) {
+            $this->assertStringNotContainsString($raw, $out);
+        }
+        $this->assertStringContainsString('&lt;b&gt;Find&lt;/b&gt;', $out);
+        $this->assertStringContainsString('&lt;u&gt;Open&lt;/u&gt;', $out);
+        $this->assertStringContainsString('&lt;em&gt;Go&lt;/em&gt;', $out);
+        $this->assertStringNotContainsString('escape=', $out);
+    }
 }

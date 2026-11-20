@@ -94,4 +94,15 @@ class ConversationHelperTest extends HelperTestCase
         $this->assertStringContainsString('action="/tickets/reply?ticket=7&amp;tab=chat"', $html);
         $this->assertStringNotContainsString('&amp;amp;', $html);
     }
+
+    public function testEscapeOptionIsCastToBool(): void
+    {
+        $html = (new ConversationHelper($this->View))->render(
+            [['text' => '<b>bold</b>', 'from' => 'them', 'author' => '<i>A</i>']],
+            ['contact' => ['name' => '<i>N</i>', 'subtitle' => '<u>s</u>'], 'escape' => 0, 'composer' => false],
+        );
+        $this->assertStringContainsString('<b>bold</b>', $html);
+        $this->assertStringContainsString('<u>s</u>', $html);
+        $this->assertStringNotContainsString('escape=', $html);
+    }
 }

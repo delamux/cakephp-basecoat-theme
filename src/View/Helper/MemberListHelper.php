@@ -62,7 +62,7 @@ class MemberListHelper extends AbstractComponentHelper
      */
     public function render(array $members, array $options = []): string
     {
-        $escape = $options['escape'] ?? true;
+        $escape = (bool)($options['escape'] ?? true);
         if (!$members) {
             return $this->renderTemplate('empty', $this->partAttributes('empty', [], 'text-muted-foreground text-sm'), [
                 'content' => $this->text((string)($options['empty'] ?? __d('basecoat_theme', 'No members yet.')), $escape),

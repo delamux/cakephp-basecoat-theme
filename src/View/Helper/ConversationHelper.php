@@ -74,7 +74,7 @@ class ConversationHelper extends AbstractComponentHelper
      */
     public function render(array $messages, array $options = []): string
     {
-        $escape = $options['escape'] ?? true;
+        $escape = (bool)($options['escape'] ?? true);
         $header = !empty($options['contact']) ? $this->header((array)$options['contact'], $options['headerActions'] ?? '', $escape) : '';
 
         $bubbles = '';
