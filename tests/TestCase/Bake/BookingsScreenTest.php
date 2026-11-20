@@ -123,7 +123,7 @@ class BookingsScreenTest extends TestCase
         // 09:00-12:00 open gym on the third resource: starts at slot 6 (row 8), six slots
         $this->assertMatchesRegularExpression('/data-booking-id="9"[^>]*class="[^"]*col-start-4 row-start-8 row-span-6/', $html);
         $this->assertStringContainsString('grid-cols-[3.5rem_repeat(4,minmax(9rem,1fr))]', $html);
-        $this->assertStringContainsString('grid-rows-[auto_repeat(30,2.5rem)]', $html);
+        $this->assertStringContainsString('grid-rows-[auto] auto-rows-[2.5rem]', $html);
         $this->assertStringNotContainsString('style=', $html);
         $this->assertStringContainsString('relative min-w-0 overflow-x-auto', $html);
     }
@@ -140,13 +140,78 @@ class BookingsScreenTest extends TestCase
         $this->assertStringContainsString('aria-label="Sunrise WOD, 06:00–07:00, Main floor"', $html);
     }
 
+    public function testGridClassesAreLiteralForCompiledTailwind(): void
+    {
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/bookings/template.twig');
+
+        // Tailwind only generates classes it finds written out in full in the sources.
+        $this->assertDoesNotMatchRegularExpression('/(row|col)-(start|span)-<\?=|repeat\(<\?=|grid-rows-\[[^\]]*<\?=/', $template);
+        foreach ([2, 31, 49] as $row) {
+            $this->assertStringContainsString("'row-start-" . $row . "'", $template);
+        }
+        $this->assertStringNotContainsString("'{0}, {1}, {2}'", $template, 'The block label is data, not a sentence');
+    }
+
+    public function testBlocksDoNotClipTheirMenu(): void
+    {
+        $html = $this->render();
+
+        preg_match_all('/<div role="group"[^>]*class="([^"]*)"/', $html, $blocks);
+        $this->assertNotEmpty($blocks[1]);
+        foreach ($blocks[1] as $class) {
+            $this->assertStringNotContainsString('overflow-hidden', $class);
+        }
+        // Menus of blocks near the end of the day open upwards so the scroll area does not clip them.
+        $this->assertMatchesRegularExpression('/data-booking-id="15".*?data-popover[^>]*data-side="top"/s', $html);
+        preg_match('/data-booking-id="1".*?data-popover[^>]*>/s', $html, $first);
+        $this->assertStringNotContainsString('data-side="top"', $first[0]);
+    }
+
+    public function testOneSlotBlockUsesASingleLine(): void
+    {
+        $html = $this->render();
+
+        // Desk reset lasts 30 minutes: name, type and time on one line, coach and capacity for screen readers.
+        preg_match('/data-booking-id="13".*?(?=data-booking-id=|<\/section>)/s', $html, $block);
+        $this->assertMatchesRegularExpression('/<p class="truncate"><span class="font-semibold">Desk reset<\/span> · <span data-type-label>Mobility<\/span> · 12:30–13:00<\/p>/', $block[0]);
+        $this->assertMatchesRegularExpression('/<p class="sr-only">Ana Costa · /', $block[0]);
+    }
+
+    public function testBookingsOutsideTheDayAreClippedOrSkipped(): void
+    {
+        $base = ScreenRegistry::data('bookings')['bookings'][0];
+        $html = $this->render($this->data(['bookings' => [
+            ['id' => 1, 'start' => '05:00', 'end' => '06:30'] + $base,
+            ['id' => 2, 'start' => '20:30', 'end' => '22:00'] + $base,
+            ['id' => 3, 'start' => '04:00', 'end' => '05:30'] + $base,
+            ['id' => 4, 'start' => '21:00', 'end' => '22:00'] + $base,
+        ]]));
+
+        $this->assertMatchesRegularExpression('/data-booking-id="1"[^>]*class="[^"]*row-start-2 row-span-1/', $html);
+        $this->assertMatchesRegularExpression('/data-booking-id="2"[^>]*class="[^"]*row-start-31 row-span-1/', $html);
+        $this->assertStringNotContainsString('data-booking-id="3"', $html);
+        $this->assertStringNotContainsString('data-booking-id="4"', $html);
+    }
+
+    public function testInvalidDateDoesNotBreakThePage(): void
+    {
+        $html = $this->render($this->data(['date' => 'not-a-date']));
+
+        $this->assertStringContainsString('data-schedule-grid', $html);
+        $this->assertStringNotContainsString('rel="prev"', $html);
+        $this->assertStringNotContainsString('datetime=', $html);
+    }
+
     public function testRowMenusAreNamedEllipsisButtons(): void
     {
         $data = ScreenRegistry::data('bookings');
         $html = $this->render();
 
         $this->assertSame(count($data['bookings']), substr_count($html, 'aria-haspopup="menu"'));
-        $this->assertStringContainsString('<span class="sr-only">Actions for Sunrise WOD</span>', $html);
+        $this->assertStringContainsString('<span class="sr-only">Actions for Sunrise WOD, 06:00–07:00</span>', $html);
+        // Three "Open gym" blocks: every menu name is unique.
+        preg_match_all('/<span class="sr-only">(Actions for [^<]*)<\/span>/', $html, $names);
+        $this->assertSame(count($data['bookings']), count(array_unique($names[1])));
         $this->assertStringContainsString('Edit booking', $html);
         $this->assertStringContainsString('Cancel booking', $html);
     }
