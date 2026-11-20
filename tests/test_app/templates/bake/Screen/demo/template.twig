@@ -1,0 +1,17 @@
+{#
+/**
+ * `demo` fixture screen (tests only): reads the `items` view variable.
+ */
+#}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<int, array<string, mixed>> $items
+ */
+?>
+<h1 data-screen="{{ slug }}">{{ name }}</h1>
+<ul>
+<?php foreach ($items as $item): ?>
+    <li><?= h($item['name']) ?> (<?= h($item['total']) ?>)</li>
+<?php endforeach; ?>
+</ul>
