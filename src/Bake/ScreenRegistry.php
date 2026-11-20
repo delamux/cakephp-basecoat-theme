@@ -132,7 +132,7 @@ final class ScreenRegistry
             ],
             'notifications' => [
                 'title' => 'Notifications',
-                'description' => 'Notification feed grouped by day, with read and unread items.',
+                'description' => 'Notification inbox with unread markers, search and filters, and Accept / Decline for access requests.',
                 'controller' => 'Notifications',
                 'path' => $dir . 'notifications',
                 'icon' => 'bell',

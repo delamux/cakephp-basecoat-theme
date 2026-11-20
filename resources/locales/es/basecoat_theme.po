@@ -119,6 +119,18 @@ msgstr "Escribe un mensaje…"
 msgid "Workspaces"
 msgstr "Espacios de trabajo"
 
+msgid "Accept"
+msgstr "Aceptar"
+
+msgid "Decline"
+msgstr "Rechazar"
+
+msgid "No notifications."
+msgstr "No hay notificaciones."
+
+msgid "Unread"
+msgstr "Sin leer"
+
 msgid "{0} new"
 msgid_plural "{0} new"
 msgstr[0] "{0} nuevo"

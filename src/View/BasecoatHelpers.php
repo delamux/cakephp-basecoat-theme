@@ -33,6 +33,7 @@ final class BasecoatHelpers
         'Kbd' => 'BasecoatTheme.Kbd',
         'MemberList' => 'BasecoatTheme.MemberList',
         'MetricCard' => 'BasecoatTheme.MetricCard',
+        'NotificationList' => 'BasecoatTheme.NotificationList',
         'PageHeader' => 'BasecoatTheme.PageHeader',
         'Pagination' => 'BasecoatTheme.Pagination',
         'Progress' => 'BasecoatTheme.Progress',
