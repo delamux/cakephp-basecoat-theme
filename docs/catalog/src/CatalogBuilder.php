@@ -10,6 +10,7 @@ use Cake\Http\Session;
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
+use Cake\Utility\Inflector;
 use Cake\View\View;
 use Closure;
 use ErrorException;
@@ -26,9 +27,12 @@ use Throwable;
  * - `index.html`: `pages/index.php` rendered with the theme's `default` layout;
  * - `components/index.html`: helpers grouped as in the registry;
  * - `components/<slug>.html`: one page per helper with its examples (preview, PHP, HTML);
+ * - `screens/index.html`, `screens/<slug>.html` and `screens/<slug>/preview.html`: the bake
+ *   screens (see ScreenBuilder);
  * - `assets/`: catalog CSS/JS and the plugin's `basecoat-theme.js`.
  *
- * Every example runs in a fresh View; any PHP warning, notice, deprecation or exception fails the build.
+ * Every example and screen runs in a fresh View; any PHP warning, notice, deprecation or exception
+ * fails the build.
  */
 final class CatalogBuilder
 {
@@ -46,11 +50,13 @@ final class CatalogBuilder
      * @param string $examplesDir Directory with one folder of examples per helper slug.
      * @param string $pagesDir Directory with `index.php` (catalog home).
      * @param array<string, array{alias: string, title: string, group: string, intro: string}> $registry Helpers by slug.
+     * @param \BasecoatTheme\Docs\ScreenBuilder $screens Bake screens (none by default).
      */
     public function __construct(
         private readonly string $examplesDir,
         private readonly string $pagesDir,
         private readonly array $registry,
+        private readonly ScreenBuilder $screens = new ScreenBuilder([]),
     ) {
     }
 
@@ -61,7 +67,8 @@ final class CatalogBuilder
      * it is emptied first, so files of removed helpers do not linger.
      *
      * @param string $outDir Output directory, e.g. `<repo>/build/gh-pages`.
-     * @param bool $strict Fail on warnings (helper without examples or helper class missing).
+     * @param bool $strict Fail on warnings (helper without examples, helper class missing, screen
+     *   without `template.twig` / `data.php`).
      * @return \BasecoatTheme\Docs\BuildReport
      * @throws \RuntimeException When the output directory is refused, an example or the home page
      *   fails, or on any warning in strict mode. Nothing is deleted or written before the checks pass.
@@ -70,13 +77,16 @@ final class CatalogBuilder
     {
         $this->setUpRouter();
         [$helpers, $warnings] = $this->collect();
+        [$screens, $screenWarnings] = $this->screens->collect();
+        $warnings = [...$warnings, ...$screenWarnings];
         if ($strict && $warnings) {
             throw new RuntimeException("Strict mode, " . count($warnings) . " problem(s):\n- " . implode("\n- ", $warnings));
         }
 
         $outDir = $this->clearOutputDir($outDir);
         $this->copyAssets($outDir);
-        $pages = [];
+        $menu = fn(string $path): array => $this->menu($helpers, $screens, $path);
+        $pages = $this->buildScreens($outDir, $screens, $menu);
 
         foreach ($helpers as $slug => $helper) {
             $path = 'components/' . $slug . '.html';
@@ -97,19 +107,134 @@ final class CatalogBuilder
                 'entry' => $helper['entry'],
                 'examples' => $blocks,
             ]);
-            $this->write($outDir, $path, $this->renderLayout($path, $helper['entry']['title'], $content, $this->menu($helpers, $path), $charts));
+            $this->write($outDir, $path, $this->renderLayout($path, $helper['entry']['title'], $content, $menu($path), $charts));
             $pages[] = $path;
         }
 
         $path = 'components/index.html';
         $content = $this->renderTemplate($this->view(), 'components_index', ['groups' => $this->groups($helpers)]);
-        $this->write($outDir, $path, $this->renderLayout($path, 'Components', $content, $this->menu($helpers, $path), false));
+        $this->write($outDir, $path, $this->renderLayout($path, 'Components', $content, $menu($path), false));
         $pages[] = $path;
 
-        $this->write($outDir, 'index.html', $this->renderHome($this->menu($helpers, 'index.html')));
+        $this->write($outDir, 'index.html', $this->renderHome($menu('index.html')));
         array_unshift($pages, 'index.html');
 
         return new BuildReport($pages, $warnings);
+    }
+
+    /**
+     * Screens section: index, one page per screen and its full-page preview.
+     *
+     * Each screen is baked with the real command into a scratch folder (`<outDir>/.bake`, removed
+     * afterwards); the page shows the baked files byte for byte and the preview renders the baked
+     * template with the screen's `data.php` variables.
+     *
+     * @param string $outDir Output directory.
+     * @param array<string, array{title: string, description: string, controller: string, path: string, icon?: string}> $screens Screens with a page.
+     * @param \Closure(string): array<array<string, mixed>> $menu Sidebar menu for a page path.
+     * @return list<string> Pages written.
+     * @throws \RuntimeException When baking or rendering a screen fails; the message names the screen.
+     */
+    private function buildScreens(string $outDir, array $screens, Closure $menu): array
+    {
+        $scratch = $outDir . '/.bake';
+        $pages = [];
+        try {
+            foreach ($screens as $slug => $screen) {
+                $baked = $this->strict(
+                    sprintf('Screen `%s` (bake)', $slug),
+                    fn(): array => $this->screens->bake($slug, $scratch . '/' . $slug),
+                );
+
+                $path = 'screens/' . $slug . '/preview.html';
+                $this->write($outDir, $path, $this->renderScreenPreview($slug, $screens, $baked));
+                $pages[] = $path;
+
+                $path = 'screens/' . $slug . '.html';
+                $content = $this->renderTemplate($this->view(), 'screen_page', [
+                    'slug' => $slug,
+                    'screen' => $screen,
+                    'baked' => $baked,
+                ]);
+                $this->write($outDir, $path, $this->renderLayout($path, $screen['title'] . ' screen', $content, $menu($path), false));
+                $pages[] = $path;
+            }
+        } finally {
+            if (is_dir($scratch)) {
+                $this->emptyDir($scratch);
+                rmdir($scratch);
+            }
+        }
+
+        $path = 'screens/index.html';
+        $content = $this->renderTemplate($this->view(), 'screens_index', ['screens' => $screens]);
+        $this->write($outDir, $path, $this->renderLayout($path, 'Screens', $content, $menu($path), false));
+        array_unshift($pages, $path);
+
+        return $pages;
+    }
+
+    /**
+     * Full-page preview of a baked screen: its template, with the `data.php` variables the baked
+     * controller sets, inside the theme's `default` layout of an invented app (sidebar linking
+     * the other previews).
+     *
+     * The request is the baked controller's `index`, so links and GET forms to `index` (search,
+     * filters, `?page=`) stay on the preview.
+     *
+     * @param string $slug Screen slug.
+     * @param array<string, array{title: string, description: string, controller: string, path: string, icon?: string}> $screens Screens with a page.
+     * @param array{command: string, controller: string, files: array<string, string>, template: string, data: array<string, mixed>} $baked ScreenBuilder::bake() result.
+     * @return string
+     * @throws \RuntimeException When the template throws or emits any PHP error; the message names the screen.
+     */
+    private function renderScreenPreview(string $slug, array $screens, array $baked): string
+    {
+        $view = $this->view($baked['controller']);
+        $view->setTheme('BasecoatTheme');
+        $view->setLayout('default');
+        $view->set($baked['data']);
+        $view->set([
+            'brand' => ['name' => 'Fernway', 'url' => '#', 'icon' => 'chart-column'],
+            'sidebarMenu' => $this->previewMenu($slug, $screens),
+            'sidebarUser' => ['name' => 'Elena Sarto', 'email' => 'elena.sarto@example.com'],
+        ]);
+        $view->append('meta', '<link rel="icon" href="data:,">');
+
+        $html = $this->strict(sprintf('Screen `%s` (template `%s`)', $slug, $baked['template']), function () use ($view, $baked): string {
+            $content = $this->evaluate($view, $baked['template'], $baked['data']);
+
+            return $view->renderLayout($content);
+        });
+
+        // `/team-inbox`, `/team-inbox/index`, with or without a query string => this preview.
+        $index = preg_quote('/' . Inflector::dasherize($baked['controller']), '#');
+        $html = (string)preg_replace('#(?<=\s)(href|action)="' . $index . '(?:/index)?(?=["?])#', '$1="preview.html', $html);
+
+        return $this->relativize($html, 2);
+    }
+
+    /**
+     * Sidebar of the screen previews: the invented app's pages, one per screen.
+     *
+     * @param string $current Slug of the previewed screen.
+     * @param array<string, array{title: string, description: string, controller: string, path: string, icon?: string}> $screens Screens with a page.
+     * @return array<array<string, mixed>>
+     */
+    private function previewMenu(string $current, array $screens): array
+    {
+        $items = [['label' => 'Dashboard', 'url' => '#', 'icon' => 'house', 'current' => false]];
+        foreach ($screens as $slug => $screen) {
+            $items[] = [
+                'label' => $screen['title'],
+                'url' => '/screens/' . $slug . '/preview.html',
+                'icon' => $screen['icon'] ?? 'file-text',
+                'current' => $slug === $current,
+            ];
+        }
+        $items[] = ['label' => 'Settings', 'url' => '#', 'icon' => 'settings-2', 'current' => false];
+
+        return [['type' => 'group', 'label' => 'Workspace', 'items' => $items]];
     }
 
     /**
@@ -162,7 +287,7 @@ final class CatalogBuilder
     {
         $view = $this->view();
         $this->seedIdCounters($view, $idCounters);
-        $html = $this->evaluateStrict($view, $example->path, 'Example');
+        $html = $this->evaluateStrict($view, $example->path, sprintf('Example `%s`', $example->path));
         $idCounters = $this->readIdCounters($view);
 
         return $html;
@@ -171,15 +296,31 @@ final class CatalogBuilder
     /**
      * Evaluates a file in a View; any PHP warning, notice or deprecation becomes an exception.
      *
-     * Used for the examples and for the catalog home page.
+     * Used for the examples, the catalog home page and the screen previews.
      *
      * @param \Cake\View\View $view View.
      * @param string $file File to evaluate.
-     * @param string $kind What the file is, for the error message (`Example`, `Page`).
+     * @param string $what What the file is, for the error message (e.g. ``Example `<path>` ``).
+     * @param array<string, mixed> $vars Variables of the file.
      * @return string
-     * @throws \RuntimeException When the file throws or emits any PHP error; the message names the file.
+     * @throws \RuntimeException When the file throws or emits any PHP error; the message starts with `$what`.
      */
-    private function evaluateStrict(View $view, string $file, string $kind): string
+    private function evaluateStrict(View $view, string $file, string $what, array $vars = []): string
+    {
+        return $this->strict($what, fn(): string => $this->evaluate($view, $file, $vars));
+    }
+
+    /**
+     * Runs `$callback`; any PHP warning, notice or deprecation becomes an exception.
+     *
+     * @template T
+     * @param string $what What runs, for the error message.
+     * @param \Closure(): T $callback Callback.
+     * @return T
+     * @throws \RuntimeException When the callback throws or emits any PHP error; output buffers it
+     *   opened are discarded.
+     */
+    private function strict(string $what, Closure $callback): mixed
     {
         set_error_handler(function (int $severity, string $message, string $errorFile, int $line): bool {
             if (!(error_reporting() & $severity)) {
@@ -189,15 +330,14 @@ final class CatalogBuilder
         });
         $level = ob_get_level();
         try {
-            return $this->evaluate($view, $file, []);
+            return $callback();
         } catch (Throwable $e) {
             while (ob_get_level() > $level) {
                 ob_end_clean();
             }
             throw new RuntimeException(sprintf(
-                '%s `%s` failed: %s (%s:%d)',
-                $kind,
-                $file,
+                '%s failed: %s (%s:%d)',
+                $what,
                 $e->getMessage(),
                 $e->getFile(),
                 $e->getLine(),
@@ -266,7 +406,7 @@ final class CatalogBuilder
             'sidebarMenu' => $menu,
         ]);
         $view->append('script', $this->catalogAssets());
-        $content = $this->evaluateStrict($view, $this->pagesDir . '/index.php', 'Page');
+        $content = $this->evaluateStrict($view, $this->pagesDir . '/index.php', sprintf('Page `%s`', $this->pagesDir . '/index.php'));
 
         return $this->relativize($view->renderLayout($content), 0);
     }
@@ -329,13 +469,14 @@ final class CatalogBuilder
     }
 
     /**
-     * Sidebar menu: overview, components index and one group per registry group.
+     * Sidebar menu: overview, components index, the Screens group, then one group per registry group.
      *
      * @param array<string, array{entry: array<string, string>, examples: list<\BasecoatTheme\Docs\ExampleFile>}> $helpers Helpers with a page.
+     * @param array<string, array{title: string, description: string, controller: string, path: string, icon?: string}> $screens Screens with a page.
      * @param string $current Path of the current page (marked `aria-current`).
      * @return array<array<string, mixed>>
      */
-    private function menu(array $helpers, string $current): array
+    private function menu(array $helpers, array $screens, string $current): array
     {
         $item = fn(string $label, string $path, ?string $icon = null): array => [
             'label' => $label,
@@ -347,6 +488,11 @@ final class CatalogBuilder
             $item('Overview', 'index.html', 'house'),
             $item('All components', 'components/index.html', 'layout-dashboard'),
         ];
+        $items = [$item('All screens', 'screens/index.html')];
+        foreach ($screens as $slug => $screen) {
+            $items[] = $item($screen['title'], 'screens/' . $slug . '.html');
+        }
+        $menu[] = ['type' => 'group', 'label' => 'Screens', 'items' => $items];
         foreach ($this->groups($helpers) as $group => $entries) {
             $items = [];
             foreach ($entries as $slug => $entry) {
@@ -377,15 +523,16 @@ final class CatalogBuilder
     /**
      * Fresh View with every Basecoat helper loaded and its own request.
      *
+     * @param string $controller Controller of the request (its `index` action).
      * @return \Cake\View\View
      */
-    private function view(): View
+    private function view(string $controller = 'Articles'): View
     {
-        // Examples run as if rendered by `ArticlesController::index()`, so array URLs,
-        // sort links and pagination resolve against the fallback routes.
+        // Examples run as if rendered by `ArticlesController::index()` (screens by their own
+        // controller), so array URLs, sort links and pagination resolve against the fallback routes.
         $request = new ServerRequest([
-            'url' => '/articles/index',
-            'params' => ['plugin' => null, 'controller' => 'Articles', 'action' => 'index', 'pass' => []],
+            'url' => '/' . Inflector::dasherize($controller) . '/index',
+            'params' => ['plugin' => null, 'controller' => $controller, 'action' => 'index', 'pass' => []],
             'base' => '',
             'webroot' => '/',
             'session' => new Session(),
@@ -490,18 +637,29 @@ final class CatalogBuilder
     {
         $target = self::safeOutputDir($outDir);
         if (is_dir($target)) {
-            // Symlinks inside are removed, never followed (no FOLLOW_SYMLINKS).
-            $files = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::CHILD_FIRST,
-            );
-            foreach ($files as $file) {
-                $path = $file->getPathname();
-                $file->isDir() && !$file->isLink() ? rmdir($path) : unlink($path);
-            }
+            $this->emptyDir($target);
         }
 
         return $target;
+    }
+
+    /**
+     * Deletes everything inside a directory (only call it on safeOutputDir() paths or below).
+     *
+     * @param string $dir Directory.
+     * @return void
+     */
+    private function emptyDir(string $dir): void
+    {
+        // Symlinks inside are removed, never followed (no FOLLOW_SYMLINKS).
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($files as $file) {
+            $path = $file->getPathname();
+            $file->isDir() && !$file->isLink() ? rmdir($path) : unlink($path);
+        }
     }
 
     /**

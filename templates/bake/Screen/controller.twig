@@ -1,0 +1,37 @@
+{#
+/**
+ * BasecoatTheme bake template: controller of a screen (`bin/cake bake screen`), shared by all
+ * screens. Variables: `namespace` (app or plugin namespace), `name` (controller name without the
+ * `Controller` suffix), `vars` (view variable => PHP literal of its sample value, from the screen
+ * `data.php`), `slug`, `title`, `description`, `plugin`, `useDomain`.
+ */
+-#}
+<?php
+declare(strict_types=1);
+
+namespace {{ namespace }}\Controller;
+
+/**
+ * {{ name }} Controller
+ *
+ * {{ title }} screen, baked with `bin/cake bake screen {{ slug }}`.
+ */
+class {{ name }}Controller extends AppController
+{
+    /**
+     * Index method
+     *
+     * The view variables below are sample data so the screen renders right away: replace them
+     * with your own data (for example `$this->paginate($this->fetchTable(...))`).
+     *
+     * @return void
+     */
+    public function index(): void
+    {
+        // TODO: the search, filter and paging query parameters (`q`, `status`, `type`, `page`, `perPage`)
+        // are ignored until real data is wired: read them with `$this->request->getQuery()` in your query.
+{% for var, literal in vars %}
+        $this->set('{{ var }}', {{ literal }});
+{% endfor %}
+    }
+}

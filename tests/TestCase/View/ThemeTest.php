@@ -79,6 +79,8 @@ class ThemeTest extends TestCase
         $this->assertStringContainsString('id="sections-tabs"', $html);
         $this->assertSame(4, substr_count($html, 'bg-linear-to-t from-primary/5'));
         $this->assertSame(5, substr_count($html, 'class="dropdown-menu"'));
+        $this->assertStringContainsString('Harbor &amp; Pine', $html, 'Example rows use the invented Fernway data');
+        $this->assertStringContainsString('<span class="sr-only">Actions for Harbor &amp; Pine</span>', $html);
     }
 
     public function testFlashIsEscapedAndSupportsParams(): void

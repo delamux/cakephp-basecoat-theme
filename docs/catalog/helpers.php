@@ -34,6 +34,7 @@ $groups = [
         'Badge' => ['Badge', 'Small label for statuses, counts and tags, with variants, icons and link badges.'],
         'Avatar' => ['Avatar', 'User picture with initials as fallback, in several sizes and as a stacked group.'],
         'MemberList' => ['Member list', 'List of people with avatar, name and email, and a role select or badge per row.'],
+        'NotificationList' => ['Notification list', 'Inbox rows with a type icon or avatar, unread dot, body, type badge and time, plus inline Accept and Decline for requests.'],
         'Kbd' => ['Kbd', 'Keyboard keys and shortcuts.'],
         'Chart' => ['Chart', 'Chart.js charts (bar, line and more) themed with the Basecoat colors, built from plain arrays.'],
         'MetricCard' => ['Metric card', 'KPI card with a label, a value, the change versus the previous period and an optional sparkline.'],

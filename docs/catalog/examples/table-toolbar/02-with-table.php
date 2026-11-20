@@ -34,7 +34,7 @@ foreach ($orders as $order) {
             ['label' => 'Refund'],
             '-',
             ['label' => 'Delete', 'variant' => 'destructive'],
-        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'aria-label' => 'Row actions']])],
+        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Row actions']])],
     ];
 }
 // ---

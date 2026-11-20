@@ -74,7 +74,9 @@ class DropdownMenuHelper extends AbstractComponentHelper
      *
      * - `id`: Component id (generated when omitted).
      * - `trigger`: Trigger button options: `variant`, `size`, `class`, `icon`,
-     *   `iconPosition` and any attribute. Merged with config `trigger`.
+     *   `iconPosition`, `label` and any attribute. Merged with config `trigger`. `label` is the
+     *   accessible name of an icon-only trigger, rendered as visually hidden text inside the
+     *   button (always escaped), e.g. `['icon' => 'ellipsis-vertical', 'label' => 'Actions']`.
      * - `side`: `top`, `bottom`, `left`, `right` (`data-side`).
      * - `align`: `start`, `center`, `end` (`data-align`).
      * - `popoverOptions`, `menuOptions`: Attributes of the parts.
@@ -99,6 +101,9 @@ class DropdownMenuHelper extends AbstractComponentHelper
                 ? $triggerContent . $icon
                 : $icon . $triggerContent;
         }
+        if (($triggerOptions['label'] ?? '') !== '') {
+            $triggerContent .= '<span class="sr-only">' . h((string)$triggerOptions['label']) . '</span>';
+        }
         $triggerAttributes = [
             'type' => 'button',
             'id' => $id . '-trigger',
@@ -109,7 +114,7 @@ class DropdownMenuHelper extends AbstractComponentHelper
             'data-size' => $triggerOptions['size'] ?? null,
         ];
         $extra = $triggerOptions;
-        unset($extra['variant'], $extra['size'], $extra['icon'], $extra['iconPosition']);
+        unset($extra['variant'], $extra['size'], $extra['icon'], $extra['iconPosition'], $extra['label']);
         $triggerHtml = $this->renderTemplate(
             'trigger',
             $this->partAttributes('trigger', $extra + $triggerAttributes),

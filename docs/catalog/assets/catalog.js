@@ -2,7 +2,8 @@
  * Component catalog runtime:
  * - syntax highlighting (highlight.js) of code blocks;
  * - highlight.js light/dark stylesheet following the theme (`.dark` on <html>);
- * - copy buttons ([data-copy="#code-id"]).
+ * - copy buttons ([data-copy="#code-id"]); the result is also announced to screen readers
+ *   through a polite live region (the visual "Copied" hint is CSS generated content).
  */
 (() => {
   const syncCodeTheme = () => {
@@ -17,12 +18,31 @@
     document.querySelectorAll('pre code[class*="language-"]').forEach((code) => window.hljs.highlightElement(code));
   };
 
+  // The live region exists before the first message, so screen readers pick it up.
+  let live;
+  const createLiveRegion = () => {
+    live = document.createElement('div');
+    live.className = 'sr-only';
+    live.setAttribute('role', 'status');
+    document.body.appendChild(live);
+  };
+  const announce = (message) => {
+    if (!live) return;
+    live.textContent = message;
+    setTimeout(() => { live.textContent = ''; }, 1500);
+  };
+  const init = () => {
+    createLiveRegion();
+    highlight();
+  };
+
   const copy = async (button) => {
     const target = document.querySelector(button.dataset.copy);
     if (!target || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(target.textContent);
       button.dataset.copied = 'true';
+      announce('Copied');
       setTimeout(() => { delete button.dataset.copied; }, 1500);
     } catch (e) {
       console.error('[catalog] Copy failed', e);
@@ -38,8 +58,8 @@
   });
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', highlight);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    highlight();
+    init();
   }
 })();

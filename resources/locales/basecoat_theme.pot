@@ -28,6 +28,12 @@ msgstr ""
 msgid "Previous"
 msgstr ""
 
+msgid "First page"
+msgstr ""
+
+msgid "Last page"
+msgstr ""
+
 msgid "Toggle sidebar"
 msgstr ""
 
@@ -110,6 +116,18 @@ msgid "Type a message…"
 msgstr ""
 
 msgid "Workspaces"
+msgstr ""
+
+msgid "Accept"
+msgstr ""
+
+msgid "Decline"
+msgstr ""
+
+msgid "No notifications."
+msgstr ""
+
+msgid "Unread"
 msgstr ""
 
 msgid "{0} new"

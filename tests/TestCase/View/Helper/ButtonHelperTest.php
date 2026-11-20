@@ -89,8 +89,15 @@ class ButtonHelperTest extends HelperTestCase
     {
         $button = new ButtonHelper($this->View);
         $out = $button->icon('x', 'Close', ['variant' => 'ghost']);
-        $this->assertStringStartsWith('<button aria-label="Close" type="button" class="btn" data-variant="ghost" data-size="icon">', $out);
-        $this->assertStringStartsWith('<a href="/" aria-label="Home"', $button->icon('house', 'Home', ['url' => '/']));
+        $this->assertStringStartsWith('<button type="button" class="btn" data-variant="ghost" data-size="icon">', $out);
+        $this->assertStringEndsWith('<span class="sr-only">Close</span></button>', $out);
+        $this->assertStringEndsWith('<span class="sr-only">Home</span></a>', $button->icon('house', 'Home', ['url' => '/']));
+        $this->assertStringEndsWith(
+            '<span class="sr-only">Tom &amp; Ana</span></button>',
+            $button->icon('x', 'Tom & Ana', ['escape' => true]),
+            'The label is escaped once; an `escape` option never escapes the hidden span',
+        );
+        $this->assertStringContainsString('aria-label="Close panel"', $button->icon('x', 'Close', ['aria-label' => 'Close panel']), 'An explicit aria-label is kept');
     }
 
     public function testIndicatorDot(): void
@@ -99,7 +106,7 @@ class ButtonHelperTest extends HelperTestCase
         $out = $button->icon('bell', 'Notifications', ['indicator' => true]);
         $this->assertStringContainsString('class="btn relative"', $out);
         $this->assertMatchesRegularExpression('#<span class="[^"]*" aria-hidden="true"></span>#', $out);
-        $this->assertStringContainsString('<span class="sr-only">New</span>', $out);
+        $this->assertStringContainsString('<span class="sr-only">Notifications, New</span>', $out);
         $this->assertStringNotContainsString('indicator', $out);
     }
 
@@ -108,18 +115,18 @@ class ButtonHelperTest extends HelperTestCase
         $button = new ButtonHelper($this->View);
         $out = $button->icon('bell', 'Notifications', ['indicator' => 3]);
         $this->assertStringContainsString('>3<', $out);
-        $this->assertStringContainsString('<span class="sr-only">3 new</span>', $out);
+        $this->assertStringContainsString('<span class="sr-only">Notifications, 3 new</span>', $out);
         $out = $button->render('Inbox', ['indicator' => '9+', 'indicatorLabel' => 'Unread']);
         $this->assertStringContainsString('>9+<', $out);
         $this->assertStringContainsString('<span class="sr-only">Unread</span>', $out);
         $this->assertStringContainsString('<span class="sr-only">New</span>', $button->link('Inbox', '/', ['indicator' => true]));
     }
 
-    public function testIndicatorIsPartOfIconAriaLabel(): void
+    public function testIndicatorIsPartOfIconName(): void
     {
         $button = new ButtonHelper($this->View);
-        $this->assertStringContainsString('aria-label="Notifications, 3 new"', $button->icon('bell', 'Notifications', ['indicator' => 3]));
-        $this->assertStringContainsString('aria-label="Notifications, New"', $button->icon('bell', 'Notifications', ['indicator' => true]));
+        $this->assertStringContainsString('<span class="sr-only">Notifications, 3 new</span>', $button->icon('bell', 'Notifications', ['indicator' => 3]));
+        $this->assertStringContainsString('<span class="sr-only">Notifications, New</span>', $button->icon('bell', 'Notifications', ['indicator' => true]));
     }
 
     public function testNoIndicatorUnchanged(): void
@@ -151,7 +158,7 @@ class ButtonHelperTest extends HelperTestCase
             $out = $button->icon('bell', 'Notifications', ['indicator' => $zero, 'indicatorLabel' => 'Unread']);
             $this->assertStringNotContainsString('relative', $out);
             $this->assertStringNotContainsString('Unread', $out);
-            $this->assertStringContainsString('aria-label="Notifications"', $out);
+            $this->assertStringContainsString('<span class="sr-only">Notifications</span>', $out);
         }
     }
 

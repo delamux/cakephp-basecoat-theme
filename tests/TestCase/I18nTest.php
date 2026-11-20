@@ -6,6 +6,7 @@ namespace BasecoatTheme\Test\TestCase;
 use BasecoatTheme\View\Helper\ButtonHelper;
 use BasecoatTheme\View\Helper\ConversationHelper;
 use BasecoatTheme\View\Helper\DateRangeFieldHelper;
+use BasecoatTheme\View\Helper\NotificationListHelper;
 use BasecoatTheme\View\Helper\SidebarHelper;
 use Cake\Http\ServerRequest;
 use Cake\I18n\I18n;
@@ -29,7 +30,7 @@ class I18nTest extends TestCase
         $this->loadPlugins(['BasecoatTheme']);
         I18n::setLocale('es_ES');
         $sidebar = new SidebarHelper(new View(new ServerRequest()));
-        $this->assertStringContainsString('aria-label="Mostrar u ocultar menú"', $sidebar->toggle());
+        $this->assertStringContainsString('<span class="sr-only">Mostrar u ocultar menú</span>', $sidebar->toggle());
     }
 
     public function testDashboardHelpersAreTranslated(): void
@@ -39,6 +40,18 @@ class I18nTest extends TestCase
         $html = (new ConversationHelper(new View(new ServerRequest())))->render([]);
         $this->assertStringContainsString('aria-label="Mensaje"', $html);
         $this->assertStringContainsString('>Enviar</button>', $html);
+    }
+
+    public function testNotificationListStrings(): void
+    {
+        $this->loadPlugins(['BasecoatTheme']);
+        I18n::setLocale('es_ES');
+        $list = new NotificationListHelper(new View(new ServerRequest()));
+        $this->assertStringContainsString('No hay notificaciones.', $list->render([]));
+        $html = $list->render([['id' => 1, 'type' => 'access', 'title' => 'Acceso', 'unread' => true]]);
+        $this->assertStringContainsString('Sin leer', $html);
+        $this->assertStringContainsString('Aceptar', $html);
+        $this->assertStringContainsString('Rechazar', $html);
     }
 
     public function testPluralAndDateRangeStrings(): void

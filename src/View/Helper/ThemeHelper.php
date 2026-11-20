@@ -77,7 +77,7 @@ class ThemeHelper extends AbstractComponentHelper
         'templates' => [
             'darkModeScript' => '<script{{attrs}}>{{content}}</script>',
             'tailwindTheme' => '<style type="text/tailwindcss"{{attrs}}>{{content}}</style>',
-            'toggleContent' => '<span class="hidden dark:inline">{{sun}}</span><span class="dark:hidden">{{moon}}</span>',
+            'toggleContent' => '<span class="hidden dark:inline">{{sun}}</span><span class="dark:hidden">{{moon}}</span><span class="sr-only">{{label}}</span>',
         ],
     ];
 
@@ -210,11 +210,12 @@ class ThemeHelper extends AbstractComponentHelper
         $content = $this->formatTemplate('toggleContent', [
             'sun' => $this->Icon->render('sun'),
             'moon' => $this->Icon->render('moon'),
+            // Named by visually hidden text inside the button (icons stay aria-hidden).
+            'label' => h($label),
         ]);
         $options += [
             'variant' => 'ghost',
             'size' => 'icon-sm',
-            'aria-label' => $label,
             'data-theme-toggle' => 'true',
             'escape' => false,
         ];

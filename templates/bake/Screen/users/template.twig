@@ -1,0 +1,134 @@
+{#
+/**
+ * `users` screen: people of a workspace with search, status filter, table and pagination.
+ * Reads the `users`, `statuses`, `total`, `page` and `perPage` view variables.
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates).
+ */
+#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<int, array{id: int, name: string, email: string, role: string, plan: string, location: string, status: string}> $users
+ * @var array<string, string> $statuses Status value => label.
+ * @var int $total Number of users matching the filters (all pages).
+ * @var int $page Current page, starting at 1.
+ * @var int $perPage Users per page.
+ */
+$this->assign('title', {{ t|raw }}'Users'));
+
+$statusVariants = ['active' => 'primary', 'invited' => 'outline', 'suspended' => 'destructive'];
+$request = $this->getRequest();
+$query = $request->getQueryParams();
+$pageCount = max(1, (int)ceil($total / max(1, $perPage)));
+$first = $users === [] ? 0 : ($page - 1) * $perPage + 1;
+$last = $users === [] ? 0 : $first + count($users) - 1;
+
+$rows = [];
+foreach ($users as $user) {
+    $rows[] = [
+        // TODO: wire the checkboxes to your own bulk actions (e.g. a form posting `ids[]`).
+        'select' => [
+            'escape' => false,
+            'content' => '<input type="checkbox" name="ids[]" value="' . h((string)$user['id']) . '" aria-label="' . h({{ t|raw }}'Select {0}', $user['name'])) . '">',
+        ],
+        'name' => [
+            'escape' => false,
+            'content' => '<div class="flex items-center gap-3">'
+                . $this->Avatar->render($user['name'])
+                . '<span class="font-medium">' . h($user['name']) . '</span></div>',
+        ],
+        'role' => $user['role'],
+        'plan' => $user['plan'],
+        'email' => ['content' => $user['email'], 'class' => 'text-muted-foreground'],
+        'location' => $user['location'],
+        'status' => [
+            'escape' => false,
+            'content' => $this->Badge->render($statuses[$user['status']] ?? $user['status'], [
+                'variant' => $statusVariants[$user['status']] ?? 'secondary',
+            ]),
+        ],
+        'actions' => [
+            'escape' => false,
+            'content' => $this->DropdownMenu->render('', [
+                // TODO: link these items to your own view, edit and delete actions.
+                ['label' => {{ t|raw }}'View profile'), 'url' => '#'],
+                ['label' => {{ t|raw }}'Edit user'), 'url' => '#'],
+                '-',
+                ['label' => {{ t|raw }}'Suspend'), 'url' => '#', 'variant' => 'destructive'],
+            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $user['name'])], 'align' => 'end']),
+        ],
+    ];
+}
+
+$pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $number] + $query];
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Users'), [
+        'description' => {{ t|raw }}'People with access to this workspace, their roles and plans.'),
+        'actions' => [
+            // TODO: point "Add user" at your own add action.
+            $this->Button->link({{ t|raw }}'Add user'), '#', ['icon' => 'plus']),
+        ],
+    ]) ?>
+
+    <section class="flex flex-col gap-4" aria-label="<?= h({{ t|raw }}'User list')) ?>">
+        <?= $this->TableToolbar->render([
+            'url' => $this->Url->build(['action' => 'index']),
+            'filter' => [
+                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search users')],
+                'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => $statuses],
+            ],
+            // TODO: wire "Columns" to a column picker of your own.
+            // Keeps the rows-per-page choice when the filters are submitted.
+            'actions' => $this->Form->hidden('perPage', ['value' => $perPage])
+                . $this->Button->link({{ t|raw }}'Columns'), '#', ['icon' => 'columns-2', 'variant' => 'outline']),
+        ]) ?>
+
+        <?= $this->Table->render([
+            'select' => ['label' => '<input type="checkbox" aria-label="' . h({{ t|raw }}'Select all users')) . '">', 'escape' => false, 'class' => 'w-10'],
+            'name' => {{ t|raw }}'User'),
+            'role' => {{ t|raw }}'Role'),
+            'plan' => {{ t|raw }}'Plan'),
+            'email' => {{ t|raw }}'Email'),
+            'location' => {{ t|raw }}'Location'),
+            'status' => {{ t|raw }}'Status'),
+            'actions' => ['label' => '<span class="sr-only">' . h({{ t|raw }}'Actions')) . '</span>', 'escape' => false, 'class' => 'w-10'],
+        ], $rows, ['empty' => {{ t|raw }}'No users found.')]) ?>
+
+        <div class="flex flex-col items-center justify-between gap-3 text-sm text-muted-foreground sm:flex-row">
+            <p>
+                <?= $total === 0 || $users === []
+                    ? h({{ t|raw }}'No results'))
+                    : h({{ t|raw }}'Showing {0} to {1} of {2} users', $first, $last, $total)) ?>
+            </p>
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'flex items-center gap-2']) ?>
+                    <?php foreach (['q', 'status'] as $param): ?>
+                        <?php if (isset($query[$param]) && is_string($query[$param])): ?>
+                            <?= $this->Form->hidden($param, ['value' => $query[$param]]) ?>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <?= $this->Form->control('perPage', [
+                        'type' => 'select',
+                        'label' => {{ t|raw }}'Rows per page'),
+                        'options' => [12 => '12', 24 => '24', 48 => '48'],
+                        'value' => $perPage,
+                        'required' => false,
+                    ]) ?>
+                    <?= $this->Form->button({{ t|raw }}'Apply'), ['type' => 'submit', 'variant' => 'ghost']) ?>
+                <?= $this->Form->end() ?>
+                <nav class="flex items-center gap-2" aria-label="<?= h({{ t|raw }}'Pagination')) ?>">
+                    <span><?= h({{ t|raw }}'Page {0} of {1}', $page, $pageCount)) ?></span>
+                    <?= $page > 1
+                        ? $this->Button->link({{ t|raw }}'Previous'), $pageUrl($page - 1), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'prev'])
+                        : $this->Button->render({{ t|raw }}'Previous'), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                    <?= $page < $pageCount
+                        ? $this->Button->link({{ t|raw }}'Next'), $pageUrl($page + 1), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'next'])
+                        : $this->Button->render({{ t|raw }}'Next'), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                </nav>
+            </div>
+        </div>
+    </section>
+</div>

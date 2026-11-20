@@ -11,6 +11,8 @@ namespace BasecoatTheme\View\Helper;
  * echo $this->Button->render('Delete', ['variant' => 'destructive', 'icon' => 'trash']);
  * echo $this->Button->link('Docs', ['controller' => 'Pages', 'action' => 'display', 'docs'], ['variant' => 'link']);
  * echo $this->Button->icon('panel-left', 'Toggle sidebar', ['variant' => 'ghost', 'size' => 'icon-sm']);
+ * // Larger touch target (44px) for an icon-only control
+ * echo $this->Button->icon('bell', 'Notifications', ['variant' => 'ghost', 'class' => 'size-11']);
  * ```
  *
  * Variants: primary (default), secondary, outline, ghost, link, destructive.
@@ -53,6 +55,8 @@ class ButtonHelper extends AbstractComponentHelper
             'button' => '<button{{attrs}}>{{content}}</button>',
             'link' => '<a href="{{url}}"{{attrs}}>{{content}}</a>',
             'text' => '{{text}}',
+            // Accessible name of icon-only buttons (icon()).
+            'iconLabel' => '<span class="sr-only">{{label}}</span>',
         ],
     ];
 
@@ -72,7 +76,8 @@ class ButtonHelper extends AbstractComponentHelper
      * - `indicator`: `true` adds a notification dot; an int/string adds a count badge. The
      *   button gets the `relative` class. `false`, `null`, `''`, `0` and `'0'` render no indicator
      *   at all (no badge, no screen reader text, no `relative` class), so a count can be passed as is.
-     * - `indicatorLabel`: Screen reader text of the indicator (default "New" / "{0} new", pluralized).
+     * - `indicatorLabel`: Screen reader text of the indicator (default "New" / "{0} new", pluralized);
+     *   `''` for none (when the button text already says it).
      * - `escape`: Escape `$text` (default true).
      * - `class` and any HTML attribute.
      *
@@ -141,30 +146,38 @@ class ButtonHelper extends AbstractComponentHelper
     }
 
     /**
-     * Renders an icon-only button. `$label` becomes the `aria-label`.
+     * Renders an icon-only button.
+     *
+     * The accessible name is `$label`, rendered inside the control as visually hidden text
+     * (`<span class="sr-only">`), as recommended by the Lucide accessibility guide; the icon
+     * stays `aria-hidden`. With an `indicator`, its text joins the name ("Notifications, 3 new").
+     * An explicit `aria-label` option is still honoured (it then takes precedence over the text).
      *
      * When `url` is given in `$options`, an `<a>` is rendered instead of a `<button>`.
      *
      * @param string $icon Icon name or raw SVG.
-     * @param string $label Accessible label.
+     * @param string $label Accessible label (plain text, always escaped).
      * @param array<string, mixed> $options Options, see render(). `size` defaults to `icon`.
      * @return string
      */
     public function icon(string $icon, string $label, array $options = []): string
     {
         if ($this->hasIndicator($options)) {
-            // aria-label replaces the content as accessible name, so include the indicator text.
+            // One name for the control: the indicator text goes into the same hidden span.
             $label .= ', ' . $this->indicatorText($options);
+            $options['indicatorLabel'] = '';
         }
-        $options += ['size' => 'icon', 'aria-label' => $label, 'icon' => $icon];
+        $text = $this->formatTemplate('iconLabel', ['label' => h($label)]);
+        // The label is already escaped into the hidden span: `escape` is always off.
+        $options = ['escape' => false] + $options + ['size' => 'icon', 'icon' => $icon];
         if (array_key_exists('url', $options)) {
             $url = $options['url'];
             unset($options['url']);
 
-            return $this->link('', $url, $options);
+            return $this->link($text, $url, $options);
         }
 
-        return $this->render('', $options);
+        return $this->render($text, $options);
     }
 
     /**
@@ -254,6 +267,7 @@ class ButtonHelper extends AbstractComponentHelper
         }
         $indicator = $options['indicator'];
         $label = $this->indicatorText($options);
+        $srText = $label !== '' ? '<span class="sr-only">' . h($label) . '</span>' : '';
         if ($indicator === true) {
             $visual = sprintf('<span class="%s" aria-hidden="true"></span>', h((string)$this->getConfig('classes.indicatorDot')));
         } else {
@@ -265,7 +279,7 @@ class ButtonHelper extends AbstractComponentHelper
             );
         }
 
-        return $visual . '<span class="sr-only">' . h($label) . '</span>';
+        return $visual . $srText;
     }
 
     /**

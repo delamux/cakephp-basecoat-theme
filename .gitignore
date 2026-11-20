@@ -14,3 +14,5 @@ docs/roadmap/*
 /index.html
 /assets/
 /components/
+# Safety net: bake screen tests write to a scratch dir, never commit generated test-app code
+/tests/test_app/src/Controller/

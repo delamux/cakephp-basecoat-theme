@@ -25,8 +25,9 @@ $commandMenu = $this->CommandMenu->render([
     'Pages' => [
         ['label' => 'Overview', 'url' => '/index.html', 'icon' => 'house'],
         ['label' => 'All components', 'url' => '/components/index.html', 'icon' => 'layout-dashboard'],
+        ['label' => 'Screens', 'url' => '/screens/index.html', 'icon' => 'app-window', 'keywords' => 'bake'],
         ['label' => 'Metric card', 'url' => '/components/metric-card.html', 'icon' => 'chart-column', 'keywords' => 'kpi stat'],
-        ['label' => 'Table toolbar', 'url' => '/components/table-toolbar.html', 'icon' => 'list', 'keywords' => 'filter search'],
+        ['label' => 'Table toolbar', 'url' => '/components/table-toolbar.html', 'icon' => 'search', 'keywords' => 'filter search'],
     ],
     'Actions' => [
         ['label' => 'Download report', 'url' => '#overview', 'icon' => 'download', 'shortcut' => 'D'],
@@ -68,7 +69,7 @@ foreach ($orders as $order) {
             ['label' => 'Send receipt', 'url' => '#orders'],
             '-',
             ['label' => 'Refund', 'variant' => 'destructive'],
-        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'aria-label' => 'Actions for ' . $order['id']], 'align' => 'end'])],
+        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Actions for ' . $order['id']], 'align' => 'end'])],
     ];
 }
 ?>
@@ -190,6 +191,7 @@ foreach ($orders as $order) {
             Everything above is rendered by the plugin's View Helpers. All names and figures are invented.
         </p>
         <?= $this->Button->link('View source', 'https://github.com/delamux/cakephp-basecoat-theme/blob/main/docs/catalog/pages/index.php', ['variant' => 'outline']) ?>
+        <?= $this->Button->link('Browse screens', '/screens/index.html', ['variant' => 'outline']) ?>
         <?= $this->Button->link('Browse components', '/components/index.html', ['icon' => 'arrow-right', 'iconPosition' => 'end']) ?>
     </div>
 </div>

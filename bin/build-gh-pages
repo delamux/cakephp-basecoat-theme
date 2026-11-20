@@ -7,11 +7,13 @@ declare(strict_types=1);
  *
  * Usage: php bin/build-gh-pages [--out=build/gh-pages] [--strict]
  *
- * --strict also fails when a registry helper has no examples or its helper class is missing.
+ * --strict also fails when a registry helper has no examples or its helper class is missing, or
+ * when a registered bake screen has no `template.twig` / `data.php`.
  * Exit code 1 on any failure.
  */
 
 use BasecoatTheme\Docs\CatalogBuilder;
+use BasecoatTheme\Docs\ScreenBuilder;
 
 require dirname(__DIR__) . '/docs/catalog/bootstrap.php';
 
@@ -27,6 +29,7 @@ try {
         ROOT . '/docs/catalog/examples',
         ROOT . '/docs/catalog/pages',
         require ROOT . '/docs/catalog/helpers.php',
+        ScreenBuilder::fromRegistry(),
     );
     $report = $builder->build($out, $strict);
 } catch (Throwable $e) {

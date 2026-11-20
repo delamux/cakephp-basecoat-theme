@@ -13,8 +13,8 @@ namespace BasecoatTheme\View\Helper;
  * ], ['id' => 'settings']);
  *
  * echo $this->Tabs->render([
- *     ['tab' => 'Outline', 'panel' => $table],
- *     ['tab' => 'Past Performance ' . $this->Badge->render('3'), 'panel' => '...', 'escape' => false],
+ *     ['tab' => 'Accounts', 'panel' => $table],
+ *     ['tab' => 'Renewals ' . $this->Badge->render('3'), 'panel' => '...', 'escape' => false],
  * ], ['active' => 2, 'variant' => 'line']);
  * ```
  */
