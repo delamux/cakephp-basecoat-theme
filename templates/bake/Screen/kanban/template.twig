@@ -1,0 +1,123 @@
+{#
+/**
+ * BasecoatTheme bake template: `kanban` screen (`bin/cake bake screen kanban`).
+ * Reads the view variables of data.php (columns, cards, priorities).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Board: kanban columns with cards, and the same cards as a table (List view).
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<string, string> $columns Column id => title, in board order.
+ * @var array<int, array<string, mixed>> $cards Cards: id, column, title, description, assignees, progress, priority, due, attachments, comments.
+ * @var array<string, string> $priorities Priority => label.
+ */
+$this->assign('title', {{ t|raw }}'Board'));
+
+$columnTitles = $columns;
+$priorityVariants = ['high' => 'destructive', 'medium' => 'secondary', 'low' => 'outline'];
+
+// Counter with an icon, the number and a hidden label: "3 comments" for assistive technology
+$count = fn (string $icon, int $number, string $label): string => '<span class="inline-flex items-center gap-1">'
+    . $this->Icon->render($icon, ['class' => 'size-3.5'])
+    . '<span>' . $number . '</span><span class="sr-only">' . h($label) . '</span></span>';
+$counts = fn (array $card): string => $count('paperclip', (int)$card['attachments'], {{ t|raw }}'attachments'))
+    . $count('message-circle', (int)$card['comments'], {{ t|raw }}'comments'));
+$priorityBadge = fn (array $card): string => $this->Badge->render($priorities[$card['priority']] ?? (string)$card['priority'], [
+    'variant' => $priorityVariants[$card['priority']] ?? 'outline',
+    'data-priority' => (string)$card['priority'],
+]);
+// Avatars are decorative: the names are listed once in hidden text
+$assignees = fn (array $card): string => $card['assignees'] === [] ? '' : $this->Avatar->group($card['assignees'], [
+    'max' => 3,
+    'avatar' => ['size' => 'sm'],
+    'aria-hidden' => 'true',
+]) . '<span class="sr-only">' . h({{ t|raw }}'Assigned to {0}', implode(', ', $card['assignees']))) . '</span>';
+$progress = fn (array $card): string => '<div class="flex items-center gap-2">'
+    . $this->Progress->render((int)$card['progress'], [
+        'class' => 'flex-1',
+        'aria-label' => {{ t|raw }}'Progress of {0}', $card['title']),
+    ])
+    . '<span class="text-muted-foreground text-xs">' . h((int)$card['progress'] . '%') . '</span></div>';
+
+$board = '<div class="flex gap-4 overflow-x-auto pb-2" data-kanban-board>';
+foreach ($columns as $columnId => $columnTitle) {
+    $columnCards = array_values(array_filter($cards, fn (array $card): bool => $card['column'] === (string)$columnId));
+    $headingId = 'kanban-column-' . $columnId;
+    $board .= '<section class="bg-muted/40 flex w-72 shrink-0 flex-col gap-3 rounded-lg p-3" data-kanban-column="' . h($columnId) . '" aria-labelledby="' . h($headingId) . '">'
+        . '<header class="flex items-center justify-between gap-2 px-1">'
+        . '<h3 id="' . h($headingId) . '" class="text-sm font-medium">' . h($columnTitle) . '</h3>'
+        . $this->Badge->render('<span aria-hidden="true">' . count($columnCards) . '</span><span class="sr-only">' . h({{ t|raw }}'{0} cards', count($columnCards))) . '</span>', ['variant' => 'secondary', 'escape' => false, 'data-kanban-count' => (string)count($columnCards)])
+        . '</header>';
+    if ($columnCards) {
+        // TODO: drag and drop. Each card carries data-kanban-card and each list data-kanban-list, so a script can
+        // move cards between lists and POST the new column to an action of your controller.
+        $board .= '<ul class="flex flex-col gap-3" data-kanban-list="' . h($columnId) . '">';
+        foreach ($columnCards as $card) {
+            $board .= '<li class="bg-card text-card-foreground flex flex-col gap-3 rounded-lg border p-3 shadow-xs" data-kanban-card="' . h((string)$card['id']) . '">'
+                . '<div class="flex items-start justify-between gap-2">'
+                . '<h4 class="text-sm leading-snug font-medium">' . h($card['title']) . '</h4>'
+                // TODO: connect the card menu (edit, move, delete) to your own actions.
+                . $this->Button->icon('ellipsis', {{ t|raw }}'Options for {0}', $card['title']), ['variant' => 'ghost', 'size' => 'icon-sm'])
+                . '</div>'
+                . '<p class="text-muted-foreground text-sm">' . h($card['description']) . '</p>'
+                . $progress($card)
+                . '<div class="flex flex-wrap items-center gap-2">' . $priorityBadge($card)
+                . '<span class="text-muted-foreground text-xs">' . h({{ t|raw }}'Due {0}', $card['due'])) . '</span></div>'
+                . '<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">'
+                . '<span class="flex items-center gap-3">' . $counts($card) . '</span>'
+                . '<span class="flex items-center">' . $assignees($card) . '</span></div>'
+                . '</li>';
+        }
+        $board .= '</ul>';
+    } else {
+        $board .= '<p class="text-muted-foreground px-1 py-4 text-center text-sm">' . h({{ t|raw }}'No cards')) . '</p>';
+    }
+    // TODO: connect "Add card" to an action of your controller.
+    $board .= $this->Button->render({{ t|raw }}'Add card'), [
+        'icon' => 'plus',
+        'variant' => 'ghost',
+        'class' => 'justify-start',
+        'aria-label' => {{ t|raw }}'Add card to {0}', $columnTitle),
+    ]) . '</section>';
+}
+$board .= '</div>';
+
+$rows = array_map(fn (array $card): array => [
+    'title' => h($card['title']),
+    'column' => h($columnTitles[$card['column']] ?? (string)$card['column']),
+    'priority' => $priorityBadge($card),
+    'assignees' => $assignees($card),
+    'progress' => $progress($card),
+    'due' => h($card['due']),
+    'counts' => '<span class="text-muted-foreground flex items-center gap-3 text-xs">' . $counts($card) . '</span>',
+], $cards);
+$list = $this->Table->render([
+    'title' => ['label' => {{ t|raw }}'Card'), 'escape' => false],
+    'column' => ['label' => {{ t|raw }}'Column'), 'escape' => false],
+    'priority' => ['label' => {{ t|raw }}'Priority'), 'escape' => false],
+    'assignees' => ['label' => {{ t|raw }}'Assignees'), 'escape' => false],
+    'progress' => ['label' => {{ t|raw }}'Progress'), 'escape' => false, 'class' => 'w-40'],
+    'due' => ['label' => {{ t|raw }}'Due'), 'escape' => false],
+    'counts' => ['label' => {{ t|raw }}'Activity'), 'escape' => false],
+], $rows, ['empty' => {{ t|raw }}'No cards yet.')]);
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Board'), [
+        'level' => 2,
+        'description' => {{ t|raw }}'Track work across the team, from backlog to done.'),
+        'actions' => [
+            // TODO: connect "New card" to an action of your controller.
+            $this->Button->render({{ t|raw }}'New card'), ['icon' => 'plus']),
+        ],
+    ]) ?>
+
+    <?= $this->Tabs->render([
+        ['tab' => {{ t|raw }}'Board'), 'panel' => $board, 'id' => 'board'],
+        ['tab' => {{ t|raw }}'List'), 'panel' => $list, 'id' => 'list'],
+    ], ['id' => 'kanban-view', 'listOptions' => ['aria-label' => {{ t|raw }}'View')]]) ?>
+</div>
