@@ -41,6 +41,8 @@ class ChatsScreenTest extends TestCase
      * @param array<string, mixed>|null $vars View variables.
      * @param array<string, mixed> $query Query string of the request.
      */
+    private View $view;
+
     private function render(?array $vars = null, array $query = []): string
     {
         $files = (new BakeScreenCommand())->renderFiles('chats', 'Chats');
@@ -56,7 +58,7 @@ class ChatsScreenTest extends TestCase
             'base' => '',
         ]);
         Router::setRequest($request);
-        $view = new View($request);
+        $view = $this->view = new View($request);
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -76,6 +78,14 @@ class ChatsScreenTest extends TestCase
         } finally {
             unlink($file);
         }
+    }
+
+    /**
+     * The page without its `<template>` blocks (what is visible before any script runs).
+     */
+    private function live(string $html): string
+    {
+        return (string)preg_replace('#<template\b.*?</template>#s', '', $html);
     }
 
     private function lint(string $file): int
@@ -149,7 +159,7 @@ class ChatsScreenTest extends TestCase
 
     public function testThreadReusesConversationHelper(): void
     {
-        $html = $this->render();
+        $html = $this->live($this->render());
 
         $this->assertStringContainsString('role="log"', $html);
         $this->assertSame(6, substr_count($html, 'max-w-[75%]'));
@@ -281,7 +291,7 @@ class ChatsScreenTest extends TestCase
 
     public function testMessagesNameTheSenderForScreenReaders(): void
     {
-        $html = $this->render();
+        $html = $this->live($this->render());
 
         $this->assertSame(3, substr_count($html, '<span class="sr-only">You</span><p>'));
         $this->assertSame(3, substr_count($html, '<span class="sr-only">Kofi Mensah</span><p>'));
@@ -299,5 +309,49 @@ class ChatsScreenTest extends TestCase
     public function testSampleDataDoesNotChatWithTheSignedInUser(): void
     {
         $this->assertNotContains('Elena Sarto', array_column(ScreenRegistry::data('chats')['chats'], 'name'));
+    }
+
+    public function testSelectingAConversationSwapsItsThreadFromATemplate(): void
+    {
+        $data = ScreenRegistry::data('chats');
+        $html = $this->render();
+
+        $this->assertStringContainsString('<ul class="flex max-h-[28rem] flex-1 flex-col overflow-y-auto p-2" data-master="#chat-pane" data-master-focus>', $html);
+        $this->assertStringContainsString('id="chat-pane"', $html);
+        foreach ($data['chats'] as $chat) {
+            $this->assertStringContainsString('data-master-item="chat-thread-' . $chat['id'] . '"', $html);
+            $this->assertStringContainsString('<template id="chat-thread-' . $chat['id'] . '">', $html);
+        }
+        $this->assertSame(count($data['chats']), substr_count($html, '<template id="chat-thread-'));
+        // The thread of another conversation lives in its template, not in the open pane.
+        $this->assertStringNotContainsString('Kickoff notes are in the shared folder.', $this->live($html));
+        $this->assertMatchesRegularExpression('#<template id="chat-thread-2">.*Kickoff notes are in the shared folder\..*</template>#s', $html);
+        $this->assertStringContainsString('Group chat · Harbor &amp; Pine, 6 members', $html);
+    }
+
+    public function testUnreadBadgesAreClearedByTheScriptWhenOpened(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(2, substr_count($html, 'data-master-clear="true"'));
+        $this->assertMatchesRegularExpression('/data-unread="5" data-master-clear="true"|data-master-clear="true"[^>]*data-unread="5"/', $html);
+    }
+
+    public function testComposerAppendsFromATemplateAndKeepsAFallback(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('<script src="/basecoat_theme/js/basecoat-screens.js" defer="defer"></script>', $this->view->fetch('script'));
+        $this->assertStringContainsString('basecoat_theme/css/interactivity.css', $this->view->fetch('css'));
+        $this->assertMatchesRegularExpression('#<form method="get" data-composer="\#chat-pane \[role=log\]" data-composer-template="chat-message-template"#', $html);
+        $this->assertStringContainsString('<template id="chat-message-template">', $html);
+        $this->assertStringContainsString('<p data-composer-text></p>', $html);
+        $this->assertStringContainsString('data-composer-time', $html);
+        // No JS: still a GET form with a submit button and a required input, unnamed so the message never
+        // lands in the URL until the form is wired to a POST action.
+        $this->assertMatchesRegularExpression('/<input type="text" class="input min-w-0 flex-1" placeholder="[^"]*" aria-label="Message" autocomplete="off" required>/', $html);
+        $this->assertStringNotContainsString('name="message"', $html);
+        $this->assertMatchesRegularExpression('/<button[^>]*type="submit"[^>]*>/', $html);
+        $this->assertStringNotContainsString('data-endpoint', $html);
     }
 }

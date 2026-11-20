@@ -18,6 +18,11 @@
  */
 $this->assign('title', {{ t|raw }}'Users'));
 
+// Client behaviour (select all + bulk bar, search and status filter): see "Interactivity" in the README.
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$scope = 'users-list';
+
 $statusVariants = ['active' => 'primary', 'invited' => 'outline', 'suspended' => 'destructive'];
 $request = $this->getRequest();
 $query = $request->getQueryParams();
@@ -28,10 +33,16 @@ $last = $users === [] ? 0 : $first + count($users) - 1;
 $rows = [];
 foreach ($users as $user) {
     $rows[] = [
+        // Row hooks: the search matches this text, the status filter matches the tag
+        '_row' => [
+            'data-filter-item' => true,
+            'data-filter-tags' => $user['status'],
+            'data-filter-text' => implode(' ', [$user['name'], $user['email'], $user['role'], $user['plan'], $user['location']]),
+        ],
         // TODO: wire the checkboxes to your own bulk actions (e.g. a form posting `ids[]`).
         'select' => [
             'escape' => false,
-            'content' => '<input type="checkbox" name="ids[]" value="' . h((string)$user['id']) . '" aria-label="' . h({{ t|raw }}'Select {0}', $user['name'])) . '">',
+            'content' => '<input type="checkbox" name="ids[]" value="' . h((string)$user['id']) . '" data-select-item aria-label="' . h({{ t|raw }}'Select {0}', $user['name'])) . '">',
         ],
         'name' => [
             'escape' => false,
@@ -74,20 +85,32 @@ $pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $n
     ]) ?>
 
     <section class="flex flex-col gap-4" aria-label="<?= h({{ t|raw }}'User list')) ?>">
-        <?= $this->TableToolbar->render([
+        <?php
+        // The search box and the status select drive the client-side filter of the list below. They keep
+        // working as a GET form without JavaScript (the server filters then).
+        echo $this->TableToolbar->render([
             'url' => $this->Url->build(['action' => 'index']),
             'filter' => [
-                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search users')],
-                'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => $statuses],
+                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search users'), 'attributes' => ['data-filter-input' => '#' . $scope]],
+                'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => $statuses, 'attributes' => ['data-filter-facet' => '#' . $scope]],
             ],
             // TODO: wire "Columns" to a column picker of your own.
             // Keeps the rows-per-page choice when the filters are submitted.
             'actions' => $this->Form->hidden('perPage', ['value' => $perPage])
                 . $this->Button->link({{ t|raw }}'Columns'), '#', ['icon' => 'columns-2', 'variant' => 'outline']),
-        ]) ?>
+        ]);
+        ?>
+
+        <div id="<?= h($scope) ?>" class="flex flex-col gap-4">
+        <?php // TODO: wire the bulk actions to your own action (e.g. a form posting the selected `ids[]`). ?>
+        <div data-bulk-bar="#<?= h($scope) ?>" hidden class="bg-muted flex flex-wrap items-center gap-2 rounded-lg border px-4 py-2 text-sm">
+            <p class="mr-auto font-medium"><?= h({{ t|raw }}'Selected:')) ?> <span data-bulk-count>0</span></p>
+            <?= $this->Button->render({{ t|raw }}'Suspend'), ['type' => 'button', 'variant' => 'outline', 'size' => 'sm']) ?>
+            <?= $this->Button->render({{ t|raw }}'Clear selection'), ['type' => 'button', 'variant' => 'ghost', 'size' => 'sm', 'data-bulk-clear' => true]) ?>
+        </div>
 
         <?= $this->Table->render([
-            'select' => ['label' => '<input type="checkbox" aria-label="' . h({{ t|raw }}'Select all users')) . '">', 'escape' => false, 'class' => 'w-10'],
+            'select' => ['label' => '<input type="checkbox" data-select-all="#' . $scope . '" aria-label="' . h({{ t|raw }}'Select all users')) . '">', 'escape' => false, 'class' => 'w-10'],
             'name' => {{ t|raw }}'User'),
             'role' => {{ t|raw }}'Role'),
             'plan' => {{ t|raw }}'Plan'),
@@ -96,6 +119,8 @@ $pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $n
             'status' => {{ t|raw }}'Status'),
             'actions' => ['label' => '<span class="sr-only">' . h({{ t|raw }}'Actions')) . '</span>', 'escape' => false, 'class' => 'w-10'],
         ], $rows, ['empty' => {{ t|raw }}'No users found.')]) ?>
+        <p data-filter-empty hidden class="text-muted-foreground py-6 text-center text-sm"><?= h({{ t|raw }}'No users match your search.')) ?></p>
+        </div>
 
         <div class="flex flex-col items-center justify-between gap-3 text-sm text-muted-foreground sm:flex-row">
             <p>

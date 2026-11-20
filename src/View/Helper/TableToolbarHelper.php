@@ -52,7 +52,11 @@ class TableToolbarHelper extends AbstractComponentHelper
      *
      * ### Options
      *
-     * - `filter`: `ListFilter` or a `controls()`-shaped array.
+     * - `filter`: `ListFilter` or a `controls()`-shaped array. A control may have `attributes`: extra HTML
+     *   attributes of its input / select (escaped; `class` is appended; `name`, `type`, `id` and `value`
+     *   stay the helper's), e.g. the data hooks of `basecoat-screens.js`:
+     *   `'q' => ['type' => 'search', 'label' => 'Search', 'attributes' => ['data-filter-input' => '#rows']]`.
+     *   `dateRange` controls ignore it.
      * - `actions`: HTML shown on the right.
      * - `url`: Form action (default current path).
      * - `submit`: Submit button text (default `Filter`).
@@ -120,9 +124,10 @@ class TableToolbarHelper extends AbstractComponentHelper
             $type = (string)($control['type'] ?? 'text');
             $label = (string)($control['label'] ?? $name);
             $wrapper = $type === 'search' ? 'search' : 'control';
+            $extra = $this->controlAttributes($control);
             $out .= '<div class="' . h((string)$this->getConfig('classes.' . $wrapper)) . '">';
             if ($type === 'search') {
-                $out .= $this->Form->control($name, [
+                $out .= $this->Form->control($name, $extra + [
                     'type' => 'search',
                     'label' => ['text' => $label, 'class' => 'sr-only'],
                     'placeholder' => __d('basecoat_theme', 'Search…'),
@@ -133,7 +138,7 @@ class TableToolbarHelper extends AbstractComponentHelper
             } elseif ($type === 'dateRange') {
                 $out .= $this->DateRangeField->render($name, ['label' => $label]);
             } elseif ($type === 'select') {
-                $out .= $this->Form->control($name, [
+                $out .= $this->Form->control($name, $extra + [
                     'type' => 'select',
                     'label' => $label,
                     'options' => $control['options'] ?? [],
@@ -141,7 +146,7 @@ class TableToolbarHelper extends AbstractComponentHelper
                     'required' => false,
                 ]);
             } else {
-                $out .= $this->Form->control($name, ['type' => 'text', 'label' => $label, 'required' => false]);
+                $out .= $this->Form->control($name, $extra + ['type' => 'text', 'label' => $label, 'required' => false]);
             }
             $out .= '</div>';
         }
@@ -166,6 +171,22 @@ class TableToolbarHelper extends AbstractComponentHelper
         }
 
         return $out . $this->Form->end();
+    }
+
+    /**
+     * The `attributes` of a control, without the keys the helper owns.
+     *
+     * @param array<string, mixed> $control Control.
+     * @return array<string, mixed>
+     */
+    private function controlAttributes(array $control): array
+    {
+        $attributes = (array)($control['attributes'] ?? []);
+        foreach (['name', 'type', 'id', 'value', 'label', 'options', 'empty', 'templates', 'templateVars', 'escape', 'val', 'default'] as $owned) {
+            unset($attributes[$owned]);
+        }
+
+        return $attributes;
     }
 
     /**

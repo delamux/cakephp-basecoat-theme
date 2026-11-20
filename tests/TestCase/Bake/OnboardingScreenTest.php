@@ -19,6 +19,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class OnboardingScreenTest extends TestCase
 {
+    private View $view;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -41,8 +43,9 @@ class OnboardingScreenTest extends TestCase
      *
      * @param array<string, mixed>|null $vars View variables.
      * @param array<string, mixed> $query Query string of the request.
+     * @param bool $raw Keep the `<span data-step-current>` hooks of the "Step 1 of 5" label (default: plain text).
      */
-    private function render(?array $vars = null, array $query = []): string
+    private function render(?array $vars = null, array $query = [], bool $raw = false): string
     {
         $files = (new BakeScreenCommand())->renderFiles('onboarding', 'Onboarding');
         $file = TMP . 'onboarding_screen_' . bin2hex(random_bytes(4)) . '.php';
@@ -58,6 +61,7 @@ class OnboardingScreenTest extends TestCase
         ]);
         Router::setRequest($request);
         $view = new View($request);
+        $this->view = $view;
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -67,16 +71,28 @@ class OnboardingScreenTest extends TestCase
         $vars ??= ScreenRegistry::data('onboarding');
 
         try {
-            return (function () use ($file, $vars): string {
+            $html = (function () use ($file, $vars): string {
                 extract($vars);
                 ob_start();
                 include $file;
 
                 return (string)ob_get_clean();
             })->call($view);
+
+            return $raw ? $html : (string)preg_replace('/<span data-step-(?:current|total)>(\d+)<\/span>/', '$1', $html);
         } finally {
             unlink($file);
         }
+    }
+
+    /**
+     * The panel of step `$number` (1-based): everything between its `data-step` div and the next one.
+     */
+    private function panel(string $html, int $number): string
+    {
+        $panels = preg_split('/(?=<div data-step data-step-title=)/', $html) ?: [];
+
+        return $panels[$number] ?? '';
     }
 
     private function lint(string $file): int
@@ -120,13 +136,16 @@ class OnboardingScreenTest extends TestCase
 
         $this->assertStringContainsString('<nav aria-label="Progress">', $html);
         $this->assertSame(1, substr_count($html, 'aria-current="step"'));
-        preg_match_all('/<li [^>]*>.*?<\/li>/s', $html, $items);
+        preg_match_all('/<li [^>]*data-step-indicator[^>]*>.*?<\/li>/s', $html, $items);
         $this->assertCount(5, $items[0]);
         foreach ($items[0] as $i => $item) {
             $n = $i + 1;
+            $state = $n === $step ? 'current' : ($n < $step ? 'complete' : 'upcoming');
+            $this->assertStringContainsString('data-state="' . $state . '"', $item, 'Item ' . $n);
             $this->assertSame($n === $step, str_contains($item, 'aria-current="step"'), 'Item ' . $n);
-            $this->assertSame($n === $step, str_contains($item, '>Current<'), 'Current text ' . $n);
-            $this->assertSame($n < $step, str_contains($item, '>Completed<'), 'Completed text ' . $n);
+            // The texts are always there; the state decides which one shows (group-data variants)
+            $this->assertStringContainsString('group-data-[state=complete]:inline">Completed<', $item);
+            $this->assertStringContainsString('group-data-[state=current]:inline">Current<', $item);
         }
         $this->assertStringContainsString('Step ' . $step . ' of 5', $html);
     }
@@ -155,7 +174,7 @@ class OnboardingScreenTest extends TestCase
         $this->assertMatchesRegularExpression('/<label[^>]*for="workspace-slug"[^>]*>Workspace URL<\/label>/', $html);
         $this->assertStringContainsString('value="Harbor &amp; Pine"', $html);
         $this->assertStringContainsString('value="harbor-pine"', $html);
-        $this->assertStringNotContainsString('>Back<', $html, 'No Back on the first step');
+        $this->assertStringNotContainsString('>Back<', $this->panel($html, 1), 'No Back on the first step');
     }
 
     public function testFormsGetToIndexWithNextStep(): void
@@ -221,7 +240,7 @@ class OnboardingScreenTest extends TestCase
         $html = $this->render(null, ['step' => '5']);
 
         $this->assertStringContainsString('Review and finish', $html);
-        foreach (['Harbor &amp; Pine', 'harbor-pine', '2 people', 'Team', 'Madrid (UTC+1)', 'Weekly'] as $text) {
+        foreach (['Harbor &amp; Pine', 'harbor-pine', 'elena.sarto@example.com, kofi.mensah@example.com', 'Team', 'Madrid (UTC+1)', 'Weekly'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
         $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*Finish\s*<svg.*?<\/svg>\s*<\/button>/s', $html);
@@ -229,15 +248,29 @@ class OnboardingScreenTest extends TestCase
         preg_match('/<button type="button"[^>]*>.*?<\/button>/s', $html, $finish);
         $this->assertStringContainsString('m12 5 7 7-7 7', $finish[0]);
         $this->assertStringNotContainsString('M20 6 9 17l-5-5', $finish[0]);
-        $this->assertStringNotContainsString('<form', $html);
-        $this->assertStringNotContainsString('>Continue<', $html);
+        $this->assertStringNotContainsString('<form', $this->panel($html, 5));
+        $this->assertStringNotContainsString('>Continue<', $this->panel($html, 5));
     }
 
-    public function testSingleInviteIsSingular(): void
+    public function testReviewListsTheInvitesAndBindsTheFields(): void
     {
         $html = $this->render($this->data(['invites' => ['a@example.com']]), ['step' => '5']);
 
-        $this->assertStringContainsString('1 person', $html);
+        $this->assertMatchesRegularExpression('/<dd [^>]*data-bind="invite_1 invite_2 invite_3" data-bind-empty="Nobody yet">a@example\.com<\/dd>/', $html);
+        foreach (['workspace_name', 'workspace_slug', 'timezone', 'digest'] as $field) {
+            $this->assertStringContainsString('data-bind="' . $field . '"', $html);
+        }
+        $this->assertMatchesRegularExpression('/data-bind="plan" data-bind-map="\{&quot;[a-z]+&quot;:&quot;/', $html);
+    }
+
+    public function testFieldsHaveInlineErrors(): void
+    {
+        $html = $this->render(null, ['step' => '1']);
+
+        foreach (['workspace_name', 'workspace_slug', 'invite_1'] as $field) {
+            $this->assertMatchesRegularExpression('/<input[^>]*aria-errormessage="onboarding-error-' . $field . '"/', $html);
+            $this->assertStringContainsString('<p id="onboarding-error-' . $field . '" class="text-destructive -mt-4 text-sm" hidden></p>', $html);
+        }
     }
 
     public function testRendersWithEmptyData(): void
@@ -254,7 +287,7 @@ class OnboardingScreenTest extends TestCase
             $html = $this->render($empty, ['step' => (string)$step]);
             $this->assertStringContainsString('Step ' . $step . ' of 5', $html);
         }
-        $this->assertStringContainsString('0 people', $this->render($empty, ['step' => '5']));
+        $this->assertMatchesRegularExpression('/data-bind-empty="Nobody yet">Nobody yet<\/dd>/', $this->render($empty, ['step' => '5']));
     }
 
     public function testRendersWithoutStepsOrWorkspaceWithoutWarnings(): void
@@ -336,5 +369,62 @@ class OnboardingScreenTest extends TestCase
             . (string)file_get_contents(ROOT . '/templates/bake/Screen/onboarding/template.twig');
 
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe/', $source);
+    }
+
+    public function testLoadsScriptAndStyles(): void
+    {
+        $this->render();
+
+        $this->assertMatchesRegularExpression('#<script src="/basecoat_theme/js/basecoat-screens\.js"[^>]*defer#', $this->view->fetch('script'));
+        $this->assertStringContainsString('href="/basecoat_theme/css/interactivity.css"', $this->view->fetch('css'));
+        // Same asset blocks as the other screens
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/onboarding/template.twig');
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);", $template);
+        $this->assertStringNotContainsString("'block' => true", $template);
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function startSteps(): array
+    {
+        return ['1' => [1], '3' => [3], '5' => [5]];
+    }
+
+    #[DataProvider('startSteps')]
+    public function testStepperHooksAndOnlyTheCurrentPanelIsVisible(int $step): void
+    {
+        $html = $this->render(null, ['step' => (string)$step], true);
+
+        $this->assertStringContainsString('data-stepper data-stepper-start="' . ($step - 1) . '"', $html);
+        $this->assertSame(5, substr_count($html, 'data-step data-step-title='));
+        $this->assertSame(5, substr_count($html, 'data-step-indicator'));
+        $this->assertSame(4, preg_match_all('/<div data-step [^>]* hidden>/', $html), 'Every panel but the current one starts hidden');
+        for ($n = 1; $n <= 5; $n++) {
+            $this->assertSame($n !== $step, preg_match('/^<div data-step [^>]* hidden>/', $this->panel($html, $n)) === 1, 'Panel ' . $n);
+        }
+        $this->assertStringContainsString('Step <span data-step-current>' . $step . '</span> of <span data-step-total>5</span>', $html);
+        $this->assertStringContainsString('data-screens-i18n-step="Step {step} of {total}: {title}"', $html);
+    }
+
+    public function testControlsKeepTheirNoJsFallback(): void
+    {
+        $html = $this->render(null, ['step' => '2'], true);
+
+        // Continue is a submit of a GET form (next step), Back a link to the previous step
+        $this->assertSame(4, preg_match_all('/<button[^>]*type="submit"[^>]*data-step-next="1"|<button[^>]*data-step-next="1"[^>]*type="submit"/', $html));
+        $this->assertSame(4, preg_match_all('/<a href="\/onboarding\?step=\d"[^>]*data-step-prev="1"/', $html));
+        $this->assertSame(4, substr_count($html, 'method="get"'));
+        $this->assertStringContainsString('required', $this->panel($html, 1), 'Required fields validate before Next');
+        $this->assertStringContainsString('required', $this->panel($html, 3));
+    }
+
+    public function testNoDuplicatedIds(): void
+    {
+        $html = $this->render(null, ['step' => '1'], true);
+
+        preg_match_all('/\sid="([^"]+)"/', $html, $ids);
+        $this->assertSame(array_unique($ids[1]), $ids[1]);
     }
 }

@@ -1,0 +1,84 @@
+/*
+ * BasecoatTheme interactivity states (basecoat-dnd.js / basecoat-screens.js).
+ * Load with $this->Html->css('BasecoatTheme.interactivity', ['block' => true]) (served at
+ * /basecoat_theme/css/interactivity.css). Styles only the state attributes set by the scripts; uses
+ * the Basecoat tokens, so it follows light/dark and the style packs. Optional: the behaviour works
+ * without it, but drags have no visual feedback.
+ */
+
+/* Shared live region (also created by the scripts with class="sr-only"). */
+[data-basecoat-announcer] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Draggable items: grab cursor (on the handle when there is one). */
+[data-dnd-ready][data-dnd-item]:not(:has([data-dnd-handle])),
+[data-dnd-ready] [data-dnd-handle] {
+  cursor: grab;
+}
+/* Handles and resize handles drag at once on touch (items need a long press so the page scrolls). */
+[data-dnd-handle],
+[data-dnd-resize] {
+  touch-action: none;
+}
+[data-dnd-resize] {
+  cursor: ns-resize;
+}
+/* No iOS callout (link/image preview) on the long press that starts a touch drag. */
+[data-dnd-item] {
+  -webkit-touch-callout: none;
+}
+[data-dnd-grid][data-dnd-resize-axis="col"] [data-dnd-resize] {
+  cursor: ew-resize;
+}
+
+html[data-dnd-active],
+html[data-dnd-active] * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+[data-dnd-item][data-dnd-dragging] {
+  position: relative;
+  z-index: 10;
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: 2px;
+  box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.25);
+  opacity: 0.92;
+}
+
+[data-dnd-container][data-dnd-over],
+[data-dnd-grid][data-dnd-over] {
+  outline: 2px dashed var(--ring, currentColor);
+  outline-offset: 2px;
+  border-radius: var(--radius, 0.5rem);
+}
+
+[data-dnd-item][data-dnd-busy] {
+  opacity: 0.7;
+}
+
+[data-dnd-item][data-dnd-collision] {
+  outline: 2px solid var(--destructive, #dc2626);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-dnd-item] {
+    transition: box-shadow 120ms ease, opacity 120ms ease;
+  }
+}
+
+/* data-dnd-touch="press": a swipe on the handle scrolls the page; a 250ms press starts the drag. */
+[data-dnd-touch="press"] [data-dnd-handle],
+[data-dnd-handle][data-dnd-touch="press"] {
+  touch-action: auto;
+}

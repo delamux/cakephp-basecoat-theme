@@ -41,6 +41,8 @@ class MailScreenTest extends TestCase
      * @param array<string, mixed>|null $vars View variables.
      * @param array<string, mixed> $query Query string of the request.
      */
+    private View $view;
+
     private function render(?array $vars = null, array $query = []): string
     {
         $files = (new BakeScreenCommand())->renderFiles('mail', 'Mail');
@@ -56,7 +58,7 @@ class MailScreenTest extends TestCase
             'base' => '',
         ]);
         Router::setRequest($request);
-        $view = new View($request);
+        $view = $this->view = new View($request);
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -76,6 +78,14 @@ class MailScreenTest extends TestCase
         } finally {
             unlink($file);
         }
+    }
+
+    /**
+     * The page without its `<template>` blocks (what is visible before any script runs).
+     */
+    private function live(string $html): string
+    {
+        return (string)preg_replace('#<template\b.*?</template>#s', '', $html);
     }
 
     private function lint(string $file): int
@@ -143,8 +153,10 @@ class MailScreenTest extends TestCase
         }
         $this->assertSame(1, substr_count($html, 'aria-current="page"'));
         $this->assertMatchesRegularExpression('/<a [^>]*aria-current="page"[^>]*>.*?Inbox.*?<\/a>/s', $html);
-        $this->assertStringContainsString('<span class="sr-only">4 unread</span>', $html);
-        $this->assertStringContainsString('<span class="sr-only">3 messages</span>', $html);
+        // The counts of the inbox (unread) and starred folders follow the list (data-count-for).
+        $this->assertStringContainsString('<span class="sr-only"><span data-count-for="#mail-list [data-unread=&quot;true&quot;]">4</span> unread</span>', $html);
+        $this->assertStringContainsString('<span class="sr-only"><span>3</span> messages</span>', $html);
+        $this->assertStringContainsString('<span class="sr-only"><span data-count-for="#mail-list [data-starred=&quot;true&quot;]">2</span> messages</span>', $html);
         $this->assertStringContainsString('Compose', $html);
         // Real button styles (class="btn" + data-variant), the current folder visibly highlighted.
         $this->assertStringNotContainsString('btn-ghost', $html);
@@ -232,8 +244,14 @@ class MailScreenTest extends TestCase
         $this->assertStringContainsString('name="q"', $html);
         $this->assertStringContainsString('value="invoice"', $html);
         // The tabs keep the search term.
-        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=unread&amp;q=invoice" aria-current="true" class="btn" data-variant="secondary"[^>]*>\s*Unread/s', $html);
-        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=all&amp;q=invoice" class="btn" data-variant="ghost"[^>]*>\s*All/s', $html);
+        // Server fallback: real links. The current one is `aria-current` (styled by it, so the script can switch it).
+        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=unread&amp;q=invoice" aria-current="true" data-filter-facet="#mail-list" data-filter-value=":has\(\[data-unread=&quot;true&quot;\],\[aria-current=&quot;true&quot;\]\)" class="btn aria-\[current=true\]:bg-secondary[^"]*" data-variant="ghost"[^>]*>\s*Unread/s', $html);
+        // "All" has no filter value: the script shows every row.
+        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=all&amp;q=invoice" data-filter-facet="#mail-list" class="btn [^"]*" data-variant="ghost"[^>]*>\s*All/s', $html);
+        $this->assertStringContainsString('data-filter-input="#mail-list"', $html);
+        // Read state is browser-only: the template points at basecoat:open to save it
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/mail/template.twig');
+        $this->assertStringContainsString('basecoat:open', $template);
     }
 
     public function testRendersWithEmptyData(): void
@@ -248,7 +266,7 @@ class MailScreenTest extends TestCase
 
     public function testNoSelectionShowsPlaceholderOnly(): void
     {
-        $html = $this->render($this->data(['selected' => null]));
+        $html = $this->live($this->render($this->data(['selected' => null])));
 
         $this->assertStringContainsString('Select a message to read it.', $html);
         $this->assertStringNotContainsString('<textarea', $html);
@@ -257,7 +275,7 @@ class MailScreenTest extends TestCase
 
     public function testUnknownSelectionIsIgnored(): void
     {
-        $html = $this->render($this->data(['selected' => 999]));
+        $html = $this->live($this->render($this->data(['selected' => 999])));
 
         $this->assertStringContainsString('Select a message to read it.', $html);
     }
@@ -293,9 +311,9 @@ class MailScreenTest extends TestCase
 
     public function testUniqueIds(): void
     {
-        $html = $this->render();
+        $html = $this->live($this->render());
 
-        preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+        preg_match_all('/(?<![-\w])id="([^"]+)"/', $html, $matches);
         $this->assertNotEmpty($matches[1]);
         $this->assertSame($matches[1], array_values(array_unique($matches[1])));
     }
@@ -337,5 +355,61 @@ class MailScreenTest extends TestCase
 
         $this->assertStringContainsString('<span aria-hidden="true">KM</span>', $html);
         $this->assertDoesNotMatchRegularExpression('/<span>[A-Z]{1,2}<\/span>/', $html);
+    }
+
+    public function testSelectingAMessageSwapsTheReadingPaneFromATemplate(): void
+    {
+        $data = ScreenRegistry::data('mail');
+        $html = $this->render();
+
+        $this->assertStringContainsString('<ul id="mail-list"', $html);
+        $this->assertStringContainsString('data-master="#mail-pane" data-master-focus data-master-empty="mail-empty">', $html);
+        $this->assertMatchesRegularExpression('#<template id="mail-empty">\s*<h2 class="sr-only">Reading pane</h2>\s*<div class="empty">#', $html, 'Shown again when the open message is removed');
+        $this->assertStringContainsString('id="mail-pane"', $html);
+        foreach ($data['messages'] as $message) {
+            $this->assertStringContainsString('data-master-item="mail-message-' . $message['id'] . '"', $html);
+            $this->assertMatchesRegularExpression('#<template id="mail-message-' . $message['id'] . '">\s*<h2 class="sr-only">Reading pane</h2>\s*<article.*?' . preg_quote(htmlspecialchars($message['subject'], ENT_QUOTES), '#') . '.*?</template>#s', $html);
+        }
+        // Only the open message is in the pane before any script runs.
+        $this->assertSame(1, substr_count($this->live($html), '<article'));
+        // The unread dot and its text go away when the message is opened.
+        $this->assertSame(4, substr_count($html, '<span data-master-clear><span class="sr-only">Unread</span>'));
+    }
+
+    public function testRowsAreFilterableAndTheirButtonsUseTheScreenHooks(): void
+    {
+        $data = ScreenRegistry::data('mail');
+        $html = $this->render();
+        $count = count($data['messages']);
+
+        $this->assertSame($count, substr_count($html, 'data-filter-item data-toggle-item'));
+        $live = $this->live($html);
+        // One set per row plus the reading pane of the open message, whose buttons act on its row
+        $this->assertSame($count + 1, substr_count($live, 'data-remove-item="archive"'));
+        $this->assertSame($count + 1, substr_count($live, 'data-remove-item="delete"'));
+        $this->assertSame($count + 1, substr_count($live, 'data-toggle="starred" data-toggle-attr="data-starred" data-toggle-off="false"'));
+        $this->assertSame($count, substr_count($live, '<li id="mail-row-'));
+        $this->assertMatchesRegularExpression('/data-remove-item="archive" data-remove-target="#mail-row-\d+"/', $live);
+        $this->assertMatchesRegularExpression('/data-toggle-off="false" data-toggle-target="#mail-row-\d+"/', $live);
+        $this->assertStringContainsString('data-announce-on="{label} starred."', $live);
+        $this->assertStringContainsString('data-filter-text="Kofi Mensah Harbor &amp; Pine onboarding: field mapping ', $html);
+        $this->assertStringContainsString('data-screens-i18n-removed="{label} archived."', $html);
+        $this->assertMatchesRegularExpression('/<li[^>]*data-filter-empty hidden>No messages match\.<\/li>/', $html);
+        $this->assertMatchesRegularExpression('/aria-pressed="true"[^>]*data-toggle="starred"/', $html);
+        $this->assertMatchesRegularExpression('/data-toggle-for="starred" data-toggle-hidden="off" hidden>/', $html, 'Unstarred rows hide the star indicator');
+        // Named per message so the buttons are distinguishable in a list.
+        $this->assertStringContainsString('<span class="sr-only">Archive: Q4 plan: comments open until Friday</span>', $html);
+    }
+
+    public function testScriptAndStylesAreLoadedWithoutEndpoints(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('basecoat-screens.js', $this->view->fetch('script'));
+        $this->assertStringContainsString('interactivity.css', $this->view->fetch('css'));
+        $this->assertStringNotContainsString('data-endpoint', $html);
+        // Without the script it is still the same GET search form and the same links.
+        $this->assertStringContainsString('method="get"', $html);
+        $this->assertStringContainsString('href="/mail?filter=unread"', $html);
     }
 }

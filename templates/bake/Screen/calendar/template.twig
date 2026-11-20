@@ -12,6 +12,10 @@
 /**
  * Calendar: month grid (a table, Monday first) with event chips, a side panel with the upcoming events and a legend.
  *
+ * Interactivity (BasecoatTheme.basecoat-dnd + basecoat-screens; without JavaScript the page is unchanged):
+ * drag an event chip to another day (keyboard: focus it, Space, arrows, Space or Enter); "+N more" shows the
+ * rest of the day's events in place. Month navigation stays plain GET links.
+ *
  * @var \{{ namespace }}\View\AppView $this
  * @var int $year Year of the month shown.
  * @var int $month Month shown (1-12).
@@ -22,6 +26,9 @@
 use Cake\I18n\DateTime;
 
 $this->assign('title', {{ t|raw }}'Calendar'));
+$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
 
 $maxChips = 3;
 $palette = [
@@ -54,6 +61,20 @@ unset($dayEvents);
 $upcoming = array_values(array_filter($events, fn (array $e): bool => $e['date'] >= $today));
 usort($upcoming, fn (array $a, array $b): int => [$a['date'], (string)($a['time'] ?? ''), (string)$a['title']] <=> [$b['date'], (string)($b['time'] ?? ''), (string)$b['title']]);
 $upcoming = array_slice($upcoming, 0, 5);
+
+// Messages read aloud while an event is dragged to another day (placeholders are filled in by the script)
+$dndMessages = [
+    'instructions' => {{ t|raw }}'Press Space to pick up. Use the arrow keys to move (left and right change the day), Space or Enter to drop, Escape to cancel.'),
+    'picked-up' => {{ t|raw }}'Picked up {label}. {container}, position {position} of {total}.'),
+    'moved' => {{ t|raw }}'{container}, position {position} of {total}.'),
+    'dropped' => {{ t|raw }}'Dropped {label}. {container}, position {position} of {total}.'),
+    'cancelled' => {{ t|raw }}'Cancelled. {label} is back in {container}, position {position} of {total}.'),
+    'failed' => {{ t|raw }}'Could not save the change. {label} was moved back.'),
+];
+$dndAttributes = '';
+foreach ($dndMessages as $key => $message) {
+    $dndAttributes .= ' data-dnd-i18n-' . $key . '="' . h($message) . '"';
+}
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <?= $this->PageHeader->render({{ t|raw }}'Calendar'), [
@@ -82,7 +103,8 @@ $upcoming = array_slice($upcoming, 0, 5);
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div class="relative min-w-0 overflow-x-auto rounded-lg border">
-            <table class="w-full min-w-[38rem] table-fixed border-collapse text-sm" data-calendar="<?= h(sprintf('%04d-%02d', $year, $month)) ?>">
+            <?php // TODO: set data-endpoint="<your move action URL>" on this table to save moves ({action: 'move', id, from, to, index}: from / to are the days, Y-m-d; failures are reverted). ?>
+            <table class="w-full min-w-[38rem] table-fixed border-collapse text-sm" data-calendar="<?= h(sprintf('%04d-%02d', $year, $month)) ?>"<?= $dndAttributes ?>>
                 <caption class="sr-only"><?= h($monthLabel) ?></caption>
                 <thead>
                     <tr>
@@ -107,36 +129,39 @@ $upcoming = array_slice($upcoming, 0, 5);
                                 $dayEvents = $byDay[$key] ?? [];
                                 $hidden = max(0, count($dayEvents) - $maxChips);
                                 ?>
-                                <td class="h-28 border-t border-l p-1 align-top first:border-l-0<?= $inMonth ? '' : ' bg-muted/40 text-muted-foreground' ?>" data-date="<?= h($key) ?>">
+                                <?php // Each day is a drop target (also when empty); the hidden chips are shown in place by "+N more". ?>
+                                <td class="h-28 border-t border-l p-1 align-top first:border-l-0<?= $inMonth ? '' : ' bg-muted/40 text-muted-foreground' ?>" data-date="<?= h($key) ?>" data-toggle-item data-id="<?= h($key) ?>">
                                     <div class="mb-1 flex justify-end">
                                         <time datetime="<?= h($key) ?>" class="inline-flex min-w-6 items-center justify-center rounded-full px-1 text-xs<?= $isToday ? ' bg-primary text-primary-foreground font-semibold' : '' ?>"<?= $isToday ? ' aria-current="date"' : '' ?>>
                                             <span aria-hidden="true"><?= h($day->format('j')) ?></span>
                                             <span class="sr-only"><?= h($day->i18nFormat('d MMMM')) ?><?= $isToday ? ', ' . h({{ t|raw }}'Today')) : '' ?></span>
                                         </time>
                                     </div>
-                                    <?php if ($dayEvents) : ?>
-                                        <ul class="flex flex-col gap-0.5">
-                                            <?php foreach (array_slice($dayEvents, 0, $maxChips) as $event) : ?>
-                                                <?php $colors = $palette[$event['category']] ?? $neutral; ?>
-                                                <li>
-                                                    <?php // TODO: link the chip to your own event view action. ?>
-                                                    <a href="#" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs <?= h($colors['chip']) ?>" data-event="<?= h((string)$event['id']) ?>" data-category="<?= h($event['category']) ?>" title="<?= h(trim(($event['time'] ?? '') . ' ' . $event['title'])) ?>">
-                                                        <?php if (!empty($event['time'])) : ?><span class="shrink-0 font-medium"><?= h($event['time']) ?></span><?php endif; ?>
-                                                        <span class="truncate"><?= h($event['title']) ?></span>
-                                                        <span class="sr-only">, <?= h($categories[$event['category']] ?? $event['category']) ?></span>
-                                                    </a>
-                                                </li>
-                                            <?php endforeach; ?>
-                                            <?php if ($hidden > 0) : ?>
-                                                <li>
-                                                    <?php // TODO: link "more" to a day view listing every event of the day. ?>
-                                                    <a href="#" class="text-muted-foreground hover:text-foreground block px-1.5 text-xs" data-more="<?= h($key) ?>">
-                                                        <span aria-hidden="true"><?= h({{ t|raw }}'+{0} more', $hidden)) ?></span><span class="sr-only"><?= h({{ tn|raw }}'+{0} more event on {1}', '+{0} more events on {1}', $hidden, $hidden, $day->i18nFormat('d MMMM'))) ?></span>
-                                                    </a>
-                                                </li>
-                                            <?php endif; ?>
-                                        </ul>
-                                    <?php endif; ?>
+                                    <?php // data-dnd-touch="press": a swipe on a chip scrolls the page, a long press picks it up; data-dnd-var-short / data-dnd-var-date are the date shown by the Upcoming list and its <time datetime> ?>
+                                    <ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press" data-id="<?= h($key) ?>" data-dnd-label="<?= h($day->i18nFormat('EEEE d MMMM')) ?>" data-dnd-var-short="<?= h($day->i18nFormat('EEE d MMM')) ?>" data-dnd-var-date="<?= h($key) ?>">
+                                        <?php foreach ($dayEvents as $index => $event) : ?>
+                                            <?php
+                                            $colors = $palette[$event['category']] ?? $neutral;
+                                            $label = trim(($event['time'] ?? '') . ' ' . $event['title']);
+                                            ?>
+                                            <li data-dnd-item data-id="<?= h((string)$event['id']) ?>" data-dnd-label="<?= h($label) ?>" data-dnd-mirror="<?= h('[data-upcoming="' . $event['id'] . '"]') ?>"<?= $index < $maxChips ? '' : ' data-toggle-for="expanded" data-toggle-hidden="off" hidden' ?>>
+                                                <?php // TODO: link the chip to your own event view action. The chip is also the drag handle. ?>
+                                                <a href="#" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs <?= h($colors['chip']) ?>" data-dnd-handle data-event="<?= h((string)$event['id']) ?>" data-category="<?= h($event['category']) ?>" title="<?= h($label) ?>">
+                                                    <?php if (!empty($event['time'])) : ?><span class="shrink-0 font-medium"><?= h($event['time']) ?></span><?php endif; ?>
+                                                    <span class="truncate"><?= h($event['title']) ?></span>
+                                                    <span class="sr-only">, <?= h($categories[$event['category']] ?? $event['category']) ?></span>
+                                                </a>
+                                            </li>
+                                        <?php endforeach; ?>
+                                        <?php if ($hidden > 0) : ?>
+                                            <li data-toggle-for="expanded" data-toggle-hidden="on">
+                                                <?php // TODO: link "more" to a day view listing every event of the day (with JavaScript it shows them in place). ?>
+                                                <a href="#" class="text-muted-foreground hover:text-foreground block px-1.5 text-xs" data-more="<?= h($key) ?>" data-toggle="expanded">
+                                                    <span aria-hidden="true"><?= h({{ t|raw }}'+{0} more', $hidden)) ?></span><span class="sr-only"><?= h({{ tn|raw }}'+{0} more event on {1}', '+{0} more events on {1}', $hidden, $hidden, $day->i18nFormat('d MMMM'))) ?></span>
+                                                </a>
+                                            </li>
+                                        <?php endif; ?>
+                                    </ul>
                                 </td>
                             <?php endfor; ?>
                         </tr>
@@ -152,12 +177,16 @@ $upcoming = array_slice($upcoming, 0, 5);
                     <ul class="flex flex-col gap-3">
                         <?php foreach ($upcoming as $event) : ?>
                             <?php $colors = $palette[$event['category']] ?? $neutral; ?>
-                            <li class="flex items-start gap-3" data-upcoming="<?= h((string)$event['id']) ?>">
+                            <?php
+                            // Mirror of the chip: after a drag the date follows ({short}) and the list stays in date order
+                            $sortTail = '|' . ($event['time'] ?? '') . '|' . $event['title'];
+                            ?>
+                            <li class="flex items-start gap-3" data-upcoming="<?= h((string)$event['id']) ?>" data-dnd-sort="<?= h('{container-id}' . $sortTail) ?>" data-dnd-sort-key="<?= h($event['date'] . $sortTail) ?>">
                                 <span class="mt-1.5 size-2 shrink-0 rounded-full <?= h($colors['dot']) ?>" aria-hidden="true"></span>
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium"><?= h($event['title']) ?></p>
                                     <p class="text-muted-foreground text-xs">
-                                        <time datetime="<?= h($event['date']) ?>"><?= h((new DateTime($event['date'] . ' 00:00:00', 'UTC'))->i18nFormat('EEE d MMM')) ?></time><?php if (!empty($event['time'])) : ?>, <?= h($event['time']) ?><?php endif; ?>
+                                        <time datetime="<?= h($event['date']) ?>" data-dnd-attr="datetime:{date}" data-dnd-text="short"><?= h((new DateTime($event['date'] . ' 00:00:00', 'UTC'))->i18nFormat('EEE d MMM')) ?></time><?php if (!empty($event['time'])) : ?>, <?= h($event['time']) ?><?php endif; ?>
                                     </p>
                                     <?= $this->Badge->render((string)($categories[$event['category']] ?? $event['category']), ['variant' => 'outline', 'class' => 'mt-1']) ?>
                                 </div>

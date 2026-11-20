@@ -37,6 +37,17 @@ $filters = [
 $query = $this->getRequest()->getQueryParams();
 $filtered = trim((string)($query['q'] ?? '')) !== '' || $filter !== 'all';
 $visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
+// Client-side tabs, search and counts work on the tasks of this root (basecoat-screens.js)
+$root = 'task-lists';
+$filterValues = ['all' => '', 'active' => '!done', 'completed' => 'done'];
+$filterCounts = [
+    'all' => '[data-task]',
+    'active' => '[data-task]:not([data-state=&quot;done&quot;])',
+    'completed' => '[data-task][data-state=&quot;done&quot;]',
+];
+$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <?= $this->PageHeader->render({{ t|raw }}'Tasks'), [
@@ -54,45 +65,67 @@ $visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
                 <?php
                 // Keeps the search term when the filter changes
                 $url = ['action' => 'index', '?' => array_filter(['q' => $query['q'] ?? null, 'filter' => $key === 'all' ? null : $key], fn ($v) => $v !== null && $v !== '')];
-                $attrs = ['variant' => $filter === $key ? 'secondary' : 'ghost', 'size' => 'sm', 'data-filter' => $key];
+                // Without JS the links reload the page; with JS the tabs filter the list in place
+                $attrs = [
+                    'variant' => 'ghost',
+                    'size' => 'sm',
+                    'escape' => false,
+                    'class' => 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-foreground',
+                    'data-filter' => $key,
+                    'data-filter-facet' => '#' . $root,
+                    'data-filter-value' => $filterValues[$key] ?? '',
+                ];
                 if ($filter === $key) {
                     $attrs['aria-current'] = 'true';
                 }
+                $number = '<span data-count-for="' . $filterCounts[$key] . '">' . (int)($counts[$key] ?? 0) . '</span>';
                 ?>
-                <?= $this->Button->link($label . ' (' . (int)($counts[$key] ?? 0) . ')', $url, $attrs) ?>
+                <?= $this->Button->link(h($label) . ' (' . $number . ')', $url, $attrs) ?>
             <?php endforeach; ?>
         </nav>
-        <?= $this->TableToolbar->render([
-            'url' => $this->Url->build(['action' => 'index']),
-            'filter' => [
-                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search tasks')],
-            ],
-            // Keeps the current filter when searching
-            'actions' => $filter !== 'all' ? $this->Form->hidden('filter', ['value' => $filter]) : '',
-        ]) ?>
+        <?php // Searching: a GET form without JS, a live filter of the list with JS ?>
+        <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'role' => 'search', 'class' => 'flex items-center gap-2']) ?>
+            <div class="w-full sm:w-64">
+                <?= $this->Form->control('q', [
+                    'type' => 'search',
+                    'label' => ['text' => {{ t|raw }}'Search tasks'), 'class' => 'sr-only'],
+                    'placeholder' => {{ t|raw }}'Search…'),
+                    'autocomplete' => 'off',
+                    'maxlength' => 100,
+                    'required' => false,
+                    'data-filter-input' => '#' . $root,
+                ]) ?>
+            </div>
+            <?= $filter !== 'all' ? $this->Form->hidden('filter', ['value' => $filter]) : '' ?>
+            <?= $this->Form->button({{ t|raw }}'Filter'), ['type' => 'submit', 'variant' => 'secondary']) ?>
+        <?= $this->Form->end() ?>
     </div>
 
     <?php if ($visible) : ?>
         <?php
-        // TODO: toggling a task is not wired. Wrap the lists in
-        // `$this->Form->create(null, ['url' => ['action' => 'toggle']])` (POST with the CSRF token),
-        // add a submit button or post each change, and read `done[]` in your action.
+        // Toggling, tabs, search and reordering are client side (basecoat-screens.js, basecoat-dnd.js) and
+        // dispatch `basecoat:toggle` / `basecoat:move` events on the task.
+        // TODO: to save them, add a `data-endpoint` attribute (the URL of an `update` action of
+        // your controller, built with $this->Url->build()) to the div below (JSON POST {action: 'toggle', id, name, on} / {action: 'move', id, from, to, index}, with
+        // the CSRF token; failures are reverted). Return all the tasks and let the tabs filter them, so that
+        // switching tabs does not need a reload.
         ?>
-        <div class="flex flex-col gap-6">
+        <div id="<?= h($root) ?>" class="flex flex-col gap-6" data-filter-root>
             <?php foreach ($visible as $key => $tasks) : ?>
-                <section aria-labelledby="task-group-<?= h($key) ?>" data-task-group="<?= h($key) ?>">
+                <section aria-labelledby="task-group-<?= h($key) ?>" data-task-group="<?= h($key) ?>" data-filter-group>
                     <h2 id="task-group-<?= h($key) ?>" class="mb-2 flex items-center gap-2 text-sm font-semibold">
                         <?= h($groupLabels[$key] ?? $key) ?>
-                        <?= $this->Badge->render((string)count($tasks), ['variant' => 'secondary']) ?>
+                        <?= $this->Badge->render((string)count($tasks), ['variant' => 'secondary', 'data-count-for' => '#task-list-' . $key . ' > [data-filter-item]', 'data-count-visible' => 'true']) ?>
                     </h2>
-                    <ul class="divide-y rounded-lg border">
+                    <ul id="task-list-<?= h($key) ?>" class="divide-y rounded-lg border" data-dnd-container data-dnd-group="tasks-<?= h($key) ?>" data-dnd-label="<?= h($groupLabels[$key] ?? $key) ?>">
                         <?php foreach ($tasks as $task) : ?>
                             <?php $done = !empty($task['done']); $priority = (string)($task['priority'] ?? 'medium'); ?>
-                            <li class="flex flex-wrap items-center gap-x-3 gap-y-2 p-3" data-task="<?= h((string)$task['id']) ?>" data-done="<?= $done ? 'true' : 'false' ?>">
+                            <?php $search = implode(' ', array_merge([(string)$task['title']], (array)($task['tags'] ?? []), [(string)($task['assignee']['name'] ?? '')])); ?>
+                            <li class="group flex flex-wrap items-center gap-x-3 gap-y-2 p-3" data-task="<?= h((string)$task['id']) ?>"<?= $done ? ' data-state="done"' : '' ?> data-id="<?= h((string)$task['id']) ?>" data-toggle-item data-filter-item data-filter-text="<?= h($search) ?>" data-dnd-item data-dnd-id="<?= h((string)$task['id']) ?>" data-dnd-label="<?= h($task['title']) ?>">
                                 <?php // Phones: title and menu on the first row, the details below, aligned with the title. ?>
                                 <div class="flex min-w-0 flex-1 items-center gap-3">
-                                    <input type="checkbox" class="input" name="done[]" value="<?= h((string)$task['id']) ?>" id="task-<?= h((string)$task['id']) ?>"<?= $done ? ' checked' : '' ?>>
-                                    <label for="task-<?= h((string)$task['id']) ?>" class="min-w-0 flex-1 text-sm font-medium<?= $done ? ' text-muted-foreground line-through' : '' ?>"><?= h($task['title']) ?><?php if ($done) : ?><span class="sr-only"><?= h({{ t|raw }}'Completed')) ?></span><?php endif; ?></label>
+                                    <input type="checkbox" class="input" name="done[]" value="<?= h((string)$task['id']) ?>" id="task-<?= h((string)$task['id']) ?>" data-toggle="done"<?= $done ? ' checked' : '' ?>>
+                                    <label for="task-<?= h((string)$task['id']) ?>" class="min-w-0 flex-1 text-sm font-medium group-data-[state=done]:text-muted-foreground group-data-[state=done]:line-through"><?= h($task['title']) ?><span class="sr-only" data-toggle-for="done" data-toggle-hidden="off"<?= $done ? '' : ' hidden' ?>><?= h({{ t|raw }}'Completed')) ?></span></label>
                                 </div>
                                 <?= $this->DropdownMenu->render('', [
                                     // TODO: link these items to your own edit and delete actions.
@@ -126,6 +159,12 @@ $visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
                     </ul>
                 </section>
             <?php endforeach; ?>
+            <div hidden data-filter-empty>
+                <?= $this->EmptyState->render({{ t|raw }}'No tasks'), [
+                    'description' => {{ t|raw }}'Nothing matches these filters. Try a different search.'),
+                    'icon' => 'list-checks',
+                ]) ?>
+            </div>
         </div>
     <?php else : ?>
         <?= $this->EmptyState->render({{ t|raw }}'No tasks'), [

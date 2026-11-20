@@ -72,6 +72,29 @@ class CatalogBuilderTest extends TestCase
         $this->assertFileEquals(ROOT . '/webroot/css/workflow.css', $this->out . '/basecoat_theme/css/workflow.css');
     }
 
+    public function testEveryPluginScriptIsCopied(): void
+    {
+        $this->build();
+
+        $scripts = glob(ROOT . '/webroot/js/*.js') ?: [];
+        $names = array_map('basename', $scripts);
+        $this->assertContains('basecoat-dnd.js', $names);
+        $this->assertContains('basecoat-screens.js', $names);
+        foreach ($scripts as $script) {
+            // `pluginJs` URL (/assets/…) and the plugin asset URL of `Html->script('BasecoatTheme.<name>')`.
+            $this->assertFileEquals($script, $this->out . '/assets/' . basename($script));
+            $this->assertFileEquals($script, $this->out . '/basecoat_theme/js/' . basename($script));
+        }
+        $this->assertFileEquals(ROOT . '/webroot/css/interactivity.css', $this->out . '/basecoat_theme/css/interactivity.css');
+
+        $view = new \Cake\View\View();
+        $this->assertStringContainsString(
+            'src="/basecoat_theme/js/basecoat-dnd.js"',
+            (string)$view->Html->script('BasecoatTheme.basecoat-dnd'),
+            'The copied path is the plugin asset URL',
+        );
+    }
+
     public function testSetupIsCollapsed(): void
     {
         $this->build();

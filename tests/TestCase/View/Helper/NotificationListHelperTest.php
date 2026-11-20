@@ -197,4 +197,68 @@ class NotificationListHelperTest extends HelperTestCase
         $this->assertStringContainsString('<span aria-hidden="true">KM</span>', $html);
         $this->assertStringContainsString('<span>ID</span>', $html, 'The avatar is the only place naming the actor');
     }
+
+    public function testItemAttributesFromOptionAndRow(): void
+    {
+        $rows = $this->sample();
+        $rows[1]['attributes'] = ['data-pinned' => 'true', 'class' => 'row-extra'];
+        $html = (new NotificationListHelper($this->View))->render($rows, [
+            'itemAttributes' => fn (array $row, int $index): array => [
+                'data-id' => (string)$row['id'],
+                'data-state' => !empty($row['unread']) ? 'unread' : 'read',
+                'data-index' => (string)$index,
+                'class' => 'data-[state=read]:bg-transparent',
+            ],
+        ]);
+
+        $this->assertMatchesRegularExpression('/<li [^>]*data-id="7"[^>]*data-state="unread"[^>]*data-index="0"/', $html);
+        $this->assertMatchesRegularExpression('/<li [^>]*data-id="8"[^>]*data-state="read"/', $html);
+        $this->assertMatchesRegularExpression('/<li [^>]*class="[^"]*bg-accent\/50[^"]*data-\[state=read\]:bg-transparent/', $html, 'Classes are appended');
+        $this->assertMatchesRegularExpression('/<li [^>]*data-pinned="true"/', $html);
+        $this->assertStringContainsString('row-extra', $html);
+        $this->assertStringContainsString('aria-labelledby="notification-title-', $html, 'Own attributes are kept');
+
+        $static = (new NotificationListHelper($this->View))->render($rows, ['itemAttributes' => ['data-filter-item' => true]]);
+        $this->assertSame(2, substr_count($static, 'data-filter-item'));
+        $this->assertStringNotContainsString('itemAttributes', $static);
+    }
+
+    public function testDotActionAndFooterHooks(): void
+    {
+        $html = (new NotificationListHelper($this->View))->render($this->sample(), [
+            'dotAttributes' => ['data-toggle-for' => 'read', 'data-toggle-hidden' => 'on'],
+            'actionAttributes' => ['accept' => ['data-toggle' => 'accepted', 'id' => 'nope'], 'decline' => ['data-toggle' => 'declined']],
+            'actionsAttributes' => ['class' => 'contents', 'data-toggle-for' => 'answered'],
+            'footer' => fn (array $row): string => !empty($row['unread']) ? '<button data-mark="' . $row['id'] . '">Mark</button>' : '',
+        ]);
+
+        $this->assertMatchesRegularExpression('/<span[^>]*data-unread-dot="true"[^>]*data-toggle-for="read"[^>]*data-toggle-hidden="on"|data-toggle-for="read" data-toggle-hidden="on"[^>]*data-unread-dot/', $html);
+        $this->assertMatchesRegularExpression('/<button[^>]*data-action="accept"[^>]*data-toggle="accepted"|data-toggle="accepted"[^>]*data-action="accept"/', $html);
+        $this->assertStringContainsString('id="notification-accept-1"', $html, 'id and aria-labelledby cannot be replaced');
+        $this->assertStringNotContainsString('id="nope"', $html);
+        $this->assertStringContainsString('<span class="contents" data-toggle-for="answered"><button', $html);
+        $this->assertSame(1, substr_count($html, '<button data-mark="7">Mark</button>'));
+        $this->assertMatchesRegularExpression('/<button data-mark="7">Mark<\/button><\/div><\/div><\/li>/', $html, 'Appended at the end of the footer');
+    }
+
+    public function testFooterCreatesTheFooterWhenTheRowHasNone(): void
+    {
+        $html = (new NotificationListHelper($this->View))->render([['id' => 3, 'title' => 'Plain']], [
+            'footer' => fn (): string => '<i>x</i>',
+        ]);
+
+        $this->assertStringContainsString('<div class="flex flex-wrap items-center gap-2 pt-1"><i>x</i></div>', $html);
+    }
+
+    public function testActionAttributesLeavePostButtonsAlone(): void
+    {
+        $html = (new NotificationListHelper($this->View))->render($this->sample(), [
+            'urls' => ['accept' => '/requests/{id}/accept', 'decline' => '/requests/{id}/decline'],
+            'actionAttributes' => ['accept' => ['data-toggle' => 'accepted']],
+            'actionsAttributes' => ['data-toggle-for' => 'answered'],
+        ]);
+
+        $this->assertStringNotContainsString('data-toggle="accepted"', $html);
+        $this->assertStringNotContainsString('data-toggle-for="answered"', $html);
+    }
 }

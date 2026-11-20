@@ -112,6 +112,27 @@ class UsersScreenTest extends HelperTestCase
         $this->assertStringContainsString('name="perPage"', $html);
     }
 
+    public function testInteractivityHooksAndScripts(): void
+    {
+        $html = $this->renderScreen();
+
+        $this->assertStringContainsString('basecoat-screens.js', $this->View->fetch('script'));
+        $this->assertStringContainsString('interactivity.css', $this->View->fetch('css'));
+        $this->assertStringContainsString('<input type="search" name="q" data-filter-input="#users-list"', $html);
+        $this->assertStringContainsString('<select name="status" data-filter-facet="#users-list"', $html);
+        $this->assertStringContainsString('<div id="users-list"', $html);
+        $this->assertStringContainsString('data-select-all="#users-list"', $html);
+        $count = count(ScreenRegistry::data('users')['users']);
+        $this->assertSame($count, substr_count($html, 'data-select-item'));
+        $this->assertSame($count, substr_count($html, 'data-filter-item'));
+        $this->assertStringContainsString('data-filter-tags="invited"', $html);
+        $this->assertMatchesRegularExpression('/<div data-bulk-bar="#users-list" hidden[^>]*>.*?<span data-bulk-count>0<\/span>.*?data-bulk-clear/s', $html);
+        $this->assertStringContainsString('data-filter-empty hidden', $html);
+        // No endpoint by default; the GET filter form is still there for no-JS
+        $this->assertStringNotContainsString('data-endpoint', $html);
+        $this->assertMatchesRegularExpression('/<form[^>]*method="get"[^>]*role="search"/', $html);
+    }
+
     public function testPagination(): void
     {
         $this->View->setRequest($this->View->getRequest()->withQueryParams(['q' => 'an', 'status' => 'active']));

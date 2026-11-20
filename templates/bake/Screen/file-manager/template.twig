@@ -22,6 +22,12 @@
  */
 $this->assign('title', {{ t|raw }}'Files'));
 
+// Client behaviour (select all + bulk bar, search and type filter, grid / list switch, drop zone):
+// see "Interactivity" in the README.
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$results = 'files-results';
+
 $request = $this->getRequest();
 $indexUrl = $this->Url->build(['action' => 'index']);
 $view = $request->getQuery('view') === 'grid' ? 'grid' : 'list';
@@ -101,14 +107,18 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
         </section>
     </section>
 
-    <?= $this->TableToolbar->render([
+    <?php
+    // The search box and the type select drive the client-side filter of the files below. They keep working
+    // as a GET form without JavaScript (the server filters then).
+    echo $this->TableToolbar->render([
         'url' => $indexUrl,
         'hidden' => ['path' => $path, 'view' => $view],
         'filter' => [
-            'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files')],
-            'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types],
+            'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files'), 'attributes' => ['data-filter-input' => '#' . $results]],
+            'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types, 'attributes' => ['data-filter-facet' => '#' . $results]],
         ],
-    ]) ?>
+    ]);
+    ?>
 
     <section aria-labelledby="file-manager-folders-heading" class="flex flex-col gap-3">
         <h3 id="file-manager-folders-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Folders')) ?></h3>
@@ -134,20 +144,59 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
         <?php endif; ?>
     </section>
 
+    <?php
+    // TODO: the files are only listed in the page. Handle the `basecoat:upload` event of the zone (its detail
+    // holds the File objects) and send them to an upload action of your controller (POST, multipart, CSRF token).
+    // Drop zone of basecoat-screens.js; the messages are announced when files are added, removed or cleared
+    ?>
+    <section aria-labelledby="file-manager-upload-heading" data-dropzone
+        data-screens-i18n-files-added="<?= h({{ t|raw }}'{count} added to the upload list.')) ?>"
+        data-screens-i18n-file-removed="<?= h({{ t|raw }}'{name} removed from the upload list.')) ?>"
+        data-screens-i18n-files-cleared="<?= h({{ t|raw }}'Upload list cleared.')) ?>"
+        class="data-[over]:border-primary data-[over]:bg-accent flex flex-col gap-3 rounded-lg border border-dashed p-4">
+        <h3 id="file-manager-upload-heading" class="flex items-center gap-2 text-base font-semibold"><?= $this->Icon->render('upload') ?><?= h({{ t|raw }}'Add files')) ?></h3>
+        <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'Drop files here or choose them from your device.')) ?></p>
+        <div class="flex flex-col gap-1.5">
+            <label for="file-manager-upload-input" class="text-sm font-medium"><?= h({{ t|raw }}'Choose files')) ?></label>
+            <input type="file" multiple id="file-manager-upload-input" data-dropzone-input class="input">
+        </div>
+        <ul data-dropzone-list hidden class="flex flex-col divide-y rounded-md border text-sm" aria-label="<?= h({{ t|raw }}'Files ready to upload')) ?>">
+            <template data-dropzone-item>
+                <li class="flex items-center justify-between gap-3 px-3 py-2">
+                    <span class="flex min-w-0 flex-col">
+                        <span data-dropzone-name class="truncate font-medium"></span>
+                        <span data-dropzone-size class="text-muted-foreground text-xs"></span>
+                    </span>
+                    <?= $this->Button->icon('x', {{ t|raw }}'Remove file'), ['type' => 'button', 'variant' => 'ghost', 'size' => 'icon-sm', 'data-dropzone-remove' => true, 'data-dropzone-remove-label' => {{ t|raw }}'Remove {name}')]) ?>
+                </li>
+            </template>
+        </ul>
+        <div data-dropzone-actions hidden class="flex flex-wrap gap-2">
+            <?= $this->Button->render({{ t|raw }}'Upload files'), ['type' => 'button', 'icon' => 'upload', 'size' => 'sm', 'data-dropzone-upload' => true]) ?>
+            <?= $this->Button->render({{ t|raw }}'Clear list'), ['type' => 'button', 'variant' => 'ghost', 'size' => 'sm', 'data-dropzone-clear' => true]) ?>
+        </div>
+    </section>
+
     <section aria-labelledby="file-manager-files-heading" class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 id="file-manager-files-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Recent files')) ?></h3>
-            <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'Layout')) ?>" data-view-switch>
+            <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'Layout')) ?>">
                 <?= $this->Button->link({{ t|raw }}'List'), $link($path, 'list', $filters), [
                     'icon' => 'list',
-                    'variant' => $view === 'list' ? 'secondary' : 'ghost',
+                    'variant' => 'ghost',
+                    'class' => 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-foreground',
                     'size' => 'sm',
+                    'data-view-switch' => 'list',
+                    'data-view-target' => '#' . $results,
                     'aria-current' => $view === 'list' ? 'true' : null,
                 ]) ?>
                 <?= $this->Button->link({{ t|raw }}'Grid'), $link($path, 'grid', $filters), [
                     'icon' => 'layout-grid',
-                    'variant' => $view === 'grid' ? 'secondary' : 'ghost',
+                    'variant' => 'ghost',
+                    'class' => 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-foreground',
                     'size' => 'sm',
+                    'data-view-switch' => 'grid',
+                    'data-view-target' => '#' . $results,
                     'aria-current' => $view === 'grid' ? 'true' : null,
                 ]) ?>
             </nav>
@@ -158,13 +207,35 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
                 'description' => $filtered ? {{ t|raw }}'Nothing matches these filters. Try a different search.') : {{ t|raw }}'Upload a file to get started.'),
                 'icon' => 'folder-open',
             ]) ?>
-        <?php elseif ($view === 'grid') : ?>
-            <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-view="grid">
+        <?php else : ?>
+            <?php
+            // Both layouts are rendered so the switch needs no reload; the other one is hidden. Each has its own
+            // selection (select all + bulk bar). The search and the type filter apply to both.
+            // TODO: wire the bulk actions to your own action (e.g. a form posting the selected file ids).
+            $bulkBar = fn (string $scope): string => '<div data-bulk-bar="#' . $scope . '" hidden class="bg-muted flex flex-wrap items-center gap-2 rounded-lg border px-4 py-2 text-sm">'
+                . '<p class="mr-auto font-medium">' . h({{ t|raw }}'Selected:')) . ' <span data-bulk-count>0</span></p>'
+                . $this->Button->render({{ t|raw }}'Download'), ['type' => 'button', 'variant' => 'outline', 'size' => 'sm'])
+                . $this->Button->render({{ t|raw }}'Clear selection'), ['type' => 'button', 'variant' => 'ghost', 'size' => 'sm', 'data-bulk-clear' => true])
+                . '</div>';
+            $filterText = fn (array $file, string $typeLabel): string => implode(' ', [$file['name'], $typeLabel, $file['owner']]);
+            ?>
+            <div id="<?= h($results) ?>" data-view="<?= h($view) ?>" class="flex flex-col gap-3">
+            <div id="files-grid" data-view-panel="grid"<?= $view === 'grid' ? '' : ' hidden' ?> class="flex flex-col gap-3">
+            <?= $bulkBar('files-grid') ?>
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" data-select-all="#files-grid">
+                <?= h({{ t|raw }}'Select all files')) ?>
+            </label>
+            <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <?php foreach ($files as $file) : ?>
                     <?php $typeLabel = $types[$file['type']] ?? $file['type']; ?>
-                    <li class="card flex min-w-0 flex-col gap-3 p-4" data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>">
+                    <li class="card data-[selected]:ring-ring flex min-w-0 flex-col gap-3 p-4 data-[selected]:ring-2" data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>"
+                        data-select-row data-filter-item data-filter-tags="<?= h($file['type']) ?>" data-filter-text="<?= h($filterText($file, $typeLabel)) ?>">
                         <div class="flex items-start justify-between gap-2">
-                            <span class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md"><?= $this->Icon->render($typeIcon($file['type'])) ?></span>
+                            <span class="flex items-center gap-2">
+                                <input type="checkbox" value="<?= h((string)$file['id']) ?>" data-select-item aria-label="<?= h({{ t|raw }}'Select {0}', $file['name'])) ?>">
+                                <span class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md"><?= $this->Icon->render($typeIcon($file['type'])) ?></span>
+                            </span>
                             <?= $this->DropdownMenu->render('', [
                                 // TODO: link these items to your own download, rename and delete actions.
                                 ['label' => {{ t|raw }}'Download'), 'url' => '#'],
@@ -184,12 +255,15 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
                     </li>
                 <?php endforeach; ?>
             </ul>
-        <?php else : ?>
-            <div class="relative min-w-0 overflow-x-auto rounded-lg border" data-view="list">
+            </div>
+            <div id="files-list" data-view-panel="list"<?= $view === 'list' ? '' : ' hidden' ?> class="flex flex-col gap-3">
+            <?= $bulkBar('files-list') ?>
+            <div class="relative min-w-0 overflow-x-auto rounded-lg border">
                 <table class="table">
                     <caption class="sr-only"><?= h({{ t|raw }}'Recent files')) ?></caption>
                     <thead>
                         <tr>
+                            <th class="w-10"><input type="checkbox" data-select-all="#files-list" aria-label="<?= h({{ t|raw }}'Select all files')) ?>"></th>
                             <th><?= h({{ t|raw }}'Name')) ?></th>
                             <th><?= h({{ t|raw }}'Owner')) ?></th>
                             <th><?= h({{ t|raw }}'Size')) ?></th>
@@ -200,7 +274,9 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
                     <tbody>
                         <?php foreach ($files as $file) : ?>
                             <?php $typeLabel = $types[$file['type']] ?? $file['type']; ?>
-                            <tr data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>">
+                            <tr data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>"
+                                data-filter-item data-filter-tags="<?= h($file['type']) ?>" data-filter-text="<?= h($filterText($file, $typeLabel)) ?>">
+                                <td class="w-10"><input type="checkbox" value="<?= h((string)$file['id']) ?>" data-select-item aria-label="<?= h({{ t|raw }}'Select {0}', $file['name'])) ?>"></td>
                                 <td class="font-medium">
                                     <span class="flex min-w-0 items-center gap-2">
                                         <span class="text-muted-foreground"><?= $this->Icon->render($typeIcon($file['type'])) ?></span>
@@ -229,6 +305,9 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+            </div>
+            <p data-filter-empty hidden class="text-muted-foreground py-6 text-center text-sm"><?= h({{ t|raw }}'No files match your search.')) ?></p>
             </div>
         <?php endif; ?>
     </section>

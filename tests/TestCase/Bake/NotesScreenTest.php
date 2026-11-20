@@ -20,6 +20,8 @@ use function Cake\Core\h;
  */
 class NotesScreenTest extends TestCase
 {
+    private View $lastView;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -58,7 +60,7 @@ class NotesScreenTest extends TestCase
             'base' => '',
         ]);
         Router::setRequest($request);
-        $view = new View($request);
+        $view = $this->lastView = new View($request);
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -167,8 +169,10 @@ class NotesScreenTest extends TestCase
         }
         $done = substr_count($html, ' checked');
         $this->assertGreaterThan(0, $done);
-        $this->assertSame($done, substr_count($html, 'line-through'));
-        $this->assertSame($done, substr_count($html, '<span class="sr-only">completed</span>'));
+        // The strike-through comes from the item state (`data-state="done"`), the text for screen readers is only shown then
+        $this->assertSame($done, substr_count($html, ' data-state="done"'));
+        $this->assertSame($done, substr_count($html, 'data-toggle-hidden="off">completed</span>'));
+        $this->assertSame(count($boxes[1]) - $done, substr_count($html, 'data-toggle-hidden="off" hidden>completed</span>'));
     }
 
     public function testImageNotes(): void
@@ -268,8 +272,8 @@ class NotesScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<article [^>]*data-note-type="image" class="card pt-0 /', $html);
-        $this->assertDoesNotMatchRegularExpression('/<article [^>]*data-note-type="(text|checklist)" class="card pt-0/', $html);
+        $this->assertMatchesRegularExpression('/<article [^>]*data-note-type="image"[^>]* class="card pt-0 /', $html);
+        $this->assertDoesNotMatchRegularExpression('/<article [^>]*data-note-type="(text|checklist)"[^>]* class="card pt-0/', $html);
     }
 
     public function testRendersWithoutLabelsAndUnknownLabelIds(): void
@@ -304,9 +308,42 @@ class NotesScreenTest extends TestCase
     {
         $html = $this->render();
 
-        preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+        preg_match_all('/(?<![-\w])id="([^"]+)"/', $html, $matches);
         $this->assertNotEmpty($matches[1]);
         $this->assertSame($matches[1], array_values(array_unique($matches[1])));
+    }
+
+    public function testInteractivityHooksAndScripts(): void
+    {
+        $html = $this->render();
+        $script = $this->lastView->fetch('script');
+
+        $this->assertStringContainsString('basecoat-dnd.js', $script);
+        $this->assertStringContainsString('basecoat-screens.js', $script);
+        $this->assertStringContainsString('interactivity.css', $this->lastView->fetch('css'));
+        // Search, layout switch, reorder and toggles are hooked up
+        $this->assertStringContainsString('data-filter-input="#notes-board"', $html);
+        $this->assertSame(2, substr_count($html, 'data-view-target="#notes-board"'));
+        $this->assertMatchesRegularExpression('/<div id="notes-board" data-view="grid">/', $html);
+        $this->assertStringContainsString('data-dnd-container data-dnd-axis="both"', $html, 'Grid view (CSS columns): x and y decide the drop place');
+        $this->assertSame(2, substr_count($html, 'data-active-variant="secondary" data-inactive-variant="ghost"'), 'The layout buttons restyle without a reload');
+        $this->assertSame(8, substr_count($html, 'data-dnd-item'));
+        $this->assertSame(8, substr_count($html, 'data-filter-item'));
+        $this->assertSame(8, substr_count($html, 'data-dnd-handle'));
+        $this->assertStringContainsString('Reorder Launch checklist for Lantern Books</span>', $html);
+        $this->assertStringContainsString('data-toggle="done"', $html);
+        $this->assertStringContainsString('data-filter-empty hidden', $html);
+        $this->assertStringContainsString('data-dnd-i18n-picked-up="Picked up {label}.', $html);
+        // The endpoint is a TODO: nothing is posted by default
+        $this->assertStringNotContainsString('data-endpoint', $html);
+    }
+
+    public function testNoJsFallbacksRemain(): void
+    {
+        $html = $this->render($this->data(), ['q' => 'plan']);
+
+        $this->assertMatchesRegularExpression('/<form[^>]*method="get"[^>]*>(?:(?!<\/form>).)*name="q"/s', $html);
+        $this->assertMatchesRegularExpression('/<button[^>]*type="submit"[^>]*name="view"[^>]*value="list"/', $html);
     }
 
     public function testNoLinksToMissingActionsAndNoStateChangingForms(): void

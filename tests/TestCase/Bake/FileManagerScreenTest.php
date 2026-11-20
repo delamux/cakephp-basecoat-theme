@@ -18,6 +18,8 @@ use Cake\View\View;
  */
 class FileManagerScreenTest extends TestCase
 {
+    private View $lastView;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -55,7 +57,7 @@ class FileManagerScreenTest extends TestCase
             'base' => '',
         ]);
         Router::setRequest($request);
-        $view = new View($request);
+        $view = $this->lastView = new View($request);
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -145,7 +147,8 @@ class FileManagerScreenTest extends TestCase
         $data = ScreenRegistry::data('file-manager');
         $html = $this->render();
 
-        $this->assertSame(count($data['files']), substr_count($html, '<circle cx="19" cy="12" r="1"/>'));
+        // One menu per file in each of the two layouts (grid and list are both rendered)
+        $this->assertSame(2 * count($data['files']), substr_count($html, '<circle cx="19" cy="12" r="1"/>'));
         $this->assertMatchesRegularExpression('/<button[^>]*aria-haspopup="menu"[^>]*>\s*<svg.*?<\/svg><span class="sr-only">Actions for Q4 plan\.docx<\/span><\/button>/s', $html);
     }
 
@@ -187,8 +190,10 @@ class FileManagerScreenTest extends TestCase
         $html = $this->render(null, ['view' => 'grid']);
 
         $this->assertStringContainsString('data-view="grid"', $html);
-        $this->assertStringNotContainsString('<table', $html);
-        $this->assertSame(count($data['files']), substr_count($html, '<li class="card flex min-w-0 flex-col'));
+        // Both layouts are in the page; the list one is hidden
+        $this->assertMatchesRegularExpression('/<div id="files-list" data-view-panel="list" hidden/', $html);
+        $this->assertMatchesRegularExpression('/<div id="files-grid" data-view-panel="grid" class=/', $html);
+        $this->assertSame(count($data['files']), substr_count($html, '<li class="card data-[selected]:ring-ring flex min-w-0 flex-col'));
         $this->assertMatchesRegularExpression('/<a [^>]*aria-current="true"[^>]*>.*?Grid\s*<\/a>/s', $html);
         $this->assertStringContainsString('href="/files?view=list"', $html);
         $this->assertStringContainsString('Type: </span>Documents', $html);
@@ -199,6 +204,7 @@ class FileManagerScreenTest extends TestCase
         $html = $this->render($this->data(['path' => 'Lantern Books']));
 
         $this->assertStringContainsString('data-view="list"', $html);
+        $this->assertMatchesRegularExpression('/<div id="files-grid" data-view-panel="grid" hidden/', $html);
         $this->assertStringContainsString('href="/files?path=Lantern+Books&amp;view=grid"', $html);
         $this->assertMatchesRegularExpression('/<a [^>]*aria-current="true"[^>]*>.*?List\s*<\/a>/s', $html);
     }
@@ -232,6 +238,50 @@ class FileManagerScreenTest extends TestCase
 
         $this->assertStringContainsString('href="/files?view=grid&amp;q=brief&amp;type=document"', $html);
         $this->assertStringContainsString('href="/files?view=list&amp;q=brief&amp;type=document"', $html);
+    }
+
+    public function testInteractivityHooksAndScripts(): void
+    {
+        $count = count(ScreenRegistry::data('file-manager')['files']);
+        $html = $this->render();
+        $script = $this->lastView->fetch('script');
+
+        $this->assertStringContainsString('basecoat-screens.js', $script);
+        $this->assertStringNotContainsString('basecoat-dropzone.js', $script, 'The drop zone is part of basecoat-screens.js');
+        $this->assertStringContainsString('interactivity.css', $this->lastView->fetch('css'));
+        // Search, type filter and layout switch target the results
+        $this->assertStringContainsString('<input type="search" name="q" data-filter-input="#files-results"', $html);
+        $this->assertStringContainsString('<select name="type" data-filter-facet="#files-results"', $html);
+        $this->assertStringContainsString('<div id="files-results" data-view="list"', $html);
+        $this->assertMatchesRegularExpression('/<a [^>]*data-view-switch="grid"[^>]*data-view-target="#files-results"/', $html);
+        $this->assertMatchesRegularExpression('/<a [^>]*data-view-switch="list"[^>]*data-view-target="#files-results"/', $html);
+        // Each layout has its own select-all and bulk bar with a count
+        foreach (['files-list', 'files-grid'] as $scope) {
+            $this->assertStringContainsString('data-select-all="#' . $scope . '"', $html);
+            $this->assertMatchesRegularExpression('/<div data-bulk-bar="#' . $scope . '" hidden[^>]*>.*?<span data-bulk-count>0<\/span>.*?data-bulk-clear/s', $html);
+        }
+        $this->assertSame(2 * $count, substr_count($html, 'data-select-item'));
+        $this->assertSame(2 * $count, substr_count($html, 'data-filter-item'));
+        $this->assertStringContainsString('data-filter-empty hidden', $html);
+        $this->assertStringNotContainsString('data-endpoint', $html);
+    }
+
+    public function testDropZoneListsFilesClientSideAndUploadIsATodo(): void
+    {
+        $html = $this->render();
+
+        $this->assertMatchesRegularExpression('/<section aria-labelledby="file-manager-upload-heading" data-dropzone\s+data-screens-i18n-files-added="\{count\} added/', $html);
+        $this->assertStringContainsString('data-screens-i18n-file-removed="{name} removed from the upload list."', $html);
+        $this->assertMatchesRegularExpression('/<input type="file" multiple id="file-manager-upload-input" data-dropzone-input/', $html);
+        $this->assertStringContainsString('<label for="file-manager-upload-input"', $html);
+        $this->assertStringContainsString('<template data-dropzone-item>', $html);
+        $this->assertStringContainsString('data-dropzone-remove-label="Remove {name}"', $html);
+        $this->assertMatchesRegularExpression('/<div data-dropzone-actions hidden/', $html);
+        $this->assertMatchesRegularExpression('/<ul data-dropzone-list hidden/', $html);
+        $this->assertStringNotContainsString('enctype', $html);
+        $this->assertStringNotContainsString('<form method="post"', $html);
+        $code = (new BakeScreenCommand())->renderFiles('file-manager', 'Files')['templates/Files/index.php'];
+        $this->assertStringContainsString('basecoat:upload', $code, 'The upload is documented as a TODO event');
     }
 
     public function testFolderFileCountIsPlural(): void
@@ -292,7 +342,7 @@ class FileManagerScreenTest extends TestCase
         foreach ([[], ['view' => 'grid']] as $query) {
             $html = $this->render(null, $query);
 
-            preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+            preg_match_all('/(?<![-\w])id="([^"]+)"/', $html, $matches);
             $this->assertNotEmpty($matches[1]);
             $this->assertSame($matches[1], array_values(array_unique($matches[1])));
         }

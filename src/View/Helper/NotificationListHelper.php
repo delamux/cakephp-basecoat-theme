@@ -31,6 +31,7 @@ use function Cake\Core\h;
  * - `actor`: `['name' => ..., 'avatar' => ...]`. Shown as an avatar instead of the type icon.
  * - `url`: Makes the title a link.
  * - `actions`: HTML shown instead of the default Accept / Decline buttons (not escaped).
+ * - `attributes`: Extra attributes of this row's `<li>` (escaped; `class` is appended).
  *
  * ### Options
  *
@@ -42,6 +43,17 @@ use function Cake\Core\h;
  *   inert (`type="button"`). State changes are never sent with GET.
  * - `empty`: Text when there are no notifications.
  * - `escape`: Escape the texts (default true).
+ * - `itemAttributes`: Extra attributes of every `<li>`: an array, or a callable
+ *   `fn(array $notification, int $index): array` (e.g. the data hooks of `basecoat-screens.js`:
+ *   `data-toggle-item`, `data-id`, `data-state`). `class` is appended; `aria-labelledby` stays the helper's.
+ * - `dotAttributes`: Extra attributes of the unread dot (e.g. `data-toggle-for`).
+ * - `actionAttributes`: `['accept' => [...], 'decline' => [...]]` extra attributes of the inert Accept /
+ *   Decline buttons (those without a `urls` entry; POST buttons are never changed). `id` and
+ *   `aria-labelledby` stay the helper's.
+ * - `actionsAttributes`: When given, the inert default buttons are wrapped in `<span{{attrs}}>` with
+ *   these attributes (e.g. `['class' => 'contents', 'data-toggle-for' => 'answered', 'data-toggle-hidden' => 'on']`).
+ * - `footer`: Callable `fn(array $notification, int $index): string` whose HTML (not escaped) is appended
+ *   to the footer of the row (e.g. a "Mark as read" button or a status text).
  *
  * Config `actionTypes` lists the types that get Accept / Decline buttons.
  *
@@ -102,6 +114,7 @@ class NotificationListHelper extends AbstractComponentHelper
             'time' => '<span{{attrs}}>{{content}}</span>',
             'body' => '<p{{attrs}}>{{content}}</p>',
             'footer' => '<div{{attrs}}>{{content}}</div>',
+            'actionGroup' => '<span{{attrs}}>{{content}}</span>',
             'empty' => '<p{{attrs}}>{{content}}</p>',
         ],
     ];
@@ -123,11 +136,13 @@ class NotificationListHelper extends AbstractComponentHelper
         }
 
         $items = '';
-        foreach (array_values($notifications) as $notification) {
-            $items .= $this->item($notification, $options, $escape);
+        foreach (array_values($notifications) as $index => $notification) {
+            $items .= $this->item($notification, $options, $escape, $index);
         }
 
-        $attributes = $this->rootAttributes('divide-y overflow-hidden rounded-lg border', ['role' => 'list'] + $options, ['types', 'icons', 'variants', 'urls', 'empty']);
+        $attributes = $this->rootAttributes('divide-y overflow-hidden rounded-lg border', ['role' => 'list'] + $options, [
+            'types', 'icons', 'variants', 'urls', 'empty', 'itemAttributes', 'dotAttributes', 'actionAttributes', 'actionsAttributes', 'footer',
+        ]);
 
         return $this->renderTemplate('list', $attributes, ['content' => $items], $options['templateVars'] ?? []);
     }
@@ -136,16 +151,17 @@ class NotificationListHelper extends AbstractComponentHelper
      * @param array<string, mixed> $notification Notification.
      * @param array<string, mixed> $options Options.
      * @param bool $escape Escape the texts.
+     * @param int $index Position of the row.
      * @return string
      */
-    protected function item(array $notification, array $options, bool $escape): string
+    protected function item(array $notification, array $options, bool $escape, int $index = 0): string
     {
         $type = (string)($notification['type'] ?? '');
         $unread = !empty($notification['unread']);
         $titleId = $this->uniqueId('notification-title');
 
         $dot = $unread
-            ? $this->renderTemplate('dot', $this->partAttributes('dot', ['data-unread-dot' => 'true']), [
+            ? $this->renderTemplate('dot', $this->partAttributes('dot', ['data-unread-dot' => 'true'] + (array)($options['dotAttributes'] ?? [])), [
                 'label' => h(__d('basecoat_theme', 'Unread')),
             ])
             : '';
@@ -172,16 +188,22 @@ class NotificationListHelper extends AbstractComponentHelper
             : '';
 
         $footerContent = $this->badge($type, $options, $escape) . $this->actions($notification, $type, $titleId, $options);
+        if (is_callable($options['footer'] ?? null)) {
+            $footerContent .= (string)$options['footer']($notification, $index);
+        }
         $footer = $footerContent !== ''
             ? $this->renderTemplate('footer', $this->partAttributes('footer'), ['content' => $footerContent])
             : '';
 
+        $extra = $options['itemAttributes'] ?? [];
+        $extra = is_callable($extra) ? (array)$extra($notification, $index) : (array)$extra;
+        $own = (array)($notification['attributes'] ?? []);
         $attributes = $this->partAttributes('item', [
             'aria-labelledby' => $titleId,
             'data-type' => $type !== '' ? $type : null,
             'data-unread' => $unread ? 'true' : null,
-            'class' => $unread ? $this->getConfig('classes.unread') : null,
-        ]);
+            'class' => $this->mergeClasses($unread ? $this->getConfig('classes.unread') : null, $extra['class'] ?? null, $own['class'] ?? null),
+        ] + array_diff_key($own + $extra, ['class' => true]));
 
         return $this->renderTemplate('item', $attributes, [
             'media' => $this->media($notification, $type, $options),
@@ -257,7 +279,9 @@ class NotificationListHelper extends AbstractComponentHelper
 
         $urls = (array)($options['urls'] ?? []);
         $buttons = ['accept' => [__d('basecoat_theme', 'Accept'), null], 'decline' => [__d('basecoat_theme', 'Decline'), 'outline']];
+        $extra = (array)($options['actionAttributes'] ?? []);
         $out = '';
+        $inert = '';
         foreach ($buttons as $action => [$label, $variant]) {
             $buttonId = $this->uniqueId('notification-' . $action);
             $attributes = [
@@ -268,12 +292,23 @@ class NotificationListHelper extends AbstractComponentHelper
                 'data-action' => $action,
             ];
             $url = $urls[$action] ?? null;
-            $out .= $url !== null
-                ? $this->Form->postButton($label, $this->fillId($url, (string)($notification['id'] ?? '')), $attributes)
-                : $this->Button->render($label, $attributes);
+            if ($url !== null) {
+                $out .= $this->Form->postButton($label, $this->fillId($url, (string)($notification['id'] ?? '')), $attributes);
+            } else {
+                $button = $this->Button->render($label, $attributes + (array)($extra[$action] ?? []));
+                // Grouped (after the POST buttons) only when the group has attributes; else in order
+                if (empty($options['actionsAttributes'])) {
+                    $out .= $button;
+                } else {
+                    $inert .= $button;
+                }
+            }
+        }
+        if ($inert !== '') {
+            $inert = $this->renderTemplate('actionGroup', $this->cleanAttributes((array)$options['actionsAttributes']), ['content' => $inert]);
         }
 
-        return $out;
+        return $out . $inert;
     }
 
     /**

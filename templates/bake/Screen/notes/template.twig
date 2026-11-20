@@ -19,6 +19,28 @@
  */
 $this->assign('title', {{ t|raw }}'Notes'));
 
+// Client behaviour (checklist toggles, grid / list switch, search, drag to reorder): see "Interactivity" in the README.
+$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$board = 'notes-board';
+// Classes of each layout, swapped by the view switch (they are written out here so Tailwind finds them)
+$boardClasses = ['grid' => 'gap-4 sm:columns-2 xl:columns-3', 'list' => 'mx-auto flex w-full max-w-3xl flex-col gap-4'];
+$cardClasses = ['grid' => 'mb-4 break-inside-avoid', 'list' => ''];
+// Messages read aloud while a note is dragged (placeholders are filled in by the script)
+$dnd = [
+    'instructions' => {{ t|raw }}'Press Space or Enter to pick up. Use the arrow keys to move, Space or Enter to drop, Escape to cancel.'),
+    'picked-up' => {{ t|raw }}'Picked up {label}. {container}, position {position} of {total}.'),
+    'moved' => {{ t|raw }}'{container}, position {position} of {total}.'),
+    'dropped' => {{ t|raw }}'Dropped {label}. {container}, position {position} of {total}.'),
+    'cancelled' => {{ t|raw }}'Cancelled. {label} is back in {container}, position {position} of {total}.'),
+    'failed' => {{ t|raw }}'Could not save the change. {label} was moved back.'),
+];
+$dndAttributes = '';
+foreach ($dnd as $key => $message) {
+    $dndAttributes .= ' data-dnd-i18n-' . $key . '="' . h($message) . '"';
+}
+
 $request = $this->getRequest();
 $indexUrl = $this->Url->build(['action' => 'index']);
 $search = $request->getQuery('q');
@@ -116,7 +138,7 @@ $art = [
             <div class="flex flex-wrap items-center gap-2">
                 <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'class' => 'flex min-w-0 flex-1 items-center gap-2']) ?>
                     <label for="notes-search" class="sr-only"><?= h({{ t|raw }}'Search notes')) ?></label>
-                    <input type="search" id="notes-search" name="q" value="<?= h($search) ?>" class="input w-full sm:max-w-sm" placeholder="<?= h({{ t|raw }}'Search notes')) ?>">
+                    <input type="search" id="notes-search" name="q" value="<?= h($search) ?>" data-filter-input="#<?= h($board) ?>" class="input w-full sm:max-w-sm" placeholder="<?= h({{ t|raw }}'Search notes')) ?>">
                     <input type="hidden" name="view" value="<?= h($view) ?>">
                     <?= $this->Button->icon('search', {{ t|raw }}'Search'), ['type' => 'submit', 'variant' => 'outline']) ?>
                 <?= $this->Form->end() ?>
@@ -133,6 +155,11 @@ $art = [
                                 'value' => $mode,
                                 'variant' => $view === $mode ? 'secondary' : 'ghost',
                                 'aria-pressed' => $view === $mode ? 'true' : 'false',
+                                // The script swaps the variant when the layout changes without a reload
+                                'data-active-variant' => 'secondary',
+                                'data-inactive-variant' => 'ghost',
+                                'data-view-switch' => $mode,
+                                'data-view-target' => '#' . $board,
                             ]) ?>
                         <?php endforeach; ?>
                     </div>
@@ -141,17 +168,29 @@ $art = [
 
             <?php if ($notes) : ?>
                 <?php
-                // TODO: the checkboxes only render the state. To toggle a checklist item, wrap the list in a
-                // POST form (postButton / Form->create) that posts to your own action.
+                // TODO: the checklist toggles and the new order are only kept in the page. To save them, set
+                // `data-endpoint` (the URL of an action of your controller) on the board below: the
+                // script then POSTs JSON ({action: 'toggle', id, name, on} and {action: 'move', id, index, ...})
+                // with the CSRF token, and reverts the change when the request fails. Without an endpoint
+                // listen to the basecoat:toggle and basecoat:move events instead.
                 ?>
-                <section aria-label="<?= h({{ t|raw }}'Notes')) ?>" data-view="<?= h($view) ?>" class="<?= $view === 'grid' ? 'gap-4 sm:columns-2 xl:columns-3' : 'mx-auto flex w-full max-w-3xl flex-col gap-4' ?>">
+                <div id="<?= h($board) ?>" data-view="<?= h($view) ?>">
+                <section aria-label="<?= h({{ t|raw }}'Notes')) ?>" data-dnd-container data-dnd-axis="both" data-dnd-label="<?= h({{ t|raw }}'Notes')) ?>"<?= $dndAttributes ?>
+                    data-view-classes="<?= h((string)json_encode($boardClasses)) ?>" class="<?= $boardClasses[$view] ?>">
                     <?php foreach ($notes as $note) : ?>
                         <?php
                         $titleId = 'note-' . $note['id'] . '-title';
                         $hasImage = ($note['type'] ?? '') === 'image' && isset($art[$note['image']['art'] ?? '']);
+                        $filterText = implode(' ', array_merge(
+                            [$note['title'], (string)($note['body'] ?? '')],
+                            array_column($note['items'] ?? [], 'label'),
+                            array_map(fn ($id) => $labelsById[$id]['name'] ?? '', $note['labels'] ?? []),
+                        ));
                         ?>
                         <?php // An image sits flush with the top of the card (`pt-0`). ?>
-                        <article aria-labelledby="<?= h($titleId) ?>" data-note-type="<?= h($note['type']) ?>" class="card <?= $hasImage ? 'pt-0 ' : '' ?><?= $view === 'grid' ? 'mb-4 break-inside-avoid' : '' ?> overflow-hidden">
+                        <article aria-labelledby="<?= h($titleId) ?>" data-note-type="<?= h($note['type']) ?>" data-dnd-item data-id="<?= h((string)$note['id']) ?>" data-dnd-label="<?= h($note['title']) ?>"
+                            data-filter-item data-filter-text="<?= h($filterText) ?>" data-view-classes="<?= h((string)json_encode($cardClasses)) ?>"
+                            class="card <?= $hasImage ? 'pt-0 ' : '' ?><?= $cardClasses[$view] ?> overflow-hidden">
                             <?php if ($hasImage) : ?>
                                 <?php $alt = (string)($note['image']['alt'] ?? ''); ?>
                                 <figure class="m-0">
@@ -164,8 +203,11 @@ $art = [
                             <header>
                                 <div class="flex items-start justify-between gap-2">
                                     <h3 id="<?= h($titleId) ?>"><?= h($note['title']) ?></h3>
-                                    <?php // TODO: open a menu with pin, archive and delete for this note. ?>
-                                    <?= $this->Button->icon('ellipsis', {{ t|raw }}'Options for {0}', $note['title']), ['variant' => 'ghost', 'size' => 'icon']) ?>
+                                    <div class="flex shrink-0 items-center">
+                                        <?= $this->Button->icon('grip-vertical', {{ t|raw }}'Reorder {0}', $note['title']), ['type' => 'button', 'variant' => 'ghost', 'size' => 'icon', 'data-dnd-handle' => true]) ?>
+                                        <?php // TODO: open a menu with pin, archive and delete for this note. ?>
+                                        <?= $this->Button->icon('ellipsis', {{ t|raw }}'Options for {0}', $note['title']), ['variant' => 'ghost', 'size' => 'icon']) ?>
+                                    </div>
                                 </div>
                             </header>
                             <?php if (!empty($note['body']) || !empty($note['items'])) : ?>
@@ -177,13 +219,11 @@ $art = [
                                         <ul class="flex flex-col gap-2">
                                             <?php foreach ($note['items'] as $index => $item) : ?>
                                                 <?php $itemId = 'note-' . $note['id'] . '-item-' . $index; ?>
-                                                <li class="flex items-center gap-2">
-                                                    <input type="checkbox" class="input" id="<?= h($itemId) ?>"<?= !empty($item['done']) ? ' checked' : '' ?>>
-                                                    <label for="<?= h($itemId) ?>"<?= !empty($item['done']) ? ' class="text-muted-foreground line-through"' : '' ?>>
+                                                <li data-toggle-item data-id="<?= h($itemId) ?>"<?= !empty($item['done']) ? ' data-state="done"' : '' ?> class="group flex items-center gap-2">
+                                                    <input type="checkbox" class="input" id="<?= h($itemId) ?>" data-toggle="done"<?= !empty($item['done']) ? ' checked' : '' ?>>
+                                                    <label for="<?= h($itemId) ?>" class="group-data-[state=done]:text-muted-foreground group-data-[state=done]:line-through">
                                                         <?= h($item['label']) ?>
-                                                        <?php if (!empty($item['done'])) : ?>
-                                                            <span class="sr-only"><?= h({{ t|raw }}'completed')) ?></span>
-                                                        <?php endif; ?>
+                                                        <span class="sr-only" data-toggle-for="done" data-toggle-hidden="off"<?= empty($item['done']) ? ' hidden' : '' ?>><?= h({{ t|raw }}'completed')) ?></span>
                                                     </label>
                                                 </li>
                                             <?php endforeach; ?>
@@ -205,6 +245,8 @@ $art = [
                         </article>
                     <?php endforeach; ?>
                 </section>
+                <p data-filter-empty hidden class="text-muted-foreground py-8 text-center text-sm"><?= h({{ t|raw }}'No notes match your search.')) ?></p>
+                </div>
             <?php else : ?>
                 <?= $this->EmptyState->render($search !== '' ? {{ t|raw }}'No notes found') : {{ t|raw }}'No notes yet'), [
                     'description' => $search !== '' ? {{ t|raw }}'Nothing matches your search.') : {{ t|raw }}'Create your first note to get started.'),
