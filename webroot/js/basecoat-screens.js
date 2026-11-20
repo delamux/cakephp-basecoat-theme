@@ -566,7 +566,6 @@
       restore();
       return;
     }
-    if (hadFocus) keepFocus(item, control, name);
     // data-announce-on / data-announce-off="{label} marked as read." on the control
     const message = quiet ? null : control.getAttribute(on ? 'data-announce-on' : 'data-announce-off');
     if (message) announce(format(message, { label: labelOf(item) }));
@@ -584,6 +583,8 @@
         setToggle(item, alsoControl, also, true, true);
       });
     }
+    // After the chained toggles, which may hide the control too (Accept hides the whole answer group)
+    if (hadFocus) keepFocus(item, control, name);
     applyAllFilters();
     queueCounts();
     const pending = request(item, { action: 'toggle', id: detail.id, name, on });

@@ -26,6 +26,7 @@ test('clamp', () => {
 test('format fills known placeholders and keeps unknown ones', () => {
   assert.equal(dnd.format('Picked up {label}. {container}, position {position} of {total}.', { label: 'Card', container: 'To do', position: 2, total: 4 }), 'Picked up Card. To do, position 2 of 4.');
   assert.equal(dnd.format('{a} {b}', { a: 0 }), '0 {b}');
+  assert.equal(dnd.format('{container-id}|09:00', { 'container-id': '2026-11-27' }), '2026-11-27|09:00', 'hyphenated keys');
 });
 
 test('mapClasses lists every class of an array or object map', () => {

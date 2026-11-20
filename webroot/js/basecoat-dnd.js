@@ -92,7 +92,7 @@
   };
 
   /** Fills {placeholders}; unknown ones stay as they are. */
-  const format = (template, vars) => String(template).replace(/\{(\w+)\}/g, (m, key) => (
+  const format = (template, vars) => String(template).replace(/\{([\w-]+)\}/g, (m, key) => (
     vars && vars[key] !== undefined && vars[key] !== null ? String(vars[key]) : m
   ));
 
