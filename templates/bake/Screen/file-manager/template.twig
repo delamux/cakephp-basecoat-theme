@@ -7,12 +7,13 @@
  */
 -#}
 {% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set tn = useDomain ? "__dn('" ~ plugin ~ "', " : "__n(" %}
 <?php
 /**
  * File manager: storage overview, folders, recent files, search and type filter, grid or list.
  *
  * @var \{{ namespace }}\View\AppView $this
- * @var string $path Current folder ("A/B"), empty for the root.
+ * @var string $path Current folder ("A/B"), empty for the root (the `path` query parameter wins).
  * @var array{used: int|float, total: int|float, unit: string} $storage Storage used and available.
  * @var array<string, string> $types File type => label (also the toolbar filter).
  * @var array<int, array{type: string, used: int|float}> $breakdown Storage used per type, in the unit of `$storage`.
@@ -24,13 +25,18 @@ $this->assign('title', {{ t|raw }}'Files'));
 $request = $this->getRequest();
 $indexUrl = $this->Url->build(['action' => 'index']);
 $view = $request->getQuery('view') === 'grid' ? 'grid' : 'list';
-// Links keep the current view; a folder link adds ?path=
-$link = function (string $folder = '', ?string $mode = null) use ($indexUrl, $view): string {
-    $query = array_filter(['path' => $folder, 'view' => $mode ?? $view]);
+// Current folder from ?path= (load its folders and files in your controller), without empty or dot segments
+$path = $request->getQuery('path', $path);
+$path = is_string($path) ? $path : '';
+$path = implode('/', array_filter(explode('/', $path), fn (string $segment): bool => !in_array($segment, ['', '.', '..'], true)));
+$filters = array_filter(array_map(fn (string $name): string => is_string($request->getQuery($name)) ? $request->getQuery($name) : '', ['q' => 'q', 'type' => 'type']), 'strlen');
+$filtered = $filters !== [];
+// Links keep the current view; a folder link adds ?path=, the view switch also keeps the filters
+$link = function (string $folder = '', ?string $mode = null, array $extra = []) use ($indexUrl, $view): string {
+    $query = array_filter(['path' => $folder, 'view' => $mode ?? $view] + $extra, 'strlen');
 
     return $indexUrl . ($query ? '?' . http_build_query($query) : '');
 };
-$filtered = array_filter(array_map(fn (string $name): string => (string)$request->getQuery($name, ''), ['q', 'type'])) !== [];
 
 // One icon per file type, decorative: the type is also written as text
 $typeIcons = ['document' => 'file-text', 'image' => 'file-image', 'video' => 'file-video', 'audio' => 'file-audio', 'archive' => 'file-archive'];
@@ -97,14 +103,15 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
 
     <?= $this->TableToolbar->render([
         'url' => $indexUrl,
+        'hidden' => ['path' => $path, 'view' => $view],
         'filter' => [
             'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files')],
             'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types],
         ],
     ]) ?>
 
-    <section aria-labelledby="folders-heading" class="flex flex-col gap-3">
-        <h3 id="folders-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Folders')) ?></h3>
+    <section aria-labelledby="file-manager-folders-heading" class="flex flex-col gap-3">
+        <h3 id="file-manager-folders-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Folders')) ?></h3>
         <?php if ($folders) : ?>
             <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <?php foreach ($folders as $folder) : ?>
@@ -113,7 +120,7 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
                             <span class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md"><?= $this->Icon->render('folder') ?></span>
                             <span class="flex min-w-0 flex-col">
                                 <span class="truncate text-sm font-medium"><?= h($folder['name']) ?></span>
-                                <span class="text-muted-foreground text-xs"><?= h({{ t|raw }}'{0} files', $folder['files'])) ?> &middot; <?= h($folder['size']) ?></span>
+                                <span class="text-muted-foreground text-xs"><?= h({{ tn|raw }}'{0} file', '{0} files', (int)$folder['files'], $folder['files'])) ?> &middot; <?= h($folder['size']) ?></span>
                             </span>
                         </a>
                     </li>
@@ -127,17 +134,17 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
         <?php endif; ?>
     </section>
 
-    <section aria-labelledby="files-heading" class="flex flex-col gap-3">
+    <section aria-labelledby="file-manager-files-heading" class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <h3 id="files-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Recent files')) ?></h3>
+            <h3 id="file-manager-files-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Recent files')) ?></h3>
             <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'Layout')) ?>" data-view-switch>
-                <?= $this->Button->link({{ t|raw }}'List'), $link($path, 'list'), [
+                <?= $this->Button->link({{ t|raw }}'List'), $link($path, 'list', $filters), [
                     'icon' => 'list',
                     'variant' => $view === 'list' ? 'secondary' : 'ghost',
                     'size' => 'sm',
                     'aria-current' => $view === 'list' ? 'true' : null,
                 ]) ?>
-                <?= $this->Button->link({{ t|raw }}'Grid'), $link($path, 'grid'), [
+                <?= $this->Button->link({{ t|raw }}'Grid'), $link($path, 'grid', $filters), [
                     'icon' => 'layout-grid',
                     'variant' => $view === 'grid' ? 'secondary' : 'ghost',
                     'size' => 'sm',

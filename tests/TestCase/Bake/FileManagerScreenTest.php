@@ -203,6 +203,56 @@ class FileManagerScreenTest extends TestCase
         $this->assertMatchesRegularExpression('/<a [^>]*aria-current="true"[^>]*>.*?List\s*<\/a>/s', $html);
     }
 
+    public function testPathComesFromTheQuery(): void
+    {
+        $html = $this->render(null, ['path' => 'Quillon Studio/2026 Campaigns']);
+
+        $this->assertStringContainsString('<a href="/files?path=Quillon+Studio&amp;view=list">Quillon Studio</a>', $html);
+        $this->assertStringContainsString('<span aria-current="page">2026 Campaigns</span>', $html);
+        $this->assertStringContainsString('href="/files?path=Quillon+Studio%2F2026+Campaigns%2FHarbor+%26+Pine&amp;view=list"', $html);
+
+        // Dot segments and extra slashes are dropped.
+        $html = $this->render(null, ['path' => '/../Lantern Books//./']);
+        $this->assertStringContainsString('<span aria-current="page">Lantern Books</span>', $html);
+        $this->assertStringNotContainsString('..', $html);
+    }
+
+    public function testToolbarKeepsPathAndView(): void
+    {
+        $html = $this->render(null, ['path' => 'Lantern Books', 'view' => 'grid']);
+
+        preg_match('/<form[^>]*role="search".*?<\/form>/s', $html, $form);
+        $this->assertStringContainsString('<input type="hidden" name="path" value="Lantern Books">', $form[0]);
+        $this->assertStringContainsString('<input type="hidden" name="view" value="grid">', $form[0]);
+    }
+
+    public function testViewSwitchKeepsFilters(): void
+    {
+        $html = $this->render(null, ['q' => 'brief', 'type' => 'document']);
+
+        $this->assertStringContainsString('href="/files?view=grid&amp;q=brief&amp;type=document"', $html);
+        $this->assertStringContainsString('href="/files?view=list&amp;q=brief&amp;type=document"', $html);
+    }
+
+    public function testFolderFileCountIsPlural(): void
+    {
+        $html = $this->render($this->data(['folders' => [['name' => 'Solo', 'files' => 1, 'size' => '2 MB']]]));
+        $this->assertStringContainsString('1 file &middot;', $html);
+
+        $code = (new BakeScreenCommand())->renderFiles('file-manager', 'Files', 'Demo')['templates/Files/index.php'];
+        $this->assertStringContainsString("__dn('Demo', '{0} file', '{0} files'", $code);
+    }
+
+    public function testHeadingIdsArePrefixed(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('aria-labelledby="file-manager-folders-heading"', $html);
+        $this->assertStringContainsString('id="file-manager-folders-heading"', $html);
+        $this->assertStringContainsString('aria-labelledby="file-manager-files-heading"', $html);
+        $this->assertStringContainsString('id="file-manager-files-heading"', $html);
+    }
+
     public function testRendersWithEmptyData(): void
     {
         $html = $this->render($this->data(['folders' => [], 'files' => [], 'breakdown' => [], 'storage' => ['used' => 0, 'total' => 0, 'unit' => 'GB']]));
