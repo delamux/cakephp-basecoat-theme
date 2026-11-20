@@ -17,10 +17,12 @@ classes, variants, sizes, attributes and string templates.
 demo dashboard built only with these helpers: <https://delamux.github.io/cakephp-basecoat-theme/>.
 
 - Theme: layouts (`default` dashboard with inset sidebar, `auth`, `error`), sidebar/user menu elements and flash elements.
-- 33 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
+- 34 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
   ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Form, Icon,
-  Kbd, MemberList, MetricCard, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table, TableToolbar,
-  Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
+  Kbd, MemberList, MetricCard, NotificationList, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table,
+  TableToolbar, Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
+- Ready-made screens: `bin/cake bake screen users` bakes a controller and a template you own (see
+  [Screens (bake)](#screens-bake)), plus Basecoat templates for the CRUD `bake all`.
 - Core helper integration: `FormHelper` (Basecoat classes on every widget), `PaginatorHelper`
   templates, `FlashHelper` elements, `HtmlHelper`/`UrlHelper` for every URL and asset.
 - Zero build step by default (Basecoat CSS + Tailwind v4 browser build from jsDelivr), or plug in your own compiled CSS.
@@ -168,6 +170,13 @@ echo $this->Button->link('New project', ['action' => 'add'], ['icon' => 'plus', 
 ```
 Variants: `primary` (default), `secondary`, `outline`, `ghost`, `link`, `destructive`.
 Sizes: `xs`, `sm`, `default`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`.
+
+`icon($icon, $label, $options)` renders an icon-only button (an `<a>` with a `url` option, `size`
+defaults to `icon`). Its accessible name is `$label`, written **inside the button as visually hidden
+text** (`<span class="sr-only">Toggle sidebar</span>`, always escaped) while the SVG stays
+`aria-hidden="true"`, as the [Lucide accessibility guide](https://lucide.dev/how-to/accessibility)
+recommends. It does not set `aria-label` any more; pass `'aria-label' => '…'` yourself if you need one
+(it then takes precedence over the hidden text).
 `collapse`: `sm`, `md`, `lg`, `xl` or `true` (= `sm`); ignored on buttons without icon. Classes per
 breakpoint are configurable with `collapseClasses`.
 
@@ -178,8 +187,8 @@ echo $this->Button->icon('bell', 'Notifications', ['indicator' => $unread]);    
 echo $this->Button->render('Inbox', ['indicator' => '9+', 'indicatorLabel' => 'Unread messages']);
 ```
 `indicator`: `true` shows a dot, a number or string shows a count badge (the button gets `relative`).
-`indicatorLabel` replaces the screen reader text (default "New" / "{0} new", pluralized); on
-`icon()` buttons it is appended to the `aria-label` ("Notifications, 3 new"). `false`, `null`, `''`,
+`indicatorLabel` replaces the screen reader text (default "New" / "{0} new", pluralized; `''` for
+none); on `icon()` buttons it joins the hidden name ("Notifications, 3 new"). `false`, `null`, `''`,
 `0` and `'0'` render no indicator at all, so you can pass an unread count directly. Classes:
 `classes.indicatorDot`, `classes.indicatorCount`.
 
@@ -277,8 +286,10 @@ echo $this->DropdownMenu->render('', [
     ]],
     '-',
     ['label' => 'Delete', 'variant' => 'destructive'],
-], ['align' => 'end', 'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'aria-label' => 'Actions']]);
+], ['align' => 'end', 'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'label' => 'Actions for ' . $project->name]]);
 ```
+`trigger.label` names an icon-only trigger with visually hidden text inside the button (escaped).
+In a table, make it unique per row ("Actions for Harbor & Pine").
 
 ### Sidebar
 ```php
@@ -347,7 +358,18 @@ echo $this->Conversation->render($messages, ['contact' => ['name' => 'Marta Vida
 
 // Team members with a role select (or badges with `readonly`)
 echo $this->MemberList->render($members, ['roles' => ['owner' => 'Owner', 'member' => 'Member']]);
+
+// Inbox rows: type icon or avatar, unread dot, badge, time; Accept/Decline for access requests
+echo $this->NotificationList->render($notifications, [
+    'types' => ['task' => 'Task', 'message' => 'Message', 'team' => 'Team', 'access' => 'Access'],
+    'urls' => ['accept' => '/requests/{id}/accept', 'decline' => '/requests/{id}/decline'], // optional: POST forms with CSRF; without it the buttons are inert
+]);
 ```
+Notification keys: `id`, `type`, `title`, `body`, `time`, `unread`, `actor` (`name`, `avatar`), `url`,
+`actions` (your own HTML instead of Accept / Decline). Options: `types`, `icons`, `variants`, `urls`
+(strings or route arrays, `{id}` is replaced), `empty`, `escape`; config `actionTypes` (default
+`['access']`). Unread rows get a visually hidden "Unread" and `data-unread="true"`, so the state is never
+shown by colour alone.
 Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
 
 ### Other components
@@ -368,6 +390,27 @@ echo $this->Icon->render('circle-check', ['class' => 'text-green-500']);
 `IconHelper` ships a Lucide subset; register more with `['icons' => ['rocket' => '<path d="…"/>']]`
 or `$this->Icon->add([...])`. Any `icon` option also accepts raw SVG.
 
+### Icons and accessibility
+
+The helpers follow the [Lucide accessibility guide](https://lucide.dev/how-to/accessibility):
+
+- Icons are decorative: every SVG has `aria-hidden="true"` and sits next to text (button labels, menu
+  items, badges, alerts).
+- Icon-only controls are named on the control with visually hidden text: `Button->icon()`, the
+  `DropdownMenu` `trigger.label`, `Sidebar->toggle()`, `Theme->toggle()`, the dialog close button and the
+  pagination first/last links ("First page", "Last page"). Previous / Next keep their text for screen
+  readers on small screens.
+- Meaning never depends on an icon or a colour alone: indicators, unread rows, metric trends and statuses
+  carry text (visible or `sr-only`).
+- One icon per meaning across the plugin, screens and catalog: `ellipsis-vertical` row/more actions,
+  `settings-2` settings, `download` download/export, `check` done/read, `save` save, `plus` add,
+  `pencil` edit, `trash` delete, `search` search, `ellipsis` collapsed items (breadcrumb, pagination).
+- Target size: Basecoat's icon buttons are 36px (`icon`) and 32px (`icon-sm`), which meets WCAG 2.2 AA
+  (24px minimum); the theme keeps those sizes so it looks like Basecoat. Where you want the 44px
+  target the Lucide guide suggests (touch-first screens), enlarge the control, not the icon:
+  `$this->Button->icon('bell', 'Notifications', ['variant' => 'ghost', 'class' => 'size-11'])`, or
+  `'size' => 'icon-lg'` (40px).
+
 ### Theme (assets)
 ```php
 echo $this->Theme->head();     // dark-mode script + CSS + JS (used by the layouts)
@@ -382,6 +425,62 @@ For production, compile Tailwind yourself with `basecoat-css` and disable the br
 ```php
 $this->addHelper('BasecoatTheme.Theme', ['css' => ['app'], 'tailwindBrowser' => false]);
 ```
+
+## Screens (bake)
+
+Ready-made pages you bake into your app and then own: a controller whose `index()` sets **sample
+data**, and an `index` template built only with the theme helpers. Bake one, open it, then replace
+the sample data with your queries.
+
+```bash
+composer require --dev cakephp/bake                    # once
+bin/cake bake screen --list                            # available screens
+bin/cake bake screen users                             # UsersController + templates/Users/index.php
+bin/cake bake screen notifications Inbox               # same screen, InboxController + templates/Inbox/index.php
+bin/cake bake screen users Members --plugin Admin      # into plugins/Admin (namespace Admin\Controller)
+bin/cake bake screen users --force                     # overwrite existing files without asking
+```
+
+- `<screen>`: a slug from `--list`. Built-in screens:
+  - `users`: user list with search, filters and a paginated table (row menu, bulk-select checkboxes).
+  - `notifications`: notification inbox with unread markers, search and filters, and Accept / Decline
+    for access requests (`NotificationList`).
+- `[<Controller>]`: controller name, default the screen's (`Users`, `Notifications`); `team_inbox` and
+  `TeamInbox` both give `TeamInboxController`.
+- `--list`: lists the screens with their description and exits.
+- `--force` (`-f`): overwrite files without prompting (otherwise bake asks before replacing a file).
+- `--plugin` (`-p`): bake into a plugin (`Vendor/Name` allowed): files go under the plugin root and the
+  namespace is the plugin's.
+- Bake's other common options (`--theme`, `--connection`) are accepted but not used: screen templates
+  always come from this plugin and no database is read.
+
+Generated files (paths relative to the app, or to the plugin with `--plugin`):
+
+- `src/Controller/<Controller>Controller.php`: extends your `AppController`; `index()` calls
+  `$this->set()` once per view variable with the sample data.
+- `templates/<Controller>/index.php`: the page. Its docblock lists every view variable and its shape.
+
+The generated code does not set the theme: set `BasecoatTheme` once in your `AppController` (see
+[Use it as a theme](#use-it-as-a-theme)). Links to actions that are not generated (view, edit, invite,
+settings…) are `#` with a `// TODO`; the search and filter forms send GET requests to `index`; Accept /
+Decline do nothing until you pass `urls` (POST forms with the CSRF token).
+
+**Replacing the sample data:** keep the variable names and shapes from the template docblock and set
+them from your models, e.g. in `UsersController::index()`:
+
+```php
+$query = $this->fetchTable('Users')->find()->orderBy(['name' => 'ASC']);
+$this->set('users', $this->paginate($query));   // instead of the literal array
+```
+
+Then adapt the template where you need the real paging (`$this->Pagination->render()` with
+`PaginatorHelper`) or your own filters.
+
+`bake screen` is added by the plugin whenever `cakephp/bake` is installed, **even if you never load the
+Bake plugin** (`bin/cake plugin load Bake` is not needed for it). Without cakephp/bake the command does
+not exist. Every screen has a page in the
+[catalog](https://delamux.github.io/cakephp-basecoat-theme/screens/index.html) with a live preview and
+the exact files the command writes.
 
 ## Bake templates
 
@@ -489,23 +588,74 @@ area chart, tabs with a data table and row menus) only with these helpers:
 
 The catalog (<https://delamux.github.io/cakephp-basecoat-theme/>) is a static site generated from
 `docs/catalog/examples/<helper>/*.php` with the real helpers, and deployed to GitHub Pages on every push
-to `main`. Build it locally with:
-
-```bash
-composer docs              # build/gh-pages
-composer docs -- --strict  # also fail when a helper has no examples
-```
+to `main`. Besides one page per helper and a demo dashboard, its **Screens** section
+(`screens/index.html`) has a page per bake screen with the `bin/cake bake screen …` command, a live
+preview (`screens/<screen>/preview.html`, also "Open full page") and the exact baked controller and
+template. Build and preview it with the commands in [Scripts and options](#scripts-and-options).
 
 ## Translations
 
 UI strings use the `basecoat_theme` domain. Spanish is included (`resources/locales/es`).
 
-## Development
+## Scripts and options
+
+### Tests: `composer test`
 
 ```bash
 composer install
-composer test
+composer test                                   # = phpunit --colors=always (phpunit.xml.dist)
+composer test -- --filter ButtonHelperTest      # one test class (or a method: --filter testIconButton)
+vendor/bin/phpunit tests/TestCase/Bake          # one folder
 ```
+
+Arguments after `--` go to PHPUnit. The bake screen tests write only to a temporary folder under `TMP`,
+never into the test app.
+
+### Catalog: `composer docs` / `php bin/build-gh-pages`
+
+```bash
+composer docs                                   # = php bin/build-gh-pages, output in build/gh-pages
+composer docs -- --strict                       # what CI and the Pages deploy run
+composer docs -- --out=build/preview            # another folder (same as php bin/build-gh-pages --out=build/preview)
+```
+
+- `--out=<dir>`: output folder, default `build/gh-pages`. Relative paths start at the repository root;
+  absolute paths are allowed. It **must be a folder strictly inside `build/`** (`build/` itself, paths
+  outside it and symlinked folders are refused) because it is **emptied before every build**.
+- `--strict`: also fail (exit 1) on warnings: a helper of `docs/catalog/helpers.php` without examples or
+  whose class is missing, a registered screen without `template.twig` / `data.php`. Without it the
+  warnings are printed and the build succeeds.
+- An example, a screen or the home page that throws always fails the build (exit 1), strict or not.
+
+All URLs in the site are relative, so it works from any sub-path. To preview it as GitHub Pages
+serves it (under `/cakephp-basecoat-theme/`), copy it into a folder with that name and serve the parent:
+
+```bash
+composer docs
+mkdir -p /tmp/catalog
+cp -R build/gh-pages /tmp/catalog/cakephp-basecoat-theme   # use an empty /tmp/catalog
+php -S localhost:8080 -t /tmp/catalog
+# open http://localhost:8080/cakephp-basecoat-theme/
+```
+
+For a quick look, `php -S localhost:8080 -t build/gh-pages` serves it at the root.
+
+### Screens: `bin/cake bake screen`
+
+`bin/cake bake screen <screen> [<Controller>] [--list] [--force] [--plugin <Plugin>]`, run in your app;
+see [Screens (bake)](#screens-bake).
+
+### CRUD bake: `bin/cake bake … --theme BasecoatTheme`
+
+```bash
+bin/cake bake all Articles --theme BasecoatTheme          # model, controller and templates
+bin/cake bake template Articles --theme BasecoatTheme     # only the templates
+```
+
+Or set the theme once for every bake (e.g. in `config/bootstrap.php`):
+`Configure::write('Bake.theme', 'BasecoatTheme');`. With friendsofcake/search installed the list also
+gets filters and an *Export CSV* link: see
+[List search, filters and CSV export](#list-search-filters-and-csv-export).
 
 ## License
 
