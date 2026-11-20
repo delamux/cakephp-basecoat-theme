@@ -99,7 +99,7 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
                         // TODO: connect the call, video and more buttons to your own actions.
                         . $this->Button->icon('phone', {{ t|raw }}'Start a call'), ['variant' => 'ghost'])
                         . $this->Button->icon('video', {{ t|raw }}'Start a video call'), ['variant' => 'ghost'])
-                        . $this->Button->icon('ellipsis-vertical', {{ t|raw }}'More options'), ['variant' => 'ghost'])
+                        . $this->Button->icon('ellipsis', {{ t|raw }}'More options'), ['variant' => 'ghost'])
                         . '</div>',
                     'composer' => false,
                 ]) ?>

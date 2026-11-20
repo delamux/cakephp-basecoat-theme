@@ -286,7 +286,7 @@ echo $this->DropdownMenu->render('', [
     ]],
     '-',
     ['label' => 'Delete', 'variant' => 'destructive'],
-], ['align' => 'end', 'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'label' => 'Actions for ' . $project->name]]);
+], ['align' => 'end', 'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis', 'label' => 'Actions for ' . $project->name]]);
 ```
 `trigger.label` names an icon-only trigger with visually hidden text inside the button (escaped).
 In a table, make it unique per row ("Actions for Harbor & Pine").
@@ -406,9 +406,10 @@ The helpers follow the [Lucide accessibility guide](https://lucide.dev/how-to/ac
   not "KM Kofi Mensah"). A status `badge` stays exposed, so give it `sr-only` text.
 - Meaning never depends on an icon or a colour alone: indicators, unread rows, metric trends and statuses
   carry text (visible or `sr-only`).
-- One icon per meaning across the plugin, screens and catalog: `ellipsis-vertical` row/more actions,
-  `settings-2` settings, `download` download/export, `check` done/read, `save` save, `plus` add,
-  `pencil` edit, `trash` delete, `search` search, `ellipsis` collapsed items (breadcrumb, pagination).
+- One icon per meaning across the plugin, screens and catalog: `ellipsis` menus of actions (row, card
+  and "more" menus) and collapsed items (breadcrumb, pagination), `settings-2` settings, `download`
+  download/export, `check` done/read, `save` save, `plus` add, `pencil` edit, `trash` delete, `search`
+  search. (`ellipsis-vertical` is still in `IconHelper` for your own code, the plugin no longer uses it.)
 - Target size: Basecoat's icon buttons are 36px (`icon`) and 32px (`icon-sm`), which meets WCAG 2.2 AA
   (24px minimum); the theme keeps those sizes so it looks like Basecoat. Where you want the 44px
   target the Lucide guide suggests (touch-first screens), enlarge the control, not the icon:
@@ -686,7 +687,7 @@ Changes in this version that can affect existing apps:
   If you override this template, add the `{{label}}` placeholder (in an `sr-only` element), otherwise
   the toggle has no accessible name.
 - **`DropdownMenu` `trigger.label`:** new option that names an icon-only trigger with visually hidden
-  text (escaped), e.g. `'trigger' => ['icon' => 'ellipsis-vertical', 'label' => 'Actions for ' . $name]`.
+  text (escaped), e.g. `'trigger' => ['icon' => 'ellipsis', 'label' => 'Actions for ' . $name]`.
   It replaces passing `aria-label` in `trigger`. The CRUD bake `index` template now uses it
   (`'Actions for {0}'` with the record's display field).
 - **Avatars next to a name are hidden from screen readers.** New `Avatar` option `decorative` (default
@@ -694,6 +695,9 @@ Changes in this version that can affect existing apps:
   sidebar user menu and `NotificationList` (when the title contains the actor's name) now render their
   avatar with it: the initials get `aria-hidden="true"` and an avatar image gets `alt=""`. Tests that
   matched `<span>KM</span>` in these helpers need updating.
+- **Menu triggers use `ellipsis`** instead of `ellipsis-vertical`: the CRUD bake `index` template, the
+  `users` screen, the sidebar user menu and the catalog examples. Re-bake or change the icon name if you
+  want the new look; `ellipsis-vertical` is still available.
 - **`Button` `indicatorLabel`:** `''` renders no screen reader text for the indicator.
 - **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
   text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.

@@ -71,7 +71,7 @@ class IconAccessibilityTest extends HelperTestCase
     {
         $out = (new DropdownMenuHelper($this->View))->render('', ['Edit'], [
             'id' => 'row',
-            'trigger' => ['icon' => 'ellipsis-vertical', 'size' => 'icon-sm', 'label' => 'Actions for <Harbor & Pine>'],
+            'trigger' => ['icon' => 'ellipsis', 'size' => 'icon-sm', 'label' => 'Actions for <Harbor & Pine>'],
         ]);
         $this->assertMatchesRegularExpression(
             '#<button [^>]*id="row-trigger"[^>]*><svg[^>]*aria-hidden="true"[^>]*>.*?</svg><span class="sr-only">Actions for &lt;Harbor &amp; Pine&gt;</span></button>#',
@@ -127,5 +127,30 @@ class IconAccessibilityTest extends HelperTestCase
         foreach (['save', 'app-window'] as $name) {
             $this->assertStringContainsString('<path', $icon->render($name), $name);
         }
+    }
+
+    /**
+     * One icon per meaning: menus of actions ("more", row and card menus) use `ellipsis` everywhere.
+     * `ellipsis-vertical` stays in IconHelper for apps but the plugin itself does not use it.
+     */
+    public function testMenuTriggersUseEllipsisOnly(): void
+    {
+        $root = dirname(__DIR__, 4);
+        $offenders = [];
+        foreach (['src', 'templates', 'docs/catalog', 'README.md'] as $path) {
+            $files = is_file($root . '/' . $path)
+                ? [$root . '/' . $path]
+                : iterator_to_array(new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/' . $path, \FilesystemIterator::SKIP_DOTS)));
+            foreach ($files as $file) {
+                $file = (string)$file;
+                if (str_ends_with($file, 'IconHelper.php') || !preg_match('/\.(php|twig|md)$/', $file)) {
+                    continue;
+                }
+                if (preg_match('/[\'"]ellipsis-vertical[\'"]/', (string)file_get_contents($file))) {
+                    $offenders[] = substr($file, strlen($root) + 1);
+                }
+            }
+        }
+        $this->assertSame([], $offenders);
     }
 }

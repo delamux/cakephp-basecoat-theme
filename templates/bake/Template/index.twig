@@ -63,7 +63,7 @@ foreach (${{ pluralVar }} as ${{ singularVar }}) {
             ['label' => {{ t|raw }}'Delete'), 'icon' => 'trash', 'variant' => 'destructive', 'attributes' => ['data-dialog-open' => 'delete-{{ singularVar|dasherize }}-' . {{ pk|raw }}]],
         ], [
             'align' => 'end',
-            'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'label' => {{ t|raw }}'Actions for {0}', ${{ singularVar }}->{{ displayField }})],
+            'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis', 'label' => {{ t|raw }}'Actions for {0}', ${{ singularVar }}->{{ displayField }})],
         ]),
     ];
     $dialogs .= $this->Dialog->render('delete-{{ singularVar|dasherize }}-' . {{ pk|raw }}, null, [

@@ -44,7 +44,7 @@ class DropdownMenuHelperTest extends HelperTestCase
             ]],
             ['type' => 'radio', 'label' => 'Top', 'checked' => true],
             ['label' => 'Off', 'disabled' => true],
-        ], ['id' => 'c', 'trigger' => ['icon' => 'ellipsis-vertical', 'aria-label' => 'Actions']]);
+        ], ['id' => 'c', 'trigger' => ['icon' => 'ellipsis', 'aria-label' => 'Actions']]);
 
         $this->assertMatchesRegularExpression('#<button aria-label="Actions" class="btn" type="button" id="c-trigger"[^>]*data-variant="ghost" data-size="icon-sm"><svg#', $out);
         $this->assertStringContainsString('<div role="group" aria-labelledby="c-items-1-label"><div role="heading" id="c-items-1-label">Columns</div>', $out);

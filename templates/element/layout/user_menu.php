@@ -25,7 +25,7 @@ array_unshift(
     '-',
 );
 
-echo $this->DropdownMenu->render($avatar . $identity . $this->Icon->render('ellipsis-vertical', ['class' => 'ml-auto']), $menu, [
+echo $this->DropdownMenu->render($avatar . $identity . $this->Icon->render('ellipsis', ['class' => 'ml-auto']), $menu, [
     'id' => 'user-menu',
     'class' => 'w-full',
     'escape' => false,

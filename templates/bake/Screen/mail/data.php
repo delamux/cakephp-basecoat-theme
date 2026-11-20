@@ -14,9 +14,9 @@ return [
         ['key' => 'inbox', 'label' => 'Inbox', 'icon' => 'inbox', 'count' => 4],
         ['key' => 'starred', 'label' => 'Starred', 'icon' => 'star', 'count' => 2],
         ['key' => 'sent', 'label' => 'Sent', 'icon' => 'send', 'count' => 0],
-        ['key' => 'drafts', 'label' => 'Drafts', 'icon' => 'file-text', 'count' => 3],
+        ['key' => 'drafts', 'label' => 'Drafts', 'icon' => 'file-pen', 'count' => 3],
         ['key' => 'archive', 'label' => 'Archive', 'icon' => 'archive', 'count' => 0],
-        ['key' => 'spam', 'label' => 'Spam', 'icon' => 'circle-alert', 'count' => 0],
+        ['key' => 'spam', 'label' => 'Spam', 'icon' => 'shield-alert', 'count' => 0],
         ['key' => 'trash', 'label' => 'Trash', 'icon' => 'trash', 'count' => 0],
     ],
     'labels' => [
