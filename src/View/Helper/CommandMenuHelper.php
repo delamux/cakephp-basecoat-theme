@@ -98,6 +98,7 @@ class CommandMenuHelper extends AbstractComponentHelper
             'type' => 'text',
             'id' => $id . '-input',
             'placeholder' => (string)$placeholder,
+            'aria-label' => (string)$placeholder,
             'autocomplete' => 'off',
             'autocorrect' => 'off',
             'spellcheck' => 'false',

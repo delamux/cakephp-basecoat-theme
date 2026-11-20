@@ -56,14 +56,6 @@ class DateRangeFieldHelper extends AbstractComponentHelper
     ];
 
     /**
-     * Fallback calendar glyph when the icon set has no `calendar` icon.
-     */
-    private const CALENDAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" '
-        . 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
-        . 'aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/>'
-        . '<path d="M3 10h18"/></svg>';
-
-    /**
      * Renders the field.
      *
      * ### Options
@@ -98,9 +90,7 @@ class DateRangeFieldHelper extends AbstractComponentHelper
             $text = ($values['from'] !== '' ? $values['from'] : '…') . ' – ' . ($values['to'] !== '' ? $values['to'] : '…');
         }
 
-        $icon = $this->Icon->has('calendar')
-            ? $this->Icon->render('calendar', ['class' => 'size-4'])
-            : self::CALENDAR_SVG;
+        $icon = $this->Icon->render('calendar', ['class' => 'size-4']);
         $trigger = $this->renderTemplate('trigger', $this->partAttributes('trigger', [
             'type' => 'button',
             'id' => $id . '-trigger',

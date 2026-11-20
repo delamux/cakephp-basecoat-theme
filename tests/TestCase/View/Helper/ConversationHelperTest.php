@@ -35,6 +35,16 @@ class ConversationHelperTest extends HelperTestCase
         $this->assertStringContainsString('placeholder="Type a message…"', $html);
         $this->assertStringContainsString('aria-label="Message"', $html);
         $this->assertStringContainsString('>Send</button>', $html);
+        $this->assertStringContainsString('<path d="m21.854 2.147-10.94 10.939"/>', $html, 'Send icon');
+    }
+
+    public function testComposerButtonOptions(): void
+    {
+        $html = (new ConversationHelper($this->View))->render([], [
+            'composer' => ['button' => ['icon' => null, 'variant' => 'outline']],
+        ]);
+        $this->assertStringNotContainsString('<svg', $html);
+        $this->assertStringContainsString('data-variant="outline"', $html);
     }
 
     public function testComposerUrlAndOptions(): void

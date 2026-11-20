@@ -34,6 +34,7 @@ class CommandMenuHelperTest extends HelperTestCase
         $this->assertStringContainsString('data-command-hotkey="k"', $html);
         $this->assertStringContainsString('<div class="command">', $html);
         $this->assertStringContainsString('placeholder="Type a command or search…"', $html);
+        $this->assertStringContainsString('aria-label="Type a command or search…"', $html, 'Input has an accessible name');
         $this->assertStringContainsString('role="combobox"', $html);
         $this->assertStringContainsString('aria-controls="cm-menu"', $html);
         $this->assertStringContainsString('data-empty="No results found."', $html);
@@ -82,6 +83,7 @@ class CommandMenuHelperTest extends HelperTestCase
         $this->assertStringContainsString('&lt;b&gt;G&lt;/b&gt;', $html);
         $this->assertStringContainsString('&lt;i&gt;x&lt;/i&gt;', $html);
         $this->assertStringContainsString('placeholder="&lt;p&gt;"', $html);
+        $this->assertStringContainsString('aria-label="&lt;p&gt;"', $html);
         $this->assertStringContainsString('&quot;q&quot;', $html);
     }
 

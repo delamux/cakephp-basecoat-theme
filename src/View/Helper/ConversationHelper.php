@@ -20,6 +20,7 @@ use function Cake\Core\h;
  * - `contact`: `['name' => string, 'subtitle' => string, 'avatar' => string]` renders a header.
  * - `composer`: `false` to omit it, or `['url' => string|array, 'name' => 'message', 'placeholder' => string, 'label' => string]`.
  *   `label` is the accessible name (aria-label) of the input, default "Message".
+ *   `button` holds ButtonHelper options for the submit button (default icon `send`; `'icon' => null` for text only).
  *   The composer is a plain POST form (`action` only when `url` is given).
  * - `headerActions`: HTML placed at the end of the header.
  *
@@ -177,7 +178,10 @@ class ConversationHelper extends AbstractComponentHelper
         return $this->renderTemplate('composer', $attributes, [
             'csrf' => $csrf,
             'input' => $input,
-            'button' => $this->Button->submit(__d('basecoat_theme', 'Send')),
+            'button' => $this->Button->submit(
+                __d('basecoat_theme', 'Send'),
+                (array)($composer['button'] ?? []) + ['icon' => 'send'],
+            ),
         ]);
     }
 }

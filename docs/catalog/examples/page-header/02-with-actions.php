@@ -4,7 +4,7 @@
  * @description Header actions are raw HTML, typically buttons, aligned to the right.
  */
 $actions = [
-    $this->Button->render('Export', ['variant' => 'outline', 'icon' => 'arrow-down']),
+    $this->Button->render('Export', ['variant' => 'outline', 'icon' => 'download']),
     $this->Button->render('New customer', ['icon' => 'plus']),
 ];
 // ---

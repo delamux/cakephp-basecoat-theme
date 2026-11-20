@@ -22,6 +22,7 @@ class DateRangeFieldHelperTest extends HelperTestCase
         $this->assertStringContainsString('2026-11-01 – 2026-11-30</span>', $out);
         $this->assertStringContainsString('aria-controls="dr-popover"', $out);
         $this->assertStringContainsString('data-popover', $out);
+        $this->assertStringContainsString('<rect width="18" height="18" x="3" y="4" rx="2"/>', $out, 'Built-in calendar icon');
     }
 
     public function testPlaceholderWhenEmpty(): void
