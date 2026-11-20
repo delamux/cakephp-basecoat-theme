@@ -577,8 +577,8 @@ Without the theme, point to the plugin elements: `$this->Flash->success('Saved',
 
 ## Example
 
-`templates/element/examples/dashboard.php` rebuilds the shadcn *dashboard-01* page (stat cards,
-area chart, tabs with a data table and row menus) only with these helpers:
+`templates/element/examples/dashboard.php` is a dashboard built with the helpers (stat cards, area
+chart, tabs with a data table and row menus), with invented data from the catalog's fictional *Fernway*:
 
 ```php
 <?= $this->element('BasecoatTheme.examples/dashboard') ?>

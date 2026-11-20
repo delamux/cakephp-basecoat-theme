@@ -1,6 +1,6 @@
 <?php
 /**
- * BasecoatTheme default layout: inset sidebar + sticky header (shadcn "dashboard-01" look).
+ * BasecoatTheme default layout: inset sidebar + sticky header (dashboard look).
  *
  * Blocks:
  * - `title`: <title> and header heading (falls back to the `title` view var).

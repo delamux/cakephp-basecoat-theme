@@ -8,16 +8,16 @@ namespace BasecoatTheme\View\Helper;
  *
  * ```
  * echo $this->Table->render(
- *     ['title' => 'Title', 'status' => 'Status', 'amount' => ['label' => 'Amount', 'class' => 'text-right']],
+ *     ['customer' => 'Customer', 'status' => 'Status', 'amount' => ['label' => 'Amount', 'class' => 'text-right']],
  *     [
- *         ['title' => 'Cover page', 'status' => $this->Badge->render('Done'), 'amount' => '$250.00'],
+ *         ['customer' => 'Quillon Studio', 'status' => $this->Badge->render('Paid'), 'amount' => '$96.00'],
  *     ],
  *     ['caption' => 'Recent invoices', 'escape' => false],
  * );
  *
  * // Sortable headers (uses the core PaginatorHelper). They show a sort indicator
  * // (neutral / ascending / descending) and the active column gets `aria-sort`.
- * echo $this->Table->render(['title' => ['label' => 'Title', 'sort' => true]], $rows);
+ * echo $this->Table->render(['customer' => ['label' => 'Customer', 'sort' => true]], $rows);
  * ```
  *
  * @property \Cake\View\Helper\PaginatorHelper $Paginator
