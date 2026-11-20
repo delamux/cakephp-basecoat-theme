@@ -27,7 +27,8 @@ $this->assign('title', {{ t|raw }}'Onboarding'));
 $stepKeys = array_keys($steps);
 $count = count($stepKeys);
 $current = max(1, min($count, (int)$this->getRequest()->getQuery('step', 1)));
-$currentKey = $stepKeys[$current - 1];
+$currentKey = $stepKeys[$current - 1] ?? null; // null when there are no steps
+$workspace += ['name' => '', 'slug' => ''];
 $indexUrl = $this->Url->build(['action' => 'index']);
 $stepUrl = fn (int $number): string => $indexUrl . '?' . http_build_query(['step' => $number]);
 
@@ -39,13 +40,19 @@ $texts = [
     'preferences' => [{{ t|raw }}'Set your preferences'), {{ t|raw }}'Tell us how you like to work. Every option can be changed in settings.')],
     'done' => [{{ t|raw }}'Review and finish'), {{ t|raw }}'Check the summary below, then finish to open your workspace.')],
 ];
-[$heading, $description] = $texts[$currentKey] ?? [$steps[$currentKey], ''];
+[$heading, $description] = $texts[(string)$currentKey] ?? [(string)($steps[(string)$currentKey] ?? ''), ''];
 
 // The invited emails always offer three fields: the listed ones plus empty rows
 $invites = array_values($invites);
 $inviteFields = max(3, count($invites));
 ?>
 <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 lg:px-6">
+    <?php if ($currentKey === null) : ?>
+        <?= $this->EmptyState->render({{ t|raw }}'Nothing to set up'), [
+            'description' => {{ t|raw }}'There are no onboarding steps yet.'),
+            'icon' => 'list-checks',
+        ]) ?>
+    <?php else : ?>
     <nav aria-label="<?= h({{ t|raw }}'Progress')) ?>">
         <ol class="flex items-center gap-2">
             <?php foreach ($stepKeys as $index => $key) : ?>
@@ -80,7 +87,7 @@ $inviteFields = max(3, count($invites));
     // TODO: each step only moves on to the next one (GET) and the values are not stored. Keep them
     // between steps (session or a draft record) and save everything when the flow is finished.
     ?>
-    <?= $this->Card->start(['title' => $heading, 'description' => $description, 'titleTag' => 'h1']) ?>
+    <?= $this->Card->start(['title' => $heading, 'description' => $description, 'titleTag' => 'h2']) ?>
         <?php if ($currentKey !== 'done') : ?>
             <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'flex flex-col gap-6']) ?>
                 <?= $this->Form->hidden('step', ['value' => $current + 1, 'id' => 'onboarding-next-step']) ?>
@@ -98,8 +105,9 @@ $inviteFields = max(3, count($invites));
                         'required' => true,
                         'pattern' => '[a-z0-9\-]+',
                         'autocapitalize' => 'none',
+                        'aria-describedby' => 'onboarding-slug-hint',
                     ]) ?>
-                    <p class="text-muted-foreground -mt-4 text-sm"><?= h({{ t|raw }}'Lowercase letters, numbers and hyphens only.')) ?></p>
+                    <p class="text-muted-foreground -mt-4 text-sm" id="onboarding-slug-hint"><?= h({{ t|raw }}'Lowercase letters, numbers and hyphens only.')) ?></p>
                 <?php elseif ($currentKey === 'team') : ?>
                     <?php for ($i = 1; $i <= $inviteFields; $i++) : ?>
                         <?= $this->Form->control('invite_' . $i, [
@@ -192,8 +200,9 @@ $inviteFields = max(3, count($invites));
                 // TODO: "Finish" does nothing yet. Make it a POST form (Form->create + submit, with the
                 // CSRF token) to your own action that saves the workspace and redirects to your dashboard.
                 ?>
-                <?= $this->Button->render({{ t|raw }}'Finish'), ['icon' => 'check']) ?>
+                <?= $this->Button->render({{ t|raw }}'Finish'), ['icon' => 'arrow-right', 'iconPosition' => 'end']) ?>
             </div>
         <?php endif; ?>
     <?= $this->Card->end() ?>
+    <?php endif; ?>
 </div>

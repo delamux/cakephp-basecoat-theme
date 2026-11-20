@@ -145,7 +145,12 @@ class OnboardingScreenTest extends TestCase
     {
         $html = $this->render(null, ['step' => '1']);
 
-        $this->assertMatchesRegularExpression('/<h1[^>]*>\s*Name your workspace\s*<\/h1>/', $html);
+        // The page header is the layout's h1: the step title is an h2.
+        $this->assertMatchesRegularExpression('/<h2[^>]*>\s*Name your workspace\s*<\/h2>/', $html);
+        $this->assertStringNotContainsString('<h1', $html);
+        // The slug hint is tied to its field.
+        $this->assertMatchesRegularExpression('/<input[^>]*id="workspace-slug"[^>]*aria-describedby="onboarding-slug-hint"|<input[^>]*aria-describedby="onboarding-slug-hint"[^>]*id="workspace-slug"/', $html);
+        $this->assertMatchesRegularExpression('/<p [^>]*id="onboarding-slug-hint"[^>]*>Lowercase letters, numbers and hyphens only.<\/p>/', $html);
         $this->assertMatchesRegularExpression('/<label[^>]*for="workspace-name"[^>]*>Workspace name<\/label>/', $html);
         $this->assertMatchesRegularExpression('/<label[^>]*for="workspace-slug"[^>]*>Workspace URL<\/label>/', $html);
         $this->assertStringContainsString('value="Harbor &amp; Pine"', $html);
@@ -219,7 +224,11 @@ class OnboardingScreenTest extends TestCase
         foreach (['Harbor &amp; Pine', 'harbor-pine', '2 people', 'Team', 'Madrid (UTC+1)', 'Weekly'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
-        $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*<svg.*?<\/svg>\s*Finish\s*<\/button>/s', $html);
+        $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*Finish\s*<svg.*?<\/svg>\s*<\/button>/s', $html);
+        // `check` means done/read in the plugin: Finish moves forward with arrow-right.
+        preg_match('/<button type="button"[^>]*>.*?<\/button>/s', $html, $finish);
+        $this->assertStringContainsString('m12 5 7 7-7 7', $finish[0]);
+        $this->assertStringNotContainsString('M20 6 9 17l-5-5', $finish[0]);
         $this->assertStringNotContainsString('<form', $html);
         $this->assertStringNotContainsString('>Continue<', $html);
     }
@@ -246,6 +255,25 @@ class OnboardingScreenTest extends TestCase
             $this->assertStringContainsString('Step ' . $step . ' of 5', $html);
         }
         $this->assertStringContainsString('0 people', $this->render($empty, ['step' => '5']));
+    }
+
+    public function testRendersWithoutStepsOrWorkspaceWithoutWarnings(): void
+    {
+        set_error_handler(function (int $level, string $message): bool {
+            throw new \ErrorException($message, 0, $level);
+        });
+        try {
+            $html = $this->render($this->data(['steps' => []]));
+            $this->assertStringContainsString('Nothing to set up', $html);
+            $this->assertStringNotContainsString('<form', $html);
+
+            foreach ([1, 5] as $step) {
+                $html = $this->render($this->data(['workspace' => []]), ['step' => (string)$step]);
+                $this->assertStringContainsString('Step ' . $step . ' of 5', $html);
+            }
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testEscapes(): void
