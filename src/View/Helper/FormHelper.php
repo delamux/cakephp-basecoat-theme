@@ -24,11 +24,19 @@ use Cake\View\View;
  * ]);
  * ```
  *
+ * Forms get a stacked layout (`formLayout`, default `grid gap-6 [&>.btn]:justify-self-start`)
+ * unless their `class` already sets one; see create().
+ *
  * Buttons accept `variant` and `size` options:
  * `$this->Form->button('Delete', ['variant' => 'destructive'])`.
  */
 class FormHelper extends CoreFormHelper
 {
+    /**
+     * Nesting depth of control() calls (fieldWidgetClasses apply only inside a control).
+     */
+    protected int $controlDepth = 0;
+
     /**
      * Basecoat templates merged over the core ones.
      *
@@ -80,8 +88,100 @@ class FormHelper extends CoreFormHelper
             ],
             'skipClassWidgets' => ['hidden', 'year'],
             'button' => ['variant' => null, 'size' => null],
+            // Classes create() adds to a form whose `class` sets no layout of its own (see create()).
+            // Basecoat 1.1 styles `.field` / `.fieldset` but leaves the space between them to the form.
+            // Extra classes for widgets rendered by control() inside a `.field` (Basecoat sizes
+            // `select.select` to its content; in a field it fills the width like inputs and textareas).
+            'fieldWidgetClasses' => ['select' => 'w-full'],
+            'formLayout' => 'grid gap-6 [&>.btn]:justify-self-start',
         ];
         parent::__construct($view, $config);
+    }
+
+    /**
+     * Display / spacing utilities that mean "the caller chose the form layout".
+     */
+    protected const LAYOUT_CLASS = '/^(?:[a-z0-9\[\]&>@*:_-]+:)?(?:flex|inline-flex|grid|inline-grid|block|inline-block|inline|contents|flow-root|table|hidden|space-[xy]-.+)$/';
+
+    /**
+     * Opens a form with the Basecoat layout: fields evenly spaced and full width, buttons at their size.
+     *
+     * The `formLayout` config classes (default `grid gap-6 [&>.btn]:justify-self-start`) are added
+     * unless the `class` option already sets a layout (a display utility such as `flex`, `grid`,
+     * `inline-flex`, `md:grid`, or `space-y-*`), so inline toolbars and forms with their own layout are
+     * left as they are. Other classes (`w-full max-w-md`) are kept next to the default layout.
+     *
+     * ### Extra option
+     *
+     * - `layout`: `false` adds no layout classes; a string is added instead of `formLayout`, even when
+     *   `class` has a layout of its own.
+     *
+     * @param mixed $context Context.
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    public function create(mixed $context = null, array $options = []): string
+    {
+        $layout = array_key_exists('layout', $options) ? $options['layout'] : null;
+        unset($options['layout']);
+        if ($layout === null || $layout === true) {
+            $layout = $this->hasLayoutClass($options['class'] ?? null) ? false : $this->getConfig('formLayout');
+        }
+        if (is_string($layout) && trim($layout) !== '') {
+            $options = $this->addClass($options, $layout);
+        }
+
+        return parent::create($context, $options);
+    }
+
+    /**
+     * Renders a control in a Basecoat `.field`; see `fieldWidgetClasses`.
+     *
+     * @param string $fieldName Field name.
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    public function control(string $fieldName, array $options = []): string
+    {
+        $this->controlDepth++;
+        try {
+            return parent::control($fieldName, $options);
+        } finally {
+            $this->controlDepth--;
+        }
+    }
+
+    /**
+     * Inline POST button: its form gets no layout classes (pass `form.layout` to add some).
+     *
+     * @param string $title Title.
+     * @param array|string $url URL.
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    public function postButton(string $title, array|string $url, array $options = []): string
+    {
+        $options['form'] = (array)($options['form'] ?? []) + ['layout' => false];
+
+        return parent::postButton($title, $url, $options);
+    }
+
+    /**
+     * Whether a class option already sets the form layout (display or `space-*` utilities).
+     *
+     * @param mixed $class Class string or list.
+     * @return bool
+     */
+    protected function hasLayoutClass(mixed $class): bool
+    {
+        $tokens = is_array($class) ? $class : preg_split('/\s+/', trim((string)$class));
+        foreach ((array)$tokens as $token) {
+            if (is_string($token) && preg_match(static::LAYOUT_CLASS, $token)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -98,6 +198,9 @@ class FormHelper extends CoreFormHelper
             $class = $classes[$name] ?? $classes['_input'] ?? null;
             if ($name === 'button') {
                 $data = $this->buttonData($data);
+            }
+            if ($this->controlDepth > 0) {
+                $class = trim($class . ' ' . (string)($this->getConfig('fieldWidgetClasses.' . $name) ?? ''));
             }
             if ($class && ($data['basecoat'] ?? true) !== false) {
                 $data = $this->addClass($data, $class);
