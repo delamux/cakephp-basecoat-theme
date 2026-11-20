@@ -1,0 +1,8 @@
+# Development files kept out of `git archive` / Composer dist packages
+/.gitattributes export-ignore
+/.github export-ignore
+/.gitignore export-ignore
+/bin/build-gh-pages export-ignore
+/docs export-ignore
+/phpunit.xml.dist export-ignore
+/tests export-ignore
