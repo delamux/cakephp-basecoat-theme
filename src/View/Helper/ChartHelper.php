@@ -11,10 +11,10 @@ namespace BasecoatTheme\View\Helper;
  *
  * ```
  * echo $this->Chart->render(
- *     [['month' => 'Jan', 'desktop' => 186, 'mobile' => 80], ['month' => 'Feb', 'desktop' => 305, 'mobile' => 200]],
+ *     [['month' => 'Sep', 'web' => 431, 'api' => 241], ['month' => 'Oct', 'web' => 509, 'api' => 276]],
  *     [
- *         'desktop' => ['label' => 'Desktop', 'color' => 'var(--chart-1)'],
- *         'mobile' => ['label' => 'Mobile', 'color' => 'var(--chart-2)'],
+ *         'web' => ['label' => 'Dashboard signups', 'color' => 'var(--chart-1)'],
+ *         'api' => ['label' => 'API signups', 'color' => 'var(--chart-2)'],
  *     ],
  *     ['type' => 'bar', 'labelKey' => 'month', 'class' => 'h-[250px] w-full'],
  * );
