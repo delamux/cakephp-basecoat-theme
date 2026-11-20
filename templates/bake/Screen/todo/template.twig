@@ -1,0 +1,129 @@
+{#
+/**
+ * BasecoatTheme bake template: `todo` screen (`bin/cake bake screen todo`).
+ * Reads the view variables of data.php (groups, filter, counts).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Tasks: filter tabs, search and a list grouped by due date (Today, Upcoming, Later).
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<string, array<int, array<string, mixed>>> $groups Group key (today, upcoming, later) => tasks: id, title, done, priority (high, medium, low), due, assignee, tags.
+ * @var string $filter Current filter: all, active or completed.
+ * @var array<string, int> $counts Tasks per filter.
+ */
+$this->assign('title', {{ t|raw }}'Tasks'));
+
+$groupLabels = [
+    'today' => {{ t|raw }}'Today'),
+    'upcoming' => {{ t|raw }}'Upcoming'),
+    'later' => {{ t|raw }}'Later'),
+];
+$priorityLabels = [
+    'high' => {{ t|raw }}'High'),
+    'medium' => {{ t|raw }}'Medium'),
+    'low' => {{ t|raw }}'Low'),
+];
+$priorityVariants = ['high' => 'destructive', 'medium' => 'secondary', 'low' => 'outline'];
+$filters = [
+    'all' => {{ t|raw }}'All'),
+    'active' => {{ t|raw }}'Active'),
+    'completed' => {{ t|raw }}'Completed'),
+];
+$query = $this->getRequest()->getQueryParams();
+$filtered = trim((string)($query['q'] ?? '')) !== '' || $filter !== 'all';
+$visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Tasks'), [
+        'description' => {{ t|raw }}'What needs doing, by when and who owns it.'),
+        'actions' => [
+            // TODO: point "Add task" at your own add action.
+            $this->Button->link({{ t|raw }}'Add task'), '#', ['icon' => 'plus']),
+        ],
+    ]) ?>
+
+    <div class="flex flex-wrap items-end justify-between gap-3">
+        <nav class="flex flex-wrap items-center gap-1" aria-label="<?= h({{ t|raw }}'Filter tasks')) ?>">
+            <?php foreach ($filters as $key => $label) : ?>
+                <?php
+                // Keeps the search term when the filter changes
+                $url = ['action' => 'index', '?' => array_filter(['q' => $query['q'] ?? null, 'filter' => $key === 'all' ? null : $key], fn ($v) => $v !== null && $v !== '')];
+                $attrs = ['variant' => $filter === $key ? 'secondary' : 'ghost', 'size' => 'sm', 'data-filter' => $key];
+                if ($filter === $key) {
+                    $attrs['aria-current'] = 'true';
+                }
+                ?>
+                <?= $this->Button->link($label . ' (' . (int)($counts[$key] ?? 0) . ')', $url, $attrs) ?>
+            <?php endforeach; ?>
+        </nav>
+        <?= $this->TableToolbar->render([
+            'url' => $this->Url->build(['action' => 'index']),
+            'filter' => [
+                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search tasks')],
+            ],
+            // Keeps the current filter when searching
+            'actions' => $filter !== 'all' ? $this->Form->hidden('filter', ['value' => $filter]) : '',
+        ]) ?>
+    </div>
+
+    <?php if ($visible) : ?>
+        <?php
+        // TODO: toggling a task is not wired. Wrap the lists in
+        // `$this->Form->create(null, ['url' => ['action' => 'toggle']])` (POST with the CSRF token),
+        // add a submit button or post each change, and read `done[]` in your action.
+        ?>
+        <div class="flex flex-col gap-6">
+            <?php foreach ($visible as $key => $tasks) : ?>
+                <section aria-labelledby="task-group-<?= h($key) ?>" data-task-group="<?= h($key) ?>">
+                    <h2 id="task-group-<?= h($key) ?>" class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                        <?= h($groupLabels[$key] ?? $key) ?>
+                        <?= $this->Badge->render((string)count($tasks), ['variant' => 'secondary']) ?>
+                    </h2>
+                    <ul class="divide-y rounded-lg border">
+                        <?php foreach ($tasks as $task) : ?>
+                            <?php $done = !empty($task['done']); $priority = (string)($task['priority'] ?? 'medium'); ?>
+                            <li class="flex flex-wrap items-center gap-x-3 gap-y-2 p-3" data-task="<?= h((string)$task['id']) ?>" data-done="<?= $done ? 'true' : 'false' ?>">
+                                <input type="checkbox" name="done[]" value="<?= h((string)$task['id']) ?>" id="task-<?= h((string)$task['id']) ?>"<?= $done ? ' checked' : '' ?>>
+                                <label for="task-<?= h((string)$task['id']) ?>" class="min-w-0 flex-1 text-sm font-medium<?= $done ? ' text-muted-foreground line-through' : '' ?>"><?= h($task['title']) ?></label>
+                                <?php if ($done) : ?>
+                                    <span class="sr-only"><?= h({{ t|raw }}'Completed')) ?></span>
+                                <?php endif; ?>
+                                <?= $this->Badge->render($priorityLabels[$priority] ?? $priority, ['variant' => $priorityVariants[$priority] ?? 'secondary', 'data-priority' => $priority]) ?>
+                                <?php foreach ((array)($task['tags'] ?? []) as $tag) : ?>
+                                    <?= $this->Badge->render((string)$tag, ['variant' => 'outline']) ?>
+                                <?php endforeach; ?>
+                                <span class="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                                    <?= $this->Icon->render('calendar') ?>
+                                    <span class="sr-only"><?= h({{ t|raw }}'Due')) ?></span>
+                                    <?= h($task['due']) ?>
+                                </span>
+                                <?php if (!empty($task['assignee']['name'])) : ?>
+                                    <span class="inline-flex" title="<?= h($task['assignee']['name']) ?>">
+                                        <?= $this->Avatar->render($task['assignee']['name']) ?>
+                                        <span class="sr-only"><?= h({{ t|raw }}'Assigned to {0}', $task['assignee']['name'])) ?></span>
+                                    </span>
+                                <?php endif; ?>
+                                <?= $this->DropdownMenu->render('', [
+                                    // TODO: link these items to your own edit and delete actions.
+                                    ['label' => {{ t|raw }}'Edit task'), 'url' => '#'],
+                                    '-',
+                                    ['label' => {{ t|raw }}'Delete task'), 'url' => '#', 'variant' => 'destructive'],
+                                ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $task['title'])], 'align' => 'end']) ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </section>
+            <?php endforeach; ?>
+        </div>
+    <?php else : ?>
+        <?= $this->EmptyState->render({{ t|raw }}'No tasks'), [
+            'description' => $filtered ? {{ t|raw }}'Nothing matches these filters. Try a different search.') : {{ t|raw }}'Add a task to get started.'),
+            'icon' => 'list-checks',
+        ]) ?>
+    <?php endif; ?>
+</div>
