@@ -12,6 +12,11 @@
  * Bookings: day schedule with one column per resource and classes placed by start and end time
  * (CSS grid, one row per 30 minutes), plus a list view of the same bookings.
  *
+ * Interactivity (BasecoatTheme.basecoat-dnd + basecoat-screens; without JavaScript the page works as plain
+ * GET links): drag a class to another time or resource (keyboard: focus it, Space or Enter, arrows, Space
+ * or Enter), drag its bottom handle or press Shift + Up / Down to change its length. Overlapping classes are
+ * allowed but flagged and announced. Grid and List switch without a reload and stay in sync.
+ *
  * @var \{{ namespace }}\View\AppView $this
  * @var string $date Day shown (Y-m-d). Your controller reads the `date` query parameter (the previous / next
  *   day links set it), validates it and passes that day, its label and its bookings.
@@ -24,6 +29,9 @@
  * @var array<int, array<string, mixed>> $bookings Rows: id, resource, type, name, coach, start, end, booked, capacity.
  */
 $this->assign('title', {{ t|raw }}'Bookings'));
+$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
 
 $request = $this->getRequest();
 $indexUrl = $this->Url->build(['action' => 'index']);
@@ -90,14 +98,55 @@ foreach ($bookings as $booking) {
 }
 usort($bookings, fn (array $a, array $b): int => [$a['start'], $a['resource']] <=> [$b['start'], $b['resource']]);
 
-// Row menu; `side` opens it upwards for the last rows of the grid so the scroll area does not clip it
+$clockAt = fn (int $slot): string => sprintf('%02d:%02d', intdiv($dayStartMinutes + $slot * 30, 60), ($dayStartMinutes + $slot * 30) % 60);
+
+// Time range of a booking; the spans are rewritten by the drag script after a move or resize (grid and list)
+$range = fn (array $booking): string => '<span data-dnd-text="start">' . h($booking['start']) . '</span>–<span data-dnd-text="end">' . h($booking['end']) . '</span>';
+
+// Row menu; `side` opens it upwards for the last rows of the grid so the scroll area does not clip it.
+// `data-dnd-aria` is the menu's name after the class is moved ({start} and {end} are filled in by the script).
 $menu = fn (array $booking, array $options = []): string => $this->DropdownMenu->render('', [
     // TODO: link these items to your own edit and cancel actions (cancel must be a POST).
     ['label' => {{ t|raw }}'Edit booking'), 'url' => '#'],
     '-',
     ['label' => {{ t|raw }}'Cancel booking'), 'url' => '#', 'variant' => 'destructive'],
-], $options + ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}, {1}', $booking['name'], $booking['start'] . '–' . $booking['end'])], 'align' => 'end']);
+], $options + ['trigger' => [
+    'icon' => 'ellipsis',
+    'variant' => 'ghost',
+    'size' => 'icon-sm',
+    'label' => {{ t|raw }}'Actions for {0}, {1}', $booking['name'], $booking['start'] . '–' . $booking['end']),
+    'data-dnd-aria' => {{ t|raw }}'Actions for {0}, {1}', $booking['name'], '{start}–{end}'),
+], 'align' => 'end']);
 $capacity = fn (array $booking): string => '<span>' . h($booking['booked'] . '/' . $booking['capacity']) . '</span><span class="sr-only"> ' . h({{ t|raw }}'booked')) . '</span>';
+
+// Drag and drop: the grid's class maps (0-based slot / resource / length => the literal classes above),
+// the time of every slot boundary and the resource names, used to rewrite times and names after a move.
+$dndClasses = [
+    'row' => array_values(array_slice($rowStarts, 0, $slots)),
+    'col' => array_values(array_slice($columnStarts, 1, count($resourceIds))),
+    'span' => array_map('strval', $spanClasses),
+];
+$dndRowText = array_map($clockAt, range(0, $slots));
+$dndColText = array_map(fn (string $id): string => (string)$resources[$id], $resourceIds);
+$json = fn (array $value): string => (string)json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+// Messages read aloud while a class is moved (placeholders are filled in by the script)
+$dndMessages = [
+    'grid-instructions' => {{ t|raw }}'Press Space or Enter to pick up. Use the arrow keys to move, Space or Enter to drop, Escape to cancel. Shift and the up or down arrow change the length.'),
+    'grid-picked-up' => {{ t|raw }}'Picked up {label}. {slot}.'),
+    'grid-moved' => {{ t|raw }}'{slot}.'),
+    'grid-dropped' => {{ t|raw }}'Dropped {label}. {slot}.'),
+    'grid-cancelled' => {{ t|raw }}'Cancelled. {label} is back at {slot}.'),
+    'resized' => {{ t|raw }}'{label}: {span} half-hour slots.'),
+    'collision' => {{ t|raw }}'Overlaps {others}.'),
+    'failed' => {{ t|raw }}'Could not save the change. {label} was moved back.'),
+];
+$dndAttributes = '';
+foreach ($dndMessages as $key => $message) {
+    $dndAttributes .= ' data-dnd-i18n-' . $key . '="' . h($message) . '"';
+}
+$views = 'bookings-views';
+// The current view's link (aria-current, also set by the view switch) looks like a secondary button
+$current = 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-foreground';
 ?>
 <div class="flex min-w-0 flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <?= $this->PageHeader->render({{ t|raw }}'Bookings'), [
@@ -119,9 +168,10 @@ $capacity = fn (array $booking): string => '<span>' . h($booking['booked'] . '/'
                 <h3 class="min-w-0 px-1 text-base font-medium"><?= h($dateLabel) ?></h3>
             <?php endif; ?>
         </div>
+        <?php // Plain GET links; with JavaScript they switch the views in place (both are on the page). ?>
         <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'View')) ?>">
-            <?= $this->Button->link({{ t|raw }}'Grid'), $link(['view' => 'grid']), ['icon' => 'layout-grid', 'variant' => $view === 'grid' ? 'secondary' : 'outline', 'size' => 'sm', 'aria-current' => $view === 'grid' ? 'true' : null]) ?>
-            <?= $this->Button->link({{ t|raw }}'List'), $link(['view' => 'list']), ['icon' => 'list', 'variant' => $view === 'list' ? 'secondary' : 'outline', 'size' => 'sm', 'aria-current' => $view === 'list' ? 'true' : null]) ?>
+            <?= $this->Button->link({{ t|raw }}'Grid'), $link(['view' => 'grid']), ['icon' => 'layout-grid', 'variant' => 'outline', 'size' => 'sm', 'class' => $current, 'aria-current' => $view === 'grid' ? 'true' : null, 'data-view-switch' => 'grid', 'data-view-target' => '#' . $views]) ?>
+            <?= $this->Button->link({{ t|raw }}'List'), $link(['view' => 'list']), ['icon' => 'list', 'variant' => 'outline', 'size' => 'sm', 'class' => $current, 'aria-current' => $view === 'list' ? 'true' : null, 'data-view-switch' => 'list', 'data-view-target' => '#' . $views]) ?>
         </nav>
     </div>
 
@@ -130,16 +180,18 @@ $capacity = fn (array $booking): string => '<span>' . h($booking['booked'] . '/'
             'description' => {{ t|raw }}'There is nothing booked for this day yet.'),
             'icon' => 'calendar-clock',
         ]) ?>
-    <?php elseif ($view === 'list') : ?>
-        <section class="min-w-0" aria-label="<?= h({{ t|raw }}'Bookings list')) ?>">
+    <?php else : ?>
+    <div class="min-w-0" id="<?= h($views) ?>" data-view="<?= h($view) ?>">
+        <section class="min-w-0" aria-label="<?= h({{ t|raw }}'Bookings list')) ?>" data-view-panel="list"<?= $view === 'list' ? '' : ' hidden' ?>>
             <?php
             $rows = [];
             foreach ($bookings as $booking) {
                 $rows[] = [
-                    'time' => h($booking['start'] . '–' . $booking['end']),
+                    '_row' => ['data-booking-row' => (string)$booking['id']],
+                    'time' => $range($booking),
                     'name' => '<span class="font-medium">' . h($booking['name']) . '</span>',
                     'type' => $this->Badge->render((string)($types[$booking['type']] ?? $booking['type']), ['variant' => 'outline', 'data-booking-type' => $booking['type']]),
-                    'resource' => h($resources[$booking['resource']] ?? $booking['resource']),
+                    'resource' => '<span data-dnd-text="col">' . h($resources[$booking['resource']] ?? $booking['resource']) . '</span>',
                     'coach' => h($booking['coach']),
                     'booked' => $capacity($booking),
                     'actions' => ['content' => $menu($booking), 'class' => 'text-right'],
@@ -156,44 +208,53 @@ $capacity = fn (array $booking): string => '<span>' . h($booking['booked'] . '/'
                 'actions' => ['label' => '', 'escape' => false],
             ], $rows) ?>
         </section>
-    <?php else : ?>
-        <section class="relative min-w-0 overflow-x-auto rounded-lg border" aria-label="<?= h({{ t|raw }}'Schedule for {0}', $dateLabel)) ?>">
-            <div class="grid min-w-max <?= h($columnTemplates[count($resourceIds)]) ?> grid-rows-[auto] auto-rows-[2.5rem]" data-schedule-grid>
+        <section class="relative min-w-0 overflow-x-auto rounded-lg border" aria-label="<?= h({{ t|raw }}'Schedule for {0}', $dateLabel)) ?>" data-view-panel="grid"<?= $view === 'grid' ? '' : ' hidden' ?>>
+            <?php // TODO: set data-endpoint="<your move action URL>" on this grid to save moves and resizes ({action: 'move'|'resize', id, grid, row, col, span}; failures are reverted). ?>
+            <div class="grid min-w-max <?= h($columnTemplates[count($resourceIds)]) ?> grid-rows-[auto] auto-rows-[2.5rem]" data-schedule-grid
+                data-dnd-grid data-id="<?= h($date) ?>" data-dnd-label="<?= h({{ t|raw }}'Schedule for {0}', $dateLabel)) ?>"
+                data-dnd-classes="<?= h($json($dndClasses)) ?>" data-dnd-rows="<?= $slots ?>" data-dnd-cols="<?= count($resourceIds) ?>" data-dnd-span-max="8"
+                data-dnd-row-text="<?= h($json($dndRowText)) ?>" data-dnd-col-text="<?= h($json($dndColText)) ?>"<?= $dndAttributes ?>>
                 <div class="bg-muted/50 col-start-1 row-start-1 p-2 text-xs"><span class="sr-only"><?= h({{ t|raw }}'Time')) ?></span></div>
                 <?php foreach ($resourceIds as $i => $resourceId) : ?>
                     <div class="bg-muted/50 border-l p-2 text-sm font-medium <?= h($columnStarts[$i + 2]) ?> row-start-1" data-resource="<?= h($resourceId) ?>"><?= h($resources[$resourceId]) ?></div>
                 <?php endforeach; ?>
 
                 <?php for ($slot = 0; $slot < $slots; $slot++) : ?>
-                    <?php $clock = sprintf('%02d:%02d', intdiv($dayStartMinutes + $slot * 30, 60), ($dayStartMinutes + $slot * 30) % 60); ?>
+                    <?php $clock = $clockAt($slot); ?>
                     <div class="pointer-events-none col-start-1 col-span-full border-t <?= $slot === 0 ? 'border-transparent' : '' ?> <?= str_ends_with($clock, ':30') ? 'border-dashed' : '' ?> row-span-1 <?= h($rowStarts[$slot + 2]) ?>"></div>
                     <?php if (str_ends_with($clock, ':00')) : ?>
                         <div class="text-muted-foreground col-start-1 px-2 pt-1 text-right text-xs tabular-nums row-span-1 <?= h($rowStarts[$slot + 2]) ?>"><?= h($clock) ?></div>
                     <?php endif; ?>
+                    <?php // Empty drop targets, one per half hour and resource ?>
+                    <?php foreach ($resourceIds as $i => $resourceId) : ?>
+                        <div class="<?= h($columnStarts[$i + 2]) ?> <?= h($rowStarts[$slot + 2]) ?> row-span-1" data-dnd-slot data-dnd-row="<?= $slot ?>" data-dnd-col="<?= $i ?>" data-dnd-label="<?= h($clock . ', ' . $resources[$resourceId]) ?>"></div>
+                    <?php endforeach; ?>
                 <?php endfor; ?>
 
                 <?php foreach ($placed as $booking) : ?>
                     <?php
                     $typeLabel = (string)($types[$booking['type']] ?? $booking['type']);
-                    $range = $booking['start'] . '–' . $booking['end'];
-                    $typeAndTime = '<span data-type-label>' . h($typeLabel) . '</span> · ' . h($range);
+                    $typeAndTime = '<span data-type-label>' . h($typeLabel) . '</span> · ' . $range($booking);
                     $nearEnd = $booking['row'] - 2 + 3 > $slots;
                     ?>
-                    <div role="group" aria-label="<?= h($booking['name'] . ', ' . $range . ', ' . $resources[$booking['resource']]) ?>"
+                    <?php // One-slot blocks show name, type and time on one line (the group-[.row-span-1] classes), so a resize re-lays them out. ?>
+                    <div role="group" aria-label="<?= h($booking['name'] . ', ' . $booking['start'] . '–' . $booking['end'] . ', ' . $resources[$booking['resource']]) ?>"
                         data-booking-id="<?= h((string)$booking['id']) ?>" data-booking-type="<?= h($booking['type']) ?>"
-                        class="relative m-0.5 min-w-0 rounded-md border p-1.5 pr-8 text-xs leading-4 <?= h($typeColors[$booking['type']] ?? $fallbackColor) ?> <?= h($columnStarts[$booking['column']]) ?> <?= h($rowStarts[$booking['row']]) ?> <?= h($spanClasses[$booking['span']]) ?>">
-                        <?php if ($booking['span'] < 2) : ?>
-                            <p class="truncate"><span class="font-semibold"><?= h($booking['name']) ?></span> · <?= $typeAndTime ?></p>
-                            <p class="sr-only"><?= h($booking['coach']) ?> · <?= $capacity($booking) ?></p>
-                        <?php else : ?>
-                            <p class="truncate font-semibold"><?= h($booking['name']) ?></p>
-                            <p class="truncate"><?= $typeAndTime ?></p>
-                            <p class="truncate"><?= h($booking['coach']) ?> · <?= $capacity($booking) ?></p>
-                        <?php endif; ?>
+                        data-dnd-item data-id="<?= h((string)$booking['id']) ?>" data-dnd-label="<?= h($booking['name']) ?>"
+                        data-dnd-row="<?= $booking['row'] - 2 ?>" data-dnd-col="<?= $booking['column'] - 2 ?>" data-dnd-span="<?= $booking['span'] ?>"
+                        data-dnd-aria="<?= h($booking['name'] . ', {start}–{end}, {col}') ?>" data-dnd-mirror="[data-booking-row=&quot;<?= h((string)$booking['id']) ?>&quot;]"
+                        class="group/booking relative m-0.5 min-w-0 rounded-md border p-1.5 pr-8 text-xs leading-4 outline-none focus-visible:ring-2 focus-visible:ring-ring <?= h($typeColors[$booking['type']] ?? $fallbackColor) ?> <?= h($columnStarts[$booking['column']]) ?> <?= h($rowStarts[$booking['row']]) ?> <?= h($spanClasses[$booking['span']]) ?>">
+                        <p class="truncate"><span class="font-semibold"><?= h($booking['name']) ?></span><span class="hidden group-[.row-span-1]/booking:inline" aria-hidden="true"> · <?= $typeAndTime ?></span></p>
+                        <p class="truncate group-[.row-span-1]/booking:sr-only"><?= $typeAndTime ?></p>
+                        <p class="truncate group-[.row-span-1]/booking:sr-only"><?= h($booking['coach']) ?> · <?= $capacity($booking) ?></p>
                         <?= $menu($booking, ['class' => 'absolute top-0.5 right-0.5', 'side' => $nearEnd ? 'top' : null]) ?>
+                        <div class="absolute inset-x-0 bottom-0 hidden h-2 items-end justify-center group-data-[dnd-ready]/booking:flex" data-dnd-resize aria-hidden="true">
+                            <span class="mb-0.5 h-1 w-8 rounded-full bg-current opacity-30"></span>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
         </section>
+    </div>
     <?php endif; ?>
 </div>

@@ -18,6 +18,8 @@ use Cake\View\View;
  */
 class NotificationsScreenTest extends TestCase
 {
+    private View $view;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,12 +42,13 @@ class NotificationsScreenTest extends TestCase
      *
      * @param array<string, mixed>|null $vars View variables.
      * @param array<string, mixed> $query Query string of the request.
+     * @param callable|null $patch Changes the baked source before it runs.
      */
-    private function render(?array $vars = null, array $query = []): string
+    private function render(?array $vars = null, array $query = [], ?callable $patch = null): string
     {
         $files = (new BakeScreenCommand())->renderFiles('notifications', 'Notifications');
         $file = TMP . 'notifications_screen_' . bin2hex(random_bytes(4)) . '.php';
-        file_put_contents($file, $files['templates/Notifications/index.php']);
+        file_put_contents($file, $patch ? $patch($files['templates/Notifications/index.php']) : $files['templates/Notifications/index.php']);
         $this->assertSame(0, $this->lint($file), 'The baked template must be valid PHP');
 
         $request = new ServerRequest([
@@ -57,6 +60,7 @@ class NotificationsScreenTest extends TestCase
         ]);
         Router::setRequest($request);
         $view = new View($request);
+        $this->view = $view;
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -117,7 +121,7 @@ class NotificationsScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<span[^>]*data-unread-count="5"[^>]*>\s*5 unread\s*<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/<span[^>]*role="status"[^>]*><span data-count-for="[^"]*">5<\/span> unread<\/span>/', $html);
         $this->assertStringContainsString('Mark all as read', $html);
         $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Notification settings<\/span>\s*<\/button>/s', $html);
     }
@@ -284,5 +288,54 @@ class NotificationsScreenTest extends TestCase
             . (string)file_get_contents(ROOT . '/templates/bake/Screen/notifications/template.twig');
 
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe/', $source);
+    }
+
+    public function testLoadsScriptsAndStyles(): void
+    {
+        $this->render();
+
+        $this->assertMatchesRegularExpression('#<script src="/basecoat_theme/js/basecoat-screens\.js"[^>]*defer#', $this->view->fetch('script'));
+        $this->assertStringContainsString('href="/basecoat_theme/css/interactivity.css"', $this->view->fetch('css'));
+    }
+
+    public function testRowsCarryTheBehaviourHooks(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(10, substr_count($html, 'data-toggle-item data-filter-item'));
+        $this->assertSame(5, substr_count($html, 'data-state="unread"'));
+        $this->assertSame(5, substr_count($html, 'data-state="read"'));
+        $this->assertStringContainsString('id="notifications-root"', $html);
+        $this->assertMatchesRegularExpression('/<input data-filter-input="#notifications-root"[^>]*type="search"/', $html);
+        $this->assertMatchesRegularExpression('/<select data-filter-facet="#notifications-root"[^>]*name="status"/', $html);
+        $this->assertStringContainsString('data-filter-empty hidden', $html);
+        $this->assertStringContainsString('data-toggle-all="read" data-toggle-scope="#notifications-root"', $html);
+        $this->assertSame(5, substr_count($html, 'data-toggle="read"'), 'One "Mark as read" per unread row');
+        $this->assertSame(5, substr_count($html, 'data-toggle-for="read" data-toggle-hidden="on" class="bg-primary'), 'The unread dot goes away');
+        $this->assertStringContainsString('data-[state=read]:bg-transparent', $html);
+        $this->assertStringNotContainsString('data-endpoint', $html, 'Endpoints are opt-in');
+    }
+
+    public function testAcceptDeclineUpdateTheRow(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(2, substr_count($html, 'data-toggle="accepted" data-toggle-attr="data-accepted"'));
+        $this->assertSame(2, substr_count($html, 'data-toggle="declined" data-toggle-attr="data-declined"'));
+        $this->assertSame(2, substr_count($html, 'data-text-on="Accepted"'));
+        $this->assertSame(2, substr_count($html, 'data-text-on="Declined"'));
+    }
+
+    public function testWiredAcceptDeclineStayPostForms(): void
+    {
+        $html = $this->render(null, [], fn(string $code): string => str_replace(
+            '[\'types\' => $types]',
+            '[\'types\' => $types, \'urls\' => [\'accept\' => \'/requests/{id}/accept\', \'decline\' => \'/requests/{id}/decline\']]',
+            $code,
+        ));
+
+        $this->assertStringContainsString('action="/requests/1/accept"', $html);
+        $this->assertStringNotContainsString('data-toggle="accepted"', $html, 'The forms are left alone so they still submit');
+        $this->assertStringContainsString('data-toggle="read"', $html);
     }
 }

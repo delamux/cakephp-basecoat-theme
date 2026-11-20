@@ -134,7 +134,7 @@ class KanbanScreenTest extends TestCase
             );
             $this->assertMatchesRegularExpression('/<h3 id="kanban-column-' . $id . '"[^>]*>' . preg_quote($title, '/') . '<\/h3>/', $html);
             $this->assertMatchesRegularExpression(
-                '/data-kanban-count="' . $n . '"[^>]*><span aria-hidden="true">' . $n . '<\/span><span class="sr-only">' . $n . ($n === 1 ? ' card' : ' cards') . '<\/span>/',
+                '/data-kanban-count="' . $n . '"[^>]*><span data-count-for="#kanban-list-' . $id . ' &gt; \[data-kanban-card\]">' . $n . '<\/span><span class="sr-only"> in this column<\/span>/',
                 $html,
             );
         }
@@ -146,7 +146,7 @@ class KanbanScreenTest extends TestCase
         $html = $this->render();
 
         $this->assertSame(count($data['cards']), substr_count($html, 'data-kanban-card="'));
-        $this->assertSame(count($data['columns']), substr_count($html, '<ul class="flex flex-col gap-3" data-kanban-list='));
+        $this->assertSame(count($data['columns']), substr_count($html, '<ul id="kanban-list-'));
         $this->assertSame(count($data['cards']), substr_count($html, '<tr') - 1, 'The list view has a row per card');
         foreach ($data['cards'] as $card) {
             $this->assertSame(2, substr_count($html, '>' . htmlspecialchars($card['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '<'), $card['title']);
@@ -184,9 +184,11 @@ class KanbanScreenTest extends TestCase
 
         $this->assertSame(5, substr_count($html, 'No cards yet.'), 'Same empty text in every column and in the list');
         $this->assertStringNotContainsString('>No cards<', $html);
-        $this->assertStringNotContainsString('data-kanban-card', $html);
-        $this->assertStringNotContainsString('<ul class="flex flex-col gap-3"', $html);
-        $this->assertStringContainsString('<span class="sr-only">0 cards</span>', $html);
+        $this->assertStringNotContainsString('data-kanban-card="', $html);
+        $this->assertSame(4, substr_count($html, '<ul id="kanban-list-'), 'Empty lists stay: cards can be dropped into them');
+        $this->assertSame(4, substr_count($html, '></ul>'), 'Truly empty (the CSS :empty rules show the placeholder)');
+        $this->assertSame(4, substr_count($html, 'peer-empty:block'));
+        $this->assertStringContainsString('>0</span><span class="sr-only"> in this column</span>', $html);
     }
 
     public function testCardWithoutAssigneesRenders(): void
@@ -228,7 +230,7 @@ class KanbanScreenTest extends TestCase
     {
         $html = $this->render();
 
-        preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+        preg_match_all('/(?<![-\w])id="([^"]+)"/', $html, $matches);
         $this->assertNotEmpty($matches[1]);
         $this->assertSame($matches[1], array_values(array_unique($matches[1])));
     }
@@ -287,17 +289,16 @@ class KanbanScreenTest extends TestCase
     public function testPluralsUseTranslatablePluralForms(): void
     {
         $source = (string)file_get_contents(ROOT . '/templates/bake/Screen/kanban/template.twig');
-        foreach (["'{0} card', '{0} cards'", "'{0} attachment', '{0} attachments'", "'{0} comment', '{0} comments'"] as $forms) {
+        foreach (["'{0} attachment', '{0} attachments'", "'{0} comment', '{0} comments'"] as $forms) {
             $this->assertStringContainsString('{{ tn|raw }}' . $forms, $source);
         }
         $plugin = (new BakeScreenCommand())->renderFiles('kanban', 'Board', 'Demo')['templates/Board/index.php'];
-        $this->assertStringContainsString("__dn('Demo', '{0} card', '{0} cards'", $plugin);
+        $this->assertStringContainsString("__dn('Demo', '{0} attachment', '{0} attachments'", $plugin);
 
         $card = ['attachments' => 1, 'comments' => 1] + ScreenRegistry::data('kanban')['cards'][0];
         $html = $this->render($this->data(['cards' => [$card]]));
         $this->assertStringContainsString('<span class="sr-only">1 attachment</span>', $html);
         $this->assertStringContainsString('<span class="sr-only">1 comment</span>', $html);
-        $this->assertStringContainsString('<span class="sr-only">1 card</span>', $html);
     }
 
     public function testAvatarsAreReadableAndCapped(): void
@@ -315,6 +316,25 @@ class KanbanScreenTest extends TestCase
 
         $this->assertSame(2 * count($data['cards']), substr_count($html, '<span class="sr-only">Options for '));
         $this->assertStringContainsString('<span class="sr-only">Actions</span>', $html);
+    }
+
+    public function testInteractivityHooks(): void
+    {
+        $data = ScreenRegistry::data('kanban');
+        $html = $this->render();
+
+        $this->assertSame(count($data['columns']), substr_count($html, 'data-dnd-container data-dnd-group="kanban"'));
+        $this->assertSame(count($data['cards']), substr_count($html, 'data-dnd-item data-dnd-id="'));
+        $this->assertStringContainsString('data-dnd-label="In progress"', $html);
+        $this->assertSame(count($data['columns']), substr_count($html, 'data-count-for="#kanban-list-'));
+        $this->assertSame(count($data['cards']), substr_count($html, 'data-kanban-row="'), 'The List view column cells follow the moves');
+        $this->assertStringNotContainsString('data-endpoint=', $html, 'No endpoint by default');
+        $baked = (new BakeScreenCommand())->renderFiles('kanban', 'Board')['templates/Board/index.php'];
+        foreach (['basecoat-dnd', 'basecoat-screens', 'basecoat-kanban'] as $script) {
+            $this->assertStringContainsString("'BasecoatTheme." . $script . "'", $baked);
+        }
+        $this->assertStringContainsString("'BasecoatTheme.interactivity'", $baked);
+        $this->assertStringContainsString('data-endpoint', $baked, 'TODO comment shows where to wire the endpoint');
     }
 
     public function testNoColumnsShowsAnEmptyState(): void

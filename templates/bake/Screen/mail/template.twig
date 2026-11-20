@@ -18,6 +18,8 @@
  * @var int|null $selected Id of the message shown in the reading pane.
  */
 $this->assign('title', {{ t|raw }}'Mail'));
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
 
 $query = $this->getRequest()->getQueryParams();
 $open = null;
@@ -31,6 +33,66 @@ $labelBadge = fn (string $key): string => $this->Badge->render($labels[$key] ?? 
     'data-label' => $key,
 ]);
 $tabs = ['all' => {{ t|raw }}'All'), 'unread' => {{ t|raw }}'Unread')];
+// What the script filters the list by (data-filter-value): everything, or the rows that still hold an unread message.
+$tabFilters = ['all' => '', 'unread' => ':has([data-unread="true"])'];
+// Folder counts the script keeps in step with the list (data-count-for).
+$liveCounts = ['inbox' => '#mail-list [data-unread="true"]', 'starred' => '#mail-list [data-starred="true"]'];
+// Reading pane of one message: heading, header, body and reply box. Printed for the open message and
+// repeated in a <template> per message, which the script clones into the pane on selection.
+$reading = function (?array $open) use ($labelBadge): string {
+    ob_start();
+    ?>
+    <h2 class="sr-only"><?= h({{ t|raw }}'Reading pane')) ?></h2>
+    <?php if ($open === null) : ?>
+        <?= $this->EmptyState->render({{ t|raw }}'Select a message to read it.'), ['icon' => 'mail']) ?>
+    <?php else : ?>
+    <article class="flex flex-col gap-4 p-4">
+        <header class="flex flex-col gap-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <h3 class="text-lg font-semibold"><?= h($open['subject']) ?></h3>
+                <?php // TODO: wire these buttons to your own POST actions (reply, forward, archive, delete). ?>
+                <div class="flex items-center gap-1">
+                    <?= $this->Button->icon('reply', {{ t|raw }}'Reply'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->icon('forward', {{ t|raw }}'Forward'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->icon('archive', {{ t|raw }}'Archive'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->icon('trash', {{ t|raw }}'Delete'), ['variant' => 'ghost']) ?>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <?= $this->Avatar->render($open['from']['name'], ['decorative' => true]) ?>
+                <div class="min-w-0 text-sm">
+                    <p class="font-medium"><?= h($open['from']['name']) ?> <span class="text-muted-foreground font-normal">&lt;<?= h($open['from']['email']) ?>&gt;</span></p>
+                    <p class="text-muted-foreground"><?= h({{ t|raw }}'To: {0}', $open['to'])) ?> · <?= h($open['date']) ?></p>
+                </div>
+            </div>
+            <?php if (!empty($open['labels'])) : ?>
+                <div class="flex flex-wrap gap-1">
+                    <?php foreach ($open['labels'] as $key) : ?>
+                        <?= $labelBadge($key) ?>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </header>
+        <div class="flex flex-col gap-3 text-sm">
+            <?php foreach ($open['body'] as $paragraph) : ?>
+                <p><?= h($paragraph) ?></p>
+            <?php endforeach; ?>
+        </div>
+        <?php // TODO: post the reply to your own action (POST form with the CSRF token). ?>
+        <div class="flex flex-col gap-2 border-t pt-4">
+            <label for="mail-reply" class="text-sm font-medium"><?= h({{ t|raw }}'Reply to {0}', $open['from']['name'])) ?></label>
+            <textarea id="mail-reply" class="textarea" rows="4"></textarea>
+            <div class="flex justify-end">
+                <?= $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send']) ?>
+            </div>
+        </div>
+    </article>
+    <?php endif; ?>
+    <?php
+
+    return (string)ob_get_clean();
+};
+
 // Folder and label links: ghost buttons; the open folder is highlighted (and `aria-current`).
 // A horizontal strip on phones, a column from `md` up.
 $navClass = 'flex gap-1 overflow-x-auto md:flex-col md:overflow-visible';
@@ -49,8 +111,11 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                         <?= $this->Icon->render($folder['icon']) ?>
                         <span class="flex-1 text-left"><?= h($folder['label']) ?></span>
                         <?php if ((int)$folder['count'] > 0) : ?>
-                            <span class="text-muted-foreground text-xs" aria-hidden="true"><?= (int)$folder['count'] ?></span>
-                            <span class="sr-only"><?= h($folder['key'] === 'inbox' ? {{ t|raw }}'{0} unread', (int)$folder['count']) : {{ t|raw }}'{0} messages', (int)$folder['count'])) ?></span>
+                            <?php
+                            $counter = '<span' . (isset($liveCounts[$folder['key']]) ? ' data-count-for="' . h($liveCounts[$folder['key']]) . '"' : '') . '>' . (int)$folder['count'] . '</span>';
+                            ?>
+                            <span class="text-muted-foreground text-xs" aria-hidden="true"><?= $counter ?></span>
+                            <span class="sr-only"><?= str_replace('{count}', $counter, h($folder['key'] === 'inbox' ? {{ t|raw }}'{0} unread', '{count}') : {{ t|raw }}'{0} messages', '{count}'))) ?></span>
                         <?php endif; ?>
                     </a>
                 <?php endforeach; ?>
@@ -81,39 +146,53 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                     'placeholder' => {{ t|raw }}'Search mail'),
                     'aria-label' => {{ t|raw }}'Search mail'),
                     'required' => false,
+                    // The script filters the list as you type (and ignores Enter); without it the form searches on the server.
+                    'data-filter-input' => '#mail-list',
                 ]) ?>
             <?= $this->Form->end() ?>
             <nav class="flex items-center gap-2" aria-label="<?= h({{ t|raw }}'Filter messages')) ?>">
                 <?php foreach ($tabs as $value => $label) : ?>
-                    <?php // Keeps the search term when the filter changes ?>
+                    <?php
+                    // Keeps the search term when the filter changes. With the script the tabs filter the list in place
+                    // (data-filter-facet): send every message and let them work, or drop the data attributes to keep
+                    // the server-side tabs (then `$messages` must already be filtered by the controller).
+                    ?>
                     <?= $this->Button->link($label, ['action' => 'index', '?' => ['filter' => $value] + $query], array_filter([
-                        'variant' => $filter === $value ? 'secondary' : 'ghost',
+                        'variant' => 'ghost',
                         'size' => 'sm',
+                        'class' => 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-foreground',
                         'aria-current' => $filter === $value ? 'true' : null,
-                    ])) ?>
+                        'data-filter-facet' => '#mail-list',
+                        'data-filter-value' => $tabFilters[$value] ?? '',
+                    ], fn ($v) => $v !== null)) ?>
                 <?php endforeach; ?>
             </nav>
             <?php if ($messages) : ?>
-                <ul class="flex flex-col divide-y rounded-lg border lg:max-h-[40rem] lg:overflow-y-auto">
+                <?php
+                // The script opens a message in the reading pane from its <template> (below), marks it read and
+                // handles the star / archive / delete buttons of each row. TODO: set `data-endpoint` on the list to
+                // POST `{action: 'toggle', id, name: 'starred', on}` and `{action: 'archive'|'delete', id}` as JSON.
+                ?>
+                <ul id="mail-list" class="flex flex-col divide-y rounded-lg border lg:max-h-[40rem] lg:overflow-y-auto" data-master="#mail-pane" data-master-focus>
                     <?php foreach ($messages as $message) : ?>
-                        <li>
+                        <?php $starred = !empty($message['starred']); ?>
+                        <li class="flex flex-col" data-filter-item data-toggle-item data-id="<?= h((string)$message['id']) ?>" data-label="<?= h((string)$message['subject']) ?>" data-filter-text="<?= h($message['from']['name'] . ' ' . $message['subject'] . ' ' . $message['snippet']) ?>" data-starred="<?= $starred ? 'true' : 'false' ?>">
                             <?php // TODO: link each message to your own view action. ?>
-                            <a href="#" class="hover:bg-accent flex flex-col gap-1 p-3<?= $open && $open['id'] === $message['id'] ? ' bg-accent' : '' ?>" data-message-id="<?= h((string)$message['id']) ?>" data-unread="<?= $message['unread'] ? 'true' : 'false' ?>"<?= $open && $open['id'] === $message['id'] ? ' aria-current="true"' : '' ?>>
+                            <a href="#" class="group hover:bg-accent aria-[current=true]:bg-accent flex flex-col gap-1 p-3" data-message-id="<?= h((string)$message['id']) ?>" data-master-item="mail-message-<?= h((string)$message['id']) ?>" data-unread="<?= $message['unread'] ? 'true' : 'false' ?>"<?= $open && $open['id'] === $message['id'] ? ' aria-current="true"' : '' ?>>
                                 <span class="flex items-center gap-2">
-                                    <span class="<?= $message['unread'] ? 'font-semibold' : 'font-medium' ?> flex-1 truncate">
+                                    <span class="group-data-[unread=true]:font-semibold flex-1 truncate font-medium">
                                         <?php if ($message['unread']) : ?>
-                                            <span class="sr-only"><?= h({{ t|raw }}'Unread')) ?></span>
-                                            <span class="bg-primary mr-1 inline-block size-2 rounded-full align-middle" aria-hidden="true"></span>
+                                            <span data-master-clear><span class="sr-only"><?= h({{ t|raw }}'Unread')) ?></span><span class="bg-primary mr-1 inline-block size-2 rounded-full align-middle" aria-hidden="true"></span></span>
                                         <?php endif; ?>
                                         <?= h($message['from']['name']) ?>
                                     </span>
-                                    <?php if (!empty($message['starred'])) : ?>
+                                    <span data-toggle-for="starred" data-toggle-hidden="off"<?= $starred ? '' : ' hidden' ?>>
                                         <?= $this->Icon->render('star', ['class' => 'size-3.5']) ?>
                                         <span class="sr-only"><?= h({{ t|raw }}'Starred')) ?></span>
-                                    <?php endif; ?>
+                                    </span>
                                     <span class="text-muted-foreground text-xs"><?= h($message['time']) ?></span>
                                 </span>
-                                <span class="<?= $message['unread'] ? 'font-medium' : '' ?> truncate text-sm"><?= h($message['subject']) ?></span>
+                                <span class="group-data-[unread=true]:font-medium truncate text-sm"><?= h($message['subject']) ?></span>
                                 <span class="text-muted-foreground line-clamp-2 text-xs"><?= h($message['snippet']) ?></span>
                                 <?php if (!empty($message['labels'])) : ?>
                                     <span class="flex flex-wrap gap-1">
@@ -123,8 +202,32 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                                     </span>
                                 <?php endif; ?>
                             </a>
+                            <div class="flex items-center gap-1 px-2 pb-2" role="group" aria-label="<?= h({{ t|raw }}'Actions for {0}', $message['subject'])) ?>">
+                                <?= $this->Button->icon('star', {{ t|raw }}'Star: {0}', $message['subject']), [
+                                    'variant' => 'ghost',
+                                    'size' => 'icon-sm',
+                                    'class' => 'aria-pressed:[&_svg]:fill-current',
+                                    'aria-pressed' => $starred ? 'true' : 'false',
+                                    'data-toggle' => 'starred',
+                                    'data-toggle-attr' => 'data-starred',
+                                    'data-toggle-off' => 'false',
+                                ]) ?>
+                                <?= $this->Button->icon('archive', {{ t|raw }}'Archive: {0}', $message['subject']), [
+                                    'variant' => 'ghost',
+                                    'size' => 'icon-sm',
+                                    'data-remove-item' => 'archive',
+                                    'data-screens-i18n-removed' => {{ t|raw }}'{label} archived.'),
+                                ]) ?>
+                                <?= $this->Button->icon('trash', {{ t|raw }}'Delete: {0}', $message['subject']), [
+                                    'variant' => 'ghost',
+                                    'size' => 'icon-sm',
+                                    'data-remove-item' => 'delete',
+                                    'data-screens-i18n-removed' => {{ t|raw }}'{label} deleted.'),
+                                ]) ?>
+                            </div>
                         </li>
                     <?php endforeach; ?>
+                    <li class="text-muted-foreground p-4 text-sm" data-filter-empty hidden><?= h({{ t|raw }}'No messages match.')) ?></li>
                 </ul>
             <?php else : ?>
                 <?= $this->EmptyState->render({{ t|raw }}'No messages'), [
@@ -134,53 +237,14 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
             <?php endif; ?>
         </section>
 
-        <section class="min-w-0 rounded-lg border md:col-start-2 lg:col-start-auto" aria-label="<?= h({{ t|raw }}'Reading pane')) ?>">
-            <h2 class="sr-only"><?= h({{ t|raw }}'Reading pane')) ?></h2>
-            <?php if ($open) : ?>
-                <article class="flex flex-col gap-4 p-4">
-                    <header class="flex flex-col gap-3">
-                        <div class="flex flex-wrap items-start justify-between gap-2">
-                            <h3 class="text-lg font-semibold"><?= h($open['subject']) ?></h3>
-                            <?php // TODO: wire these buttons to your own POST actions (reply, forward, archive, delete). ?>
-                            <div class="flex items-center gap-1">
-                                <?= $this->Button->icon('reply', {{ t|raw }}'Reply'), ['variant' => 'ghost']) ?>
-                                <?= $this->Button->icon('forward', {{ t|raw }}'Forward'), ['variant' => 'ghost']) ?>
-                                <?= $this->Button->icon('archive', {{ t|raw }}'Archive'), ['variant' => 'ghost']) ?>
-                                <?= $this->Button->icon('trash', {{ t|raw }}'Delete'), ['variant' => 'ghost']) ?>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <?= $this->Avatar->render($open['from']['name'], ['decorative' => true]) ?>
-                            <div class="min-w-0 text-sm">
-                                <p class="font-medium"><?= h($open['from']['name']) ?> <span class="text-muted-foreground font-normal">&lt;<?= h($open['from']['email']) ?>&gt;</span></p>
-                                <p class="text-muted-foreground"><?= h({{ t|raw }}'To: {0}', $open['to'])) ?> · <?= h($open['date']) ?></p>
-                            </div>
-                        </div>
-                        <?php if (!empty($open['labels'])) : ?>
-                            <div class="flex flex-wrap gap-1">
-                                <?php foreach ($open['labels'] as $key) : ?>
-                                    <?= $labelBadge($key) ?>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </header>
-                    <div class="flex flex-col gap-3 text-sm">
-                        <?php foreach ($open['body'] as $paragraph) : ?>
-                            <p><?= h($paragraph) ?></p>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php // TODO: post the reply to your own action (POST form with the CSRF token). ?>
-                    <div class="flex flex-col gap-2 border-t pt-4">
-                        <label for="mail-reply" class="text-sm font-medium"><?= h({{ t|raw }}'Reply to {0}', $open['from']['name'])) ?></label>
-                        <textarea id="mail-reply" class="textarea" rows="4"></textarea>
-                        <div class="flex justify-end">
-                            <?= $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send']) ?>
-                        </div>
-                    </div>
-                </article>
-            <?php else : ?>
-                <?= $this->EmptyState->render({{ t|raw }}'Select a message to read it.'), ['icon' => 'mail']) ?>
-            <?php endif; ?>
+        <section id="mail-pane" class="min-w-0 rounded-lg border md:col-start-2 lg:col-start-auto" aria-label="<?= h({{ t|raw }}'Reading pane')) ?>">
+            <?= $reading($open) ?>
         </section>
     </div>
+    <?php foreach ($messages as $message) : ?>
+        <?php // The reading pane of each message, cloned into the pane when it is selected. ?>
+        <template id="mail-message-<?= h((string)$message['id']) ?>">
+            <?= $reading($message) ?>
+        </template>
+    <?php endforeach; ?>
 </div>

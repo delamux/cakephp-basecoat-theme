@@ -10,7 +10,9 @@
 {% set tn = useDomain ? "__dn('" ~ plugin ~ "', " : "__n(" %}
 <?php
 /**
- * Onboarding: five-step setup flow. The step comes from the `step` query parameter (1 to 5).
+ * Onboarding: five-step setup flow. With JS (basecoat-screens.js) the steps are panels of one page: Continue validates
+ * the required fields and moves on without reloading, Back keeps the values. Without JS each step is a GET page: the step
+ * comes from the `step` query parameter (1 to 5) and the other panels are hidden.
  *
  * @var \{{ namespace }}\View\AppView $this
  * @var array<string, string> $steps Step key => label, in order.
@@ -23,6 +25,8 @@
  * @var array<string, mixed> $preferences Defaults of the preferences step.
  */
 $this->assign('title', {{ t|raw }}'Onboarding'));
+$this->Html->css('BasecoatTheme.interactivity', ['block' => true]);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => true, 'defer' => true]);
 
 $stepKeys = array_keys($steps);
 $count = count($stepKeys);
@@ -32,7 +36,7 @@ $workspace += ['name' => '', 'slug' => ''];
 $indexUrl = $this->Url->build(['action' => 'index']);
 $stepUrl = fn (int $number): string => $indexUrl . '?' . http_build_query(['step' => $number]);
 
-// Heading and description of each step
+// Heading and description of each step panel
 $texts = [
     'workspace' => [{{ t|raw }}'Name your workspace'), {{ t|raw }}'This is where your team will keep its projects. You can change it later.')],
     'team' => [{{ t|raw }}'Invite your team'), {{ t|raw }}'Add the people you work with. You can skip this step and invite them later.')],
@@ -40,7 +44,6 @@ $texts = [
     'preferences' => [{{ t|raw }}'Set your preferences'), {{ t|raw }}'Tell us how you like to work. Every option can be changed in settings.')],
     'done' => [{{ t|raw }}'Review and finish'), {{ t|raw }}'Check the summary below, then finish to open your workspace.')],
 ];
-[$heading, $description] = $texts[(string)$currentKey] ?? [(string)($steps[(string)$currentKey] ?? ''), ''];
 
 // The invited emails always offer three fields: the listed ones plus empty rows
 $invites = array_values($invites);
@@ -53,46 +56,51 @@ $inviteFields = max(3, count($invites));
             'icon' => 'list-checks',
         ]) ?>
     <?php else : ?>
+    <?php
+    // TODO: the values are not stored. Keep them between steps (session or a draft record) for the no-JS flow and
+    // save everything when the flow is finished; with JS, listen to basecoat:step or post the five forms at the end.
+    ?>
+    <div class="flex flex-col gap-6" data-stepper data-stepper-start="<?= $current - 1 ?>"
+        data-screens-i18n-step="<?= h({{ t|raw }}'Step {step} of {total}: {title}')) ?>">
     <nav aria-label="<?= h({{ t|raw }}'Progress')) ?>">
         <ol class="flex items-center gap-2">
             <?php foreach ($stepKeys as $index => $key) : ?>
                 <?php
                 $number = $index + 1;
-                $isCurrent = $number === $current;
-                $isDone = $number < $current;
+                $state = $number === $current ? 'current' : ($number < $current ? 'complete' : 'upcoming');
                 ?>
-                <li class="flex items-center gap-2 <?= $number < $count ? 'flex-1' : '' ?>"<?= $isCurrent ? ' aria-current="step"' : '' ?>>
-                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium <?= $isCurrent ? 'border-primary bg-primary text-primary-foreground' : ($isDone ? 'border-primary text-primary' : 'text-muted-foreground') ?>">
-                        <?= $isDone ? $this->Icon->render('check', ['class' => 'size-4']) : h((string)$number) ?>
+                <li class="group flex items-center gap-2 <?= $number < $count ? 'flex-1' : '' ?>" data-step-indicator data-state="<?= $state ?>"<?= $state === 'current' ? ' aria-current="step"' : '' ?>>
+                    <span class="text-muted-foreground group-data-[state=current]:border-primary group-data-[state=current]:bg-primary group-data-[state=current]:text-primary-foreground group-data-[state=complete]:border-primary group-data-[state=complete]:text-primary flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium">
+                        <span class="group-data-[state=complete]:hidden"><?= h((string)$number) ?></span>
+                        <?= $this->Icon->render('check', ['class' => 'hidden size-4 group-data-[state=complete]:block']) ?>
                     </span>
-                    <span class="text-sm <?= $isCurrent ? 'font-medium' : 'text-muted-foreground max-sm:sr-only' ?>">
+                    <span class="text-muted-foreground group-data-[state=current]:text-foreground text-sm max-sm:sr-only group-data-[state=current]:font-medium group-data-[state=current]:max-sm:not-sr-only">
                         <?= h($steps[$key]) ?>
-                        <?php if ($isDone) : ?>
-                            <span class="sr-only"><?= h({{ t|raw }}'Completed')) ?></span>
-                        <?php elseif ($isCurrent) : ?>
-                            <span class="sr-only"><?= h({{ t|raw }}'Current')) ?></span>
-                        <?php endif; ?>
+                        <span class="sr-only hidden group-data-[state=complete]:inline"><?= h({{ t|raw }}'Completed')) ?></span>
+                        <span class="sr-only hidden group-data-[state=current]:inline"><?= h({{ t|raw }}'Current')) ?></span>
                     </span>
                     <?php if ($number < $count) : ?>
-                        <span class="h-px min-w-3 flex-1 <?= $isDone ? 'bg-primary' : 'bg-border' ?>" aria-hidden="true"></span>
+                        <span class="bg-border group-data-[state=complete]:bg-primary h-px min-w-3 flex-1" aria-hidden="true"></span>
                     <?php endif; ?>
                 </li>
             <?php endforeach; ?>
         </ol>
     </nav>
 
-    <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'Step {0} of {1}', $current, $count)) ?></p>
+    <p class="text-muted-foreground text-sm"><?= str_replace(['{current}', '{total}'], ['<span data-step-current>' . $current . '</span>', '<span data-step-total>' . $count . '</span>'], h({{ t|raw }}'Step {0} of {1}', '{current}', '{total}'))) ?></p>
 
-    <?php
-    // TODO: each step only moves on to the next one (GET) and the values are not stored. Keep them
-    // between steps (session or a draft record) and save everything when the flow is finished.
-    ?>
+    <?php foreach ($stepKeys as $index => $key) : ?>
+        <?php
+        $number = $index + 1;
+        [$heading, $description] = $texts[$key] ?? [(string)$steps[$key], ''];
+        ?>
+        <div data-step data-step-title="<?= h($heading) ?>"<?= $number === $current ? '' : ' hidden' ?>>
     <?= $this->Card->start(['title' => $heading, 'description' => $description, 'titleTag' => 'h2']) ?>
-        <?php if ($currentKey !== 'done') : ?>
+        <?php if ($key !== 'done') : ?>
             <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'flex flex-col gap-6']) ?>
-                <?= $this->Form->hidden('step', ['value' => $current + 1, 'id' => 'onboarding-next-step']) ?>
+                <?= $this->Form->hidden('step', ['value' => $number + 1, 'id' => 'onboarding-next-step-' . $number]) ?>
 
-                <?php if ($currentKey === 'workspace') : ?>
+                <?php if ($key === 'workspace') : ?>
                     <?= $this->Form->control('workspace_name', [
                         'label' => {{ t|raw }}'Workspace name'),
                         'value' => $workspace['name'],
@@ -108,7 +116,7 @@ $inviteFields = max(3, count($invites));
                         'aria-describedby' => 'onboarding-slug-hint',
                     ]) ?>
                     <p class="text-muted-foreground -mt-4 text-sm" id="onboarding-slug-hint"><?= h({{ t|raw }}'Lowercase letters, numbers and hyphens only.')) ?></p>
-                <?php elseif ($currentKey === 'team') : ?>
+                <?php elseif ($key === 'team') : ?>
                     <?php for ($i = 1; $i <= $inviteFields; $i++) : ?>
                         <?= $this->Form->control('invite_' . $i, [
                             'type' => 'email',
@@ -118,7 +126,7 @@ $inviteFields = max(3, count($invites));
                             'autocomplete' => 'off',
                         ]) ?>
                     <?php endfor; ?>
-                <?php elseif ($currentKey === 'plan') : ?>
+                <?php elseif ($key === 'plan') : ?>
                     <?= $this->ChoiceCards->render('plan', array_map(fn (array $item): array => [
                         'title' => $item['title'],
                         'description' => $item['description'],
@@ -129,7 +137,7 @@ $inviteFields = max(3, count($invites));
                         'required' => true,
                         'id' => 'onboarding-plan',
                     ]) ?>
-                <?php elseif ($currentKey === 'preferences') : ?>
+                <?php elseif ($key === 'preferences') : ?>
                     <?= $this->Form->control('timezone', [
                         'type' => 'select',
                         'label' => {{ t|raw }}'Timezone'),
@@ -159,12 +167,12 @@ $inviteFields = max(3, count($invites));
                 <?php endif; ?>
 
                 <div class="flex items-center justify-between gap-2">
-                    <?php if ($current > 1) : ?>
-                        <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($current - 1), ['icon' => 'arrow-left', 'variant' => 'outline']) ?>
+                    <?php if ($number > 1) : ?>
+                        <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($number - 1), ['icon' => 'arrow-left', 'variant' => 'outline', 'data-step-prev' => '1']) ?>
                     <?php else : ?>
                         <span></span>
                     <?php endif; ?>
-                    <?= $this->Button->submit({{ t|raw }}'Continue'), ['icon' => 'arrow-right', 'iconPosition' => 'end']) ?>
+                    <?= $this->Button->submit({{ t|raw }}'Continue'), ['icon' => 'arrow-right', 'iconPosition' => 'end', 'data-step-next' => '1']) ?>
                 </div>
             <?= $this->Form->end() ?>
         <?php else : ?>
@@ -195,7 +203,7 @@ $inviteFields = max(3, count($invites));
                 </div>
             </dl>
             <div class="mt-6 flex items-center justify-between gap-2">
-                <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($current - 1), ['icon' => 'arrow-left', 'variant' => 'outline']) ?>
+                <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($number - 1), ['icon' => 'arrow-left', 'variant' => 'outline', 'data-step-prev' => '1']) ?>
                 <?php
                 // TODO: "Finish" does nothing yet. Make it a POST form (Form->create + submit, with the
                 // CSRF token) to your own action that saves the workspace and redirects to your dashboard.
@@ -204,5 +212,8 @@ $inviteFields = max(3, count($invites));
             </div>
         <?php endif; ?>
     <?= $this->Card->end() ?>
+        </div>
+    <?php endforeach; ?>
+    </div>
     <?php endif; ?>
 </div>

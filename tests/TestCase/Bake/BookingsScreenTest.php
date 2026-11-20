@@ -132,7 +132,7 @@ class BookingsScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/data-booking-id="1"[^>]*>.*?Sunrise WOD.*?<span data-type-label>WOD<\/span> · 06:00–07:00.*?Elena Sarto · <span>14\/16<\/span><span class="sr-only"> booked<\/span>/s', $html);
+        $this->assertMatchesRegularExpression('/data-booking-id="1"[^>]*>.*?Sunrise WOD.*?<span data-type-label>WOD<\/span> · <span data-dnd-text="start">06:00<\/span>–<span data-dnd-text="end">07:00<\/span>.*?Elena Sarto · <span>14\/16<\/span><span class="sr-only"> booked<\/span>/s', $html);
         $this->assertMatchesRegularExpression('/data-booking-type="lifting"/', $html);
         $this->assertStringContainsString('<span data-type-label>Weightlifting</span>', $html);
         $this->assertStringContainsString('<span data-type-label>Mobility</span>', $html);
@@ -171,10 +171,12 @@ class BookingsScreenTest extends TestCase
     {
         $html = $this->render();
 
-        // Desk reset lasts 30 minutes: name, type and time on one line, coach and capacity for screen readers.
+        // Desk reset lasts 30 minutes: name, type and time on one line (classes keyed on row-span-1, so a
+        // resize re-lays the block out), the other lines for screen readers only.
         preg_match('/data-booking-id="13".*?(?=data-booking-id=|<\/section>)/s', $html, $block);
-        $this->assertMatchesRegularExpression('/<p class="truncate"><span class="font-semibold">Desk reset<\/span> · <span data-type-label>Mobility<\/span> · 12:30–13:00<\/p>/', $block[0]);
-        $this->assertMatchesRegularExpression('/<p class="sr-only">Ana Costa · /', $block[0]);
+        $this->assertMatchesRegularExpression('/class="group\/booking [^"]*row-span-1"/', $block[0]);
+        $this->assertMatchesRegularExpression('/<p class="truncate"><span class="font-semibold">Desk reset<\/span><span class="hidden group-\[\.row-span-1\]\/booking:inline" aria-hidden="true"> · <span data-type-label>Mobility<\/span> · <span data-dnd-text="start">12:30<\/span>–<span data-dnd-text="end">13:00<\/span><\/span><\/p>/', $block[0]);
+        $this->assertMatchesRegularExpression('/<p class="truncate group-\[\.row-span-1\]\/booking:sr-only">Ana Costa · /', $block[0]);
     }
 
     public function testBookingsOutsideTheDayAreClippedOrSkipped(): void
@@ -207,10 +209,12 @@ class BookingsScreenTest extends TestCase
         $data = ScreenRegistry::data('bookings');
         $html = $this->render();
 
-        $this->assertSame(count($data['bookings']), substr_count($html, 'aria-haspopup="menu"'));
+        // One menu per block in the grid and one per row in the (hidden) list view.
+        $this->assertSame(2 * count($data['bookings']), substr_count($html, 'aria-haspopup="menu"'));
         $this->assertStringContainsString('<span class="sr-only">Actions for Sunrise WOD, 06:00–07:00</span>', $html);
         // Three "Open gym" blocks: every menu name is unique.
-        preg_match_all('/<span class="sr-only">(Actions for [^<]*)<\/span>/', $html, $names);
+        preg_match('/data-view-panel="grid".*$/s', $html, $grid);
+        preg_match_all('/<span class="sr-only">(Actions for [^<]*)<\/span>/', $grid[0], $names);
         $this->assertSame(count($data['bookings']), count(array_unique($names[1])));
         $this->assertStringContainsString('Edit booking', $html);
         $this->assertStringContainsString('Cancel booking', $html);
@@ -234,13 +238,84 @@ class BookingsScreenTest extends TestCase
 
         $data = ScreenRegistry::data('bookings');
         $html = $this->render(null, ['view' => 'list']);
-        $this->assertStringNotContainsString('data-schedule-grid', $html);
+        // Both views are on the page (the view switch shows them without a reload); the other one is hidden.
+        $this->assertMatchesRegularExpression('/data-view-panel="list">/', $html);
+        $this->assertMatchesRegularExpression('/data-view-panel="grid" hidden>/', $html);
+        $this->assertMatchesRegularExpression('/data-view-panel="list" hidden>/', $grid);
         $this->assertSame(count($data['bookings']), substr_count($html, '<tr') - 1, 'One body row per booking');
         $this->assertStringContainsString('<th', $html);
         $this->assertMatchesRegularExpression('/<span[^>]*data-booking-type="wod"[^>]*>WOD<\/span>/', $html);
         $this->assertStringContainsString('06:00–07:00', $html);
         $this->assertStringContainsString('href="/bookings?view=grid"', $html);
         $this->assertStringContainsString('<span>14/16</span>', $html);
+    }
+
+    public function testGridIsWiredForDragAndDrop(): void
+    {
+        $html = $this->render();
+
+        preg_match('/<div [^>]*data-dnd-grid[^>]*>/s', $html, $grid);
+        $this->assertNotEmpty($grid);
+        $attr = function (string $name) use ($grid): string {
+            preg_match('/\s' . $name . '="([^"]*)"/', $grid[0], $m);
+            $this->assertNotEmpty($m, $name);
+
+            return html_entity_decode($m[1], ENT_QUOTES);
+        };
+        // The literal class maps of the template, 0-based: slot => row-start, resource => col-start, length => row-span.
+        $classes = json_decode($attr('data-dnd-classes'), true);
+        $this->assertCount(30, $classes['row']);
+        $this->assertSame('row-start-2', $classes['row'][0]);
+        $this->assertSame('row-start-31', $classes['row'][29]);
+        $this->assertSame(['col-start-2', 'col-start-3', 'col-start-4', 'col-start-5'], $classes['col']);
+        $this->assertSame('row-span-1', $classes['span']['1']);
+        $this->assertSame('row-span-8', $classes['span']['8']);
+        $this->assertSame('30', $attr('data-dnd-rows'));
+        $this->assertSame('4', $attr('data-dnd-cols'));
+        $this->assertSame('8', $attr('data-dnd-span-max'));
+        // Times of the slot boundaries and resource names, to rewrite times / names after a move.
+        $times = json_decode($attr('data-dnd-row-text'), true);
+        $this->assertCount(31, $times);
+        $this->assertSame(['06:00', '06:30'], array_slice($times, 0, 2));
+        $this->assertSame('21:00', end($times));
+        $this->assertSame(['Main floor', 'Rig', 'Open gym', 'Coach Ana'], json_decode($attr('data-dnd-col-text'), true));
+        $this->assertSame('Dropped {label}. {slot}.', $attr('data-dnd-i18n-grid-dropped'));
+        $this->assertSame('Overlaps {others}.', $attr('data-dnd-i18n-collision'));
+
+        // One empty drop target per half hour and resource.
+        $this->assertSame(30 * 4, substr_count($html, 'data-dnd-slot '));
+        $this->assertMatchesRegularExpression('/<div class="col-start-3 row-start-4 row-span-1" data-dnd-slot data-dnd-row="2" data-dnd-col="1" data-dnd-label="07:00, Rig"><\/div>/', $html);
+
+        // Blocks: placement, label, accessible name template, list row mirror and resize handle.
+        $this->assertMatchesRegularExpression('/data-booking-id="1"[^>]*\s+data-dnd-item data-id="1" data-dnd-label="Sunrise WOD"\s+data-dnd-row="0" data-dnd-col="0" data-dnd-span="2"\s+data-dnd-aria="Sunrise WOD, \{start\}–\{end\}, \{col\}" data-dnd-mirror="\[data-booking-row=&quot;1&quot;\]"/', $html);
+        $this->assertMatchesRegularExpression('/data-booking-id="9"[^>]*\s+data-dnd-item[^>]*data-dnd-row="6" data-dnd-col="2" data-dnd-span="6"/', $html);
+        $this->assertSame(15, substr_count($html, 'data-dnd-resize aria-hidden="true"'));
+        $this->assertStringContainsString('<tr data-booking-row="1">', $html);
+        $this->assertStringContainsString('<span data-dnd-text="col">Main floor</span>', $html);
+        $this->assertStringContainsString('data-dnd-aria="Actions for Sunrise WOD, {start}–{end}"', $html);
+
+        // Generated screens ship without an endpoint (TODO in the template).
+        $this->assertStringNotContainsString('data-endpoint', $html);
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/bookings/template.twig');
+        $this->assertStringContainsString('TODO: set data-endpoint=', $template);
+    }
+
+    public function testViewSwitchWorksWithoutReload(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('id="bookings-views" data-view="grid"', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/bookings\?view=list" data-view-switch="list" data-view-target="#bookings-views"/', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/bookings\?view=grid" aria-current="true" data-view-switch="grid" data-view-target="#bookings-views"/', $html);
+    }
+
+    public function testLoadsTheInteractivityScripts(): void
+    {
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/bookings/template.twig');
+
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);", $template);
     }
 
     public function testNewBookingIsAnInertButton(): void
@@ -302,7 +377,7 @@ class BookingsScreenTest extends TestCase
         foreach ([[], ['view' => 'list']] as $query) {
             $html = $this->render(null, $query);
 
-            preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+            preg_match_all('/(?<![\w-])id="([^"]+)"/', $html, $matches);
             $this->assertNotEmpty($matches[1]);
             $this->assertSame($matches[1], array_values(array_unique($matches[1])));
         }

@@ -127,7 +127,7 @@ class TodoScreenTest extends TestCase
         foreach (array_merge(...array_values($data['groups'])) as $task) {
             $id = 'task-' . $task['id'];
             $this->assertMatchesRegularExpression('/<input type="checkbox"[^>]*id="' . $id . '"[^>]*>/', $html);
-            $this->assertMatchesRegularExpression('/<label for="' . $id . '"[^>]*>' . preg_quote(htmlspecialchars($task['title'], ENT_QUOTES), '/') . '(<span class="sr-only">Completed<\/span>)?<\/label>/', $html);
+            $this->assertMatchesRegularExpression('/<label for="' . $id . '"[^>]*>' . preg_quote(htmlspecialchars($task['title'], ENT_QUOTES), '/') . '<span class="sr-only" data-toggle-for="done"[^>]*>Completed<\/span><\/label>/', $html);
         }
         $this->assertSame(9, substr_count($html, 'type="checkbox"'));
     }
@@ -136,17 +136,50 @@ class TodoScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertSame(2, substr_count($html, 'data-done="true"'));
+        $this->assertSame(2, substr_count($html, 'data-state="done"'));
         $this->assertSame(2, substr_count($html, ' checked'));
-        $this->assertSame(2, substr_count($html, '<span class="sr-only">Completed</span>'));
-        // Inside the label: the checkbox is announced as "<title> Completed".
-        $this->assertSame(2, preg_match_all('/<label for="task-\d+"[^>]*>[^<]*<span class="sr-only">Completed<\/span><\/label>/', $html));
-        preg_match_all('/<li [^>]*data-done="(true|false)"[^>]*>.*?<\/li>/s', $html, $rows, PREG_SET_ORDER);
+        // The "Completed" text is inside the label (the checkbox is announced as "<title> Completed") and
+        // hidden until the task is done (the script shows it on toggle)
+        $this->assertSame(9, preg_match_all('/<label for="task-\d+"[^>]*>[^<]*<span class="sr-only" data-toggle-for="done" data-toggle-hidden="off"( hidden)?>Completed<\/span><\/label>/', $html));
+        $this->assertSame(7, substr_count($html, 'data-toggle-hidden="off" hidden>'));
+        preg_match_all('/<li [^>]*data-task="\d+"([^>]*)>.*?<\/li>/s', $html, $rows, PREG_SET_ORDER);
         $this->assertCount(9, $rows);
-        foreach ($rows as [$row, $done]) {
-            $this->assertSame($done === 'true', str_contains($row, 'Completed</span>'));
-            $this->assertSame($done === 'true', str_contains($row, 'line-through'));
+        foreach ($rows as [$row, $attrs]) {
+            $done = str_contains($attrs, 'data-state="done"');
+            $this->assertSame($done, str_contains($row, 'data-toggle-hidden="off">Completed'));
+            $this->assertStringContainsString('group-data-[state=done]:line-through', $row, 'The strike follows the state of the row');
         }
+    }
+
+    public function testInteractivityHooks(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(9, substr_count($html, 'data-toggle-item'));
+        $this->assertSame(9, substr_count($html, 'data-toggle="done"'));
+        $this->assertSame(9, substr_count($html, 'data-filter-item data-filter-text'));
+        $this->assertSame(9, substr_count($html, 'data-dnd-item '));
+        $this->assertSame(3, substr_count($html, 'data-dnd-container'));
+        $this->assertSame(3, substr_count($html, 'data-filter-group'));
+        $this->assertStringContainsString('data-dnd-group="tasks-today"', $html);
+        $this->assertStringContainsString('data-filter-input="#task-lists"', $html);
+        $this->assertSame(3, substr_count($html, 'data-filter-facet="#task-lists"'));
+        $this->assertStringContainsString('data-filter-value="!done"', $html);
+        $this->assertStringContainsString('data-filter-value="done"', $html);
+        $this->assertStringContainsString('data-filter-empty', $html);
+        $this->assertSame(3, substr_count($html, 'data-count-visible'), 'Group counters follow the visible tasks');
+        $this->assertStringNotContainsString('data-endpoint=', $html, 'No endpoint by default');
+        $this->assertStringContainsString("'BasecoatTheme.basecoat-screens'", (new BakeScreenCommand())->renderFiles('todo', 'Tasks')['templates/Tasks/index.php']);
+        $this->assertStringContainsString("'BasecoatTheme.basecoat-dnd'", (new BakeScreenCommand())->renderFiles('todo', 'Tasks')['templates/Tasks/index.php']);
+    }
+
+    public function testNoJsFallbackKeepsLinksAndSearchForm(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('href="/tasks?filter=active"', $html);
+        $this->assertStringContainsString('method="get"', $html);
+        $this->assertStringContainsString('<button type="submit"', $html);
     }
 
     public function testPriorityIsATextBadge(): void
@@ -204,9 +237,9 @@ class TodoScreenTest extends TestCase
 
         $this->assertMatchesRegularExpression('/<a [^>]*aria-current="true"[^>]*data-filter="active"|<a [^>]*data-filter="active"[^>]*aria-current="true"/', $html);
         $this->assertSame(1, substr_count($html, 'aria-current="true"'));
-        $this->assertStringContainsString('All (9)', $html);
-        $this->assertStringContainsString('Active (7)', $html);
-        $this->assertStringContainsString('Completed (2)', $html);
+        $this->assertMatchesRegularExpression('/All \(<span data-count-for="\[data-task\]">9<\/span>\)/', $html);
+        $this->assertMatchesRegularExpression('/Active \(<span [^>]*>7<\/span>\)/', $html);
+        $this->assertMatchesRegularExpression('/Completed \(<span [^>]*>2<\/span>\)/', $html);
         $this->assertStringContainsString('href="/tasks?q=quote&amp;filter=completed"', $html);
         $this->assertStringContainsString('name="filter" value="active"', $html);
     }
@@ -273,7 +306,7 @@ class TodoScreenTest extends TestCase
     {
         $html = $this->render();
 
-        preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+        preg_match_all('/(?<![-\w])id="([^"]+)"/', $html, $matches);
         $this->assertNotEmpty($matches[1]);
         $this->assertSame($matches[1], array_values(array_unique($matches[1])));
     }

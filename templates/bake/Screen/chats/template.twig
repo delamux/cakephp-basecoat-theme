@@ -17,6 +17,8 @@
  * @var array<string, string> $statuses Status value => label.
  */
 $this->assign('title', {{ t|raw }}'Chats'));
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
 
 $statusClasses = ['online' => 'bg-green-500', 'away' => 'bg-yellow-500', 'offline' => 'bg-muted-foreground'];
 $statusLabel = fn (string $status): string => $statuses[$status] ?? $status;
@@ -32,17 +34,47 @@ $avatar = function (array $chat, array $options = []) use ($statusLabel, $status
     ]);
 };
 
-// Messages of the open thread: the read receipt as text next to the time, and the sender as
-// hidden text (`hideAuthors`), so screen readers do not depend on the bubble position or colour.
-$messages = [];
-foreach ((array)($activeChat['messages'] ?? []) as $message) {
-    $mine = ($message['from'] ?? '') === 'me';
-    $receipt = ['sent' => {{ t|raw }}'Sent'), 'delivered' => {{ t|raw }}'Delivered'), 'read' => {{ t|raw }}'Read')][$message['status'] ?? ''] ?? '';
-    $messages[] = [
-        'time' => trim((string)($message['time'] ?? '') . ($receipt !== '' && $mine ? ' · ' . $receipt : '')),
-        'author' => $mine ? {{ t|raw }}'You') : (string)($message['author'] ?? $activeChat['name'] ?? ''),
-    ] + $message;
-}
+// Thread of a conversation: header, messages (the read receipt as text next to the time, and the
+// sender as hidden text, so screen readers do not depend on the bubble position or colour) and the
+// composer. The open one is printed in place; every conversation also gets a <template> with its
+// thread, which the script swaps in when the conversation is selected (no round trip).
+$thread = function (array $chat, array $items) use ($statusLabel): string {
+    $messages = [];
+    foreach ($items as $message) {
+        $mine = ($message['from'] ?? '') === 'me';
+        $receipt = ['sent' => {{ t|raw }}'Sent'), 'delivered' => {{ t|raw }}'Delivered'), 'read' => {{ t|raw }}'Read')][$message['status'] ?? ''] ?? '';
+        $messages[] = [
+            'time' => trim((string)($message['time'] ?? '') . ($receipt !== '' && $mine ? ' · ' . $receipt : '')),
+            'author' => $mine ? {{ t|raw }}'You') : (string)($message['author'] ?? $chat['name'] ?? ''),
+        ] + $message;
+    }
+    $state = !empty($chat['group']) ? {{ t|raw }}'Group chat') : $statusLabel((string)($chat['status'] ?? 'offline'));
+    $subtitle = trim($state . (!empty($chat['subtitle']) ? ' · ' . $chat['subtitle'] : ''), ' ·');
+
+    $html = $this->Conversation->render($messages, [
+        'class' => 'min-h-0 flex-1 border-0 rounded-none',
+        'contact' => ['name' => (string)$chat['name'], 'subtitle' => $subtitle],
+        'headerActions' => '<div class="flex items-center gap-1">'
+            // TODO: connect the call, video and more buttons to your own actions.
+            . $this->Button->icon('phone', {{ t|raw }}'Start a call'), ['variant' => 'ghost'])
+            . $this->Button->icon('video', {{ t|raw }}'Start a video call'), ['variant' => 'ghost'])
+            . $this->Button->icon('ellipsis', {{ t|raw }}'More options'), ['variant' => 'ghost'])
+            . '</div>',
+        'composer' => false,
+        'hideAuthors' => true,
+    ]);
+
+    // TODO: wire the composer to your own POST action (set `method`/`action`, add the CSRF token) or
+    // set `data-endpoint` (the URL of your send action) on the form: the script then POSTs
+    // `{action: 'send', text}` as JSON. Without JavaScript the form is a plain GET to this page.
+    return $html . '<form method="get" data-composer="#chat-pane [role=log]" data-composer-template="chat-message-template" class="flex items-center gap-2 border-t p-3">'
+        . $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost'])
+        . $this->Button->icon('smile', {{ t|raw }}'Add an emoji'), ['variant' => 'ghost'])
+        . '<input type="text" class="input min-w-0 flex-1" name="message" placeholder="' . h({{ t|raw }}'Type a message…')) . '" aria-label="' . h({{ t|raw }}'Message')) . '" autocomplete="off" required>'
+        . $this->Button->icon('mic', {{ t|raw }}'Record a voice message'), ['variant' => 'ghost'])
+        . $this->Button->submit({{ t|raw }}'Send'), ['icon' => 'send'])
+        . '</form>';
+};
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <div class="grid min-h-[32rem] grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -61,12 +93,12 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
                 ]) ?>
             <?= $this->Form->end() ?>
             <?php if ($chats) : ?>
-                <ul class="flex max-h-[28rem] flex-1 flex-col overflow-y-auto p-2">
+                <ul class="flex max-h-[28rem] flex-1 flex-col overflow-y-auto p-2" data-master="#chat-pane" data-master-focus>
                     <?php foreach ($chats as $chat) : ?>
                         <?php $active = (int)$chat['id'] === (int)($activeChat['id'] ?? 0); ?>
                         <li data-chat-id="<?= h((string)$chat['id']) ?>"<?= $active ? ' data-active="true"' : '' ?>>
                             <?php // TODO: link each conversation to your own view action (e.g. ['action' => 'view', $chat['id']]). ?>
-                            <a href="#" class="hover:bg-accent flex items-center gap-3 rounded-lg p-2<?= $active ? ' bg-accent' : '' ?>"<?= $active ? ' aria-current="true"' : '' ?>>
+                            <a href="#" class="hover:bg-accent aria-[current=true]:bg-accent flex items-center gap-3 rounded-lg p-2" data-master-item="chat-thread-<?= h((string)$chat['id']) ?>"<?= $active ? ' aria-current="true"' : '' ?>>
                                 <?php if (!empty($chat['group'])) : ?>
                                     <span class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full"><?= $this->Icon->render('users') ?><span class="sr-only"><?= h({{ t|raw }}'Group chat, {0} members', (int)($chat['members'] ?? 0))) ?></span></span>
                                 <?php else : ?>
@@ -80,7 +112,7 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
                                     <span class="flex items-center justify-between gap-2">
                                         <span class="text-muted-foreground truncate text-xs"><?= h($chat['preview']) ?></span>
                                         <?php if (!empty($chat['unread'])) : ?>
-                                            <?= $this->Badge->render({{ t|raw }}'{0} unread', (int)$chat['unread']), ['data-unread' => (string)(int)$chat['unread']]) ?>
+                                            <?= $this->Badge->render({{ t|raw }}'{0} unread', (int)$chat['unread']), ['data-unread' => (string)(int)$chat['unread'], 'data-master-clear' => 'true']) ?>
                                         <?php endif; ?>
                                     </span>
                                 </span>
@@ -96,35 +128,9 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
             <?php endif; ?>
         </section>
 
-        <section class="flex min-h-[32rem] min-w-0 flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
+        <section class="flex max-h-[40rem] min-h-[32rem] min-w-0 flex-col rounded-xl border bg-card text-card-foreground" id="chat-pane" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
             <?php if ($activeChat) : ?>
-                <?php
-                $state = !empty($activeChat['group']) ? {{ t|raw }}'Group chat') : $statusLabel((string)($activeChat['status'] ?? 'offline'));
-                $subtitle = trim($state . (!empty($activeChat['subtitle']) ? ' · ' . $activeChat['subtitle'] : ''), ' ·');
-                ?>
-                <?= $this->Conversation->render($messages, [
-                    'class' => 'flex-1 border-0 rounded-none',
-                    'contact' => ['name' => (string)$activeChat['name'], 'subtitle' => $subtitle],
-                    'headerActions' => '<div class="flex items-center gap-1">'
-                        // TODO: connect the call, video and more buttons to your own actions.
-                        . $this->Button->icon('phone', {{ t|raw }}'Start a call'), ['variant' => 'ghost'])
-                        . $this->Button->icon('video', {{ t|raw }}'Start a video call'), ['variant' => 'ghost'])
-                        . $this->Button->icon('ellipsis', {{ t|raw }}'More options'), ['variant' => 'ghost'])
-                        . '</div>',
-                    'composer' => false,
-                    'hideAuthors' => true,
-                ]) ?>
-                <?php
-                // TODO: wire the composer to a POST action: use the Conversation helper's own composer
-                // (`'composer' => ['url' => ['action' => 'send', $activeChat['id']]]`) or a Form->create() here.
-                ?>
-                <div class="flex items-center gap-2 border-t p-3">
-                    <?= $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost']) ?>
-                    <?= $this->Button->icon('smile', {{ t|raw }}'Add an emoji'), ['variant' => 'ghost']) ?>
-                    <input type="text" class="input min-w-0 flex-1" name="message" placeholder="<?= h({{ t|raw }}'Type a message…')) ?>" aria-label="<?= h({{ t|raw }}'Message')) ?>" autocomplete="off">
-                    <?= $this->Button->icon('mic', {{ t|raw }}'Record a voice message'), ['variant' => 'ghost']) ?>
-                    <?= $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send']) ?>
-                </div>
+                <?= $thread($activeChat, (array)($activeChat['messages'] ?? [])) ?>
             <?php else : ?>
                 <?= $this->EmptyState->render({{ t|raw }}'Select a conversation'), [
                     'description' => {{ t|raw }}'Choose a chat from the list to read its messages.'),
@@ -133,4 +139,20 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
             <?php endif; ?>
         </section>
     </div>
+    <?php if ($chats) : ?>
+        <?php // One thread per conversation, cloned into the pane when it is selected. ?>
+        <?php foreach ($chats as $chat) : ?>
+            <template id="chat-thread-<?= h((string)$chat['id']) ?>">
+                <?= $thread($chat, (array)((int)$chat['id'] === (int)($activeChat['id'] ?? 0) ? ($activeChat['messages'] ?? []) : ($chat['messages'] ?? []))) ?>
+            </template>
+        <?php endforeach; ?>
+        <?php // A message of yours, cloned into the thread by the composer (same markup as the Conversation helper). ?>
+        <template id="chat-message-template">
+            <div class="flex max-w-[75%] flex-col rounded-lg px-3 py-2 text-sm ml-auto bg-primary text-primary-foreground">
+                <span class="sr-only"><?= h({{ t|raw }}'You')) ?></span>
+                <p data-composer-text></p>
+                <span class="mt-1 block text-xs opacity-70"><span data-composer-time></span> · <?= h({{ t|raw }}'Sent')) ?></span>
+            </div>
+        </template>
+    <?php endif; ?>
 </div>

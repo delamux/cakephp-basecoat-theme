@@ -183,7 +183,30 @@ class CalendarScreenTest extends TestCase
         ])]));
         $this->assertStringContainsString('<span class="sr-only">+2 more events on 24 November</span>', $two);
         $this->assertSame(1, substr_count($html, 'data-more='));
-        $this->assertStringNotContainsString('data-event="13"', substr($html, 0, (int)strpos($html, '<aside')), 'The fourth chip is hidden');
+        // The fourth chip is on the page but hidden; "+N more" reveals it in place with JavaScript.
+        $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="13"[^>]*data-toggle-for="expanded" data-toggle-hidden="off" hidden>/', $html, 'The fourth chip is hidden');
+        $this->assertMatchesRegularExpression('/<li data-toggle-for="expanded" data-toggle-hidden="on">\s*(<\?php.*?\?>)?\s*<a href="#"[^>]*data-more="2026-11-24" data-toggle="expanded">/s', $html);
+    }
+
+    public function testDaysAreDropTargetsAndChipsAreDraggable(): void
+    {
+        $html = $this->render();
+
+        // November 2026 (starts on a Sunday): six weeks, every day (also empty or outside the month) is a drop target.
+        $this->assertSame(42, substr_count($html, 'data-dnd-container data-dnd-group="calendar-days"'));
+        $this->assertMatchesRegularExpression('/<ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-id="2026-11-24" data-dnd-label="Tuesday 24 November">/', $html);
+        // The <li> moves, the chip link is its handle (so it stays a link and takes focus).
+        $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="8" data-dnd-label="09:00 Support rota handover">\s*<a href="#"[^>]*data-dnd-handle data-event="8"/', $html);
+        $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="4" data-dnd-label="Usage report due">/', $html);
+        $this->assertStringContainsString('data-dnd-i18n-dropped="Dropped {label}. {container}, position {position} of {total}."', $html);
+        $this->assertMatchesRegularExpression('/<td [^>]*data-date="2026-11-24" data-toggle-item data-id="2026-11-24">/', $html);
+
+        $this->assertStringNotContainsString('data-endpoint', $html);
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/calendar/template.twig');
+        $this->assertStringContainsString('TODO: set data-endpoint=', $template);
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);", $template);
     }
 
     public function testNavigationIsGetAndKeepsTheMonth(): void
@@ -287,7 +310,7 @@ class CalendarScreenTest extends TestCase
     {
         $html = $this->render();
 
-        preg_match_all('/\bid="([^"]+)"/', $html, $matches);
+        preg_match_all('/(?<![\w-])id="([^"]+)"/', $html, $matches);
         $this->assertNotEmpty($matches[1]);
         $this->assertSame($matches[1], array_values(array_unique($matches[1])));
     }

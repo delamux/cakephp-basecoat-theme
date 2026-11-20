@@ -41,6 +41,8 @@ class AiChatScreenTest extends TestCase
      * @param array<string, mixed>|null $vars View variables.
      * @param array<string, mixed> $query Query string of the request.
      */
+    private View $view;
+
     private function render(?array $vars = null, array $query = []): string
     {
         $files = (new BakeScreenCommand())->renderFiles('ai-chat', 'Assistant');
@@ -56,7 +58,7 @@ class AiChatScreenTest extends TestCase
             'base' => '',
         ]);
         Router::setRequest($request);
-        $view = new View($request);
+        $view = $this->view = new View($request);
         foreach (BasecoatHelpers::MAP as $alias => $class) {
             if ($alias !== 'Form') {
                 $view->loadHelper($alias, ['className' => $class]);
@@ -76,6 +78,14 @@ class AiChatScreenTest extends TestCase
         } finally {
             unlink($file);
         }
+    }
+
+    /**
+     * The page without its `<template>` blocks (what is visible before any script runs).
+     */
+    private function live(string $html): string
+    {
+        return (string)preg_replace('#<template\b.*?</template>#s', '', $html);
     }
 
     private function lint(string $file): int
@@ -121,7 +131,7 @@ class AiChatScreenTest extends TestCase
     public function testThreadRendersAllMessages(): void
     {
         $data = ScreenRegistry::data('ai-chat');
-        $html = $this->render();
+        $html = $this->live($this->render());
 
         $this->assertMatchesRegularExpression('/<div[^>]*role="log"[^>]*aria-live="polite"/', $html);
         $this->assertSame(count($data['messages']), substr_count($html, 'data-message-from='));
@@ -153,9 +163,10 @@ class AiChatScreenTest extends TestCase
         $data = ScreenRegistry::data('ai-chat');
         $html = $this->render();
 
-        // Inert like the chats and mail composers: no form posting to index until you wire it.
-        $this->assertStringNotContainsString('<form', $html);
-        $this->assertStringContainsString('data-composer', $html);
+        // A plain GET form without the script (nothing is posted until you wire an action); the script
+        // turns it into the composer (data-composer) that appends the message and a canned reply.
+        $this->assertStringNotContainsString('<form method="post"', $html);
+        $this->assertMatchesRegularExpression('/<form method="get"[^>]*id="ai-chat-composer"[^>]*data-composer="#ai-chat-log" data-composer-template="ai-chat-user-message" data-composer-reply="ai-chat-assistant-reply"/', $html);
         $this->assertMatchesRegularExpression('/<textarea[^>]*name="message"[^>]*>/', $html);
         $this->assertMatchesRegularExpression('/<label[^>]*for="ai-chat-message"[^>]*>\s*Message\s*<\/label>/', $html);
         $this->assertMatchesRegularExpression('/<select[^>]*name="model"[^>]*>/', $html);
@@ -164,7 +175,7 @@ class AiChatScreenTest extends TestCase
             $this->assertStringContainsString('<option value="' . $value . '"' . $selected . '>' . $label . '</option>', $html);
         }
         $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Attach a file<\/span>\s*<\/button>/s', $html);
-        $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*<svg.*?<\/svg>\s*Send\s*<\/button>/s', $html);
+        $this->assertMatchesRegularExpression('/<button type="submit"[^>]*>\s*<svg.*?<\/svg>\s*Send\s*<\/button>/s', $html);
     }
 
     public function testNoMotionOrOrb(): void
@@ -179,7 +190,7 @@ class AiChatScreenTest extends TestCase
         $html = $this->render($this->data(['messages' => [], 'suggestions' => []]));
 
         $this->assertStringContainsString('<textarea', $html);
-        $this->assertStringNotContainsString('data-message-from', $html);
+        $this->assertStringNotContainsString('data-message-from', $this->live($html));
         $this->assertStringNotContainsString('data-suggestion', $html);
         $this->assertStringContainsString('role="log"', $html);
     }
@@ -250,5 +261,27 @@ class AiChatScreenTest extends TestCase
             . (string)file_get_contents(ROOT . '/templates/bake/Screen/ai-chat/template.twig');
 
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe|ChatGPT|GPT|Claude|Anthropic|OpenAI|Gemini|Copilot|Llama|Mistral|Bard/i', $source);
+    }
+
+    public function testSuggestionsFillTheComposer(): void
+    {
+        $data = ScreenRegistry::data('ai-chat');
+        $html = $this->render();
+
+        foreach ($data['suggestions'] as $text) {
+            $this->assertMatchesRegularExpression('/<button [^>]*data-composer-fill="' . preg_quote(htmlspecialchars($text, ENT_QUOTES), '/') . '"[^>]*data-composer-target="#ai-chat-composer"/', $html);
+        }
+        $this->assertStringContainsString('id="ai-chat-log"', $html);
+    }
+
+    public function testMessagesComeFromTemplatesAndScriptsLoad(): void
+    {
+        $html = $this->render();
+
+        $this->assertMatchesRegularExpression('#<template id="ai-chat-user-message">.*data-composer-time.*data-composer-text.*</template>#s', $html);
+        $this->assertMatchesRegularExpression('#<template id="ai-chat-assistant-reply">.*This is a sample answer\..*</template>#s', $html);
+        $this->assertStringContainsString('basecoat-screens.js', $this->view->fetch('script'));
+        $this->assertStringContainsString('interactivity.css', $this->view->fetch('css'));
+        $this->assertStringNotContainsString('data-endpoint', $html);
     }
 }

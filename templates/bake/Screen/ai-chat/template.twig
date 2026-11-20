@@ -20,6 +20,17 @@
  * @var string $model Selected model value.
  */
 $this->assign('title', {{ t|raw }}'Assistant'));
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
+
+// Name shown on the messages sent from the composer: the author of the thread's user messages.
+$userName = {{ t|raw }}'You');
+foreach ($messages as $message) {
+    if (($message['from'] ?? '') === 'user' && !empty($message['author'])) {
+        $userName = (string)$message['author'];
+        break;
+    }
+}
 ?>
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 lg:px-6">
     <section class="flex flex-col items-center gap-4 pt-4 text-center" aria-labelledby="ai-chat-title">
@@ -34,20 +45,20 @@ $this->assign('title', {{ t|raw }}'Assistant'));
         </div>
         <?php if ($suggestions) : ?>
             <?php
-            // TODO: the suggestions do nothing yet. Send the text of the button as the message
-            // (for example a POST form per suggestion to your own action).
+            // The script (basecoat-screens.js) puts the text of a suggestion in the composer below and
+            // focuses it; without JavaScript the buttons do nothing.
             ?>
             <ul class="flex flex-wrap justify-center gap-2" aria-label="<?= h({{ t|raw }}'Suggested prompts')) ?>">
                 <?php foreach ($suggestions as $suggestion) : ?>
                     <li>
-                        <?= $this->Button->render((string)$suggestion, ['variant' => 'outline', 'size' => 'sm', 'data-suggestion' => true]) ?>
+                        <?= $this->Button->render((string)$suggestion, ['variant' => 'outline', 'size' => 'sm', 'data-suggestion' => true, 'data-composer-fill' => (string)$suggestion, 'data-composer-target' => '#ai-chat-composer']) ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
     </section>
 
-    <div class="flex flex-col gap-4" role="log" aria-live="polite" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
+    <div id="ai-chat-log" class="flex flex-col gap-4" role="log" aria-live="polite" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
         <?php foreach ($messages as $message) : ?>
             <?php
             $mine = ($message['from'] ?? 'assistant') === 'user';
@@ -82,11 +93,14 @@ $this->assign('title', {{ t|raw }}'Assistant'));
     </div>
 
     <?php
-    // TODO: the composer is inert. Wrap it in `$this->Form->create(null, ['url' => ['action' => 'send']])`
-    // (POST with the CSRF token) and `$this->Form->end()`, make "Send" a submit button, then read
-    // `message` and `model` in that action and call your assistant service.
+    // The script appends your message and a canned reply (templates below) to the log. TODO: for a real
+    // assistant set `data-endpoint` (the URL of your send action) on the form: the script POSTs
+    // `{action: 'send', text}` as JSON and shows the reply you render. Without JavaScript the form is a
+    // plain GET to this page (`message` and `model` in the query string): point it at your own POST
+    // action (`'type' => 'post'`, the Form helper adds the CSRF token) and call your assistant service.
     ?>
-    <div class="sticky bottom-4" data-composer>
+    <div class="sticky bottom-4">
+        <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'id' => 'ai-chat-composer', 'data-composer' => '#ai-chat-log', 'data-composer-template' => 'ai-chat-user-message', 'data-composer-reply' => 'ai-chat-assistant-reply']) ?>
         <?= $this->Card->render(
             $this->Form->control('message', [
                 'type' => 'textarea',
@@ -110,8 +124,30 @@ $this->assign('title', {{ t|raw }}'Assistant'));
                 'templates' => ['inputContainer' => '{{ '{{content}}' }}', 'inputContainerError' => '{{ '{{content}}{{error}}' }}'],
             ])
             . '</div>'
-            . $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send'])
+            . $this->Button->submit({{ t|raw }}'Send'), ['icon' => 'send'])
             . '</div>',
         ) ?>
+        <?= $this->Form->end() ?>
     </div>
+
+    <?php // Messages cloned into the log by the composer (same markup as the thread above). ?>
+    <template id="ai-chat-user-message">
+        <article class="flex flex-row-reverse gap-3" data-message-from="user">
+            <?= $this->Avatar->render($userName, ['size' => 'sm', 'decorative' => true]) ?>
+            <div class="flex min-w-0 max-w-[85%] flex-col gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
+                <p class="text-xs font-medium opacity-70"><?= h($userName) ?> <span class="font-normal"> · <span data-composer-time></span></span></p>
+                <p class="leading-relaxed" data-composer-text></p>
+            </div>
+        </article>
+    </template>
+    <template id="ai-chat-assistant-reply">
+        <article class="flex gap-3" data-message-from="assistant">
+            <?= $this->Avatar->render((string)$assistant['name'], ['size' => 'sm', 'decorative' => true]) ?>
+            <div class="flex min-w-0 max-w-[85%] flex-col gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+                <p class="text-xs font-medium opacity-70"><?= h($assistant['name']) ?></p>
+                <?php // TODO: replace this canned answer with the reply of your assistant service. ?>
+                <p class="leading-relaxed"><?= h({{ t|raw }}'This is a sample answer. Connect the composer to your assistant service to get real replies.')) ?></p>
+            </div>
+        </article>
+    </template>
 </div>
