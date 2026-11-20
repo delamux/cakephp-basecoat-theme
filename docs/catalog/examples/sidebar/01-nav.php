@@ -18,6 +18,6 @@ $menu = [
 echo $this->Sidebar->render($menu, [
     'id' => 'app-sidebar',
     'label' => 'Main navigation',
-    'header' => '<a href="/" class="flex items-center gap-2 px-2 font-semibold">Acme Inc.</a>',
+    'header' => '<a href="/" class="flex items-center gap-2 px-2 font-semibold">Fernway</a>',
     'class' => 'relative h-96 w-64 border',
 ]);

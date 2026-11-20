@@ -66,7 +66,7 @@ Use the auth layout for login pages: `$this->viewBuilder()->setLayout('auth');`
 | Source (view var / `Configure`) | Purpose |
 | --- | --- |
 | `title` view var or `title` block | `<title>` and header heading |
-| `brand` / `BasecoatTheme.brand` | `['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle']` |
+| `brand` / `BasecoatTheme.brand` | `['name' => 'Fernway', 'url' => '/', 'icon' => 'circle']` |
 | `sidebarMenu` / `BasecoatTheme.sidebar` | Menu for `SidebarHelper::render()` |
 | `sidebarActions` / `BasecoatTheme.sidebarActions` | HTML under the brand (e.g. "Quick create") |
 | `sidebarUser` | `['name', 'email', 'avatar', 'menu' => [...DropdownMenu items]]` |
@@ -78,7 +78,7 @@ Blocks: `sidebar` (replace the whole sidebar), `header_actions`, `breadcrumb`, `
 ```php
 // config/app_local.php (or bootstrap)
 'BasecoatTheme' => [
-    'brand' => ['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle'],
+    'brand' => ['name' => 'Fernway', 'url' => '/', 'icon' => 'circle'],
     'sidebar' => [
         ['label' => 'Dashboard', 'url' => ['controller' => 'Dashboard', 'action' => 'index'], 'icon' => 'layout-dashboard'],
         ['type' => 'group', 'label' => 'Documents', 'items' => [
@@ -180,17 +180,17 @@ echo $this->Badge->render('Docs', ['url' => '/docs', 'variant' => 'link']);
 
 ### Alert
 ```php
-echo $this->Alert->render('Heads up!', 'You can add components with the CLI.', ['icon' => 'info']);
-echo $this->Alert->render('Unable to process payment', ['Check your card', 'Verify the address'], ['variant' => 'destructive']);
+echo $this->Alert->render('Export scheduled', 'Your workspace data will be ready in a few minutes.', ['icon' => 'info']);
+echo $this->Alert->render('Sync failed', ['Renew the connector token', 'Check the warehouse permissions'], ['variant' => 'destructive']);
 echo $this->Alert->success('Saved');   // also error(), warning(), info() — configurable via `types`
 ```
 
 ### Card
 ```php
 echo $this->Card->render($this->element('stats'), [
-    'title' => 'Total Revenue',
-    'description' => 'Last 6 months',
-    'action' => $this->Badge->render('+12%', ['variant' => 'outline']),
+    'title' => 'Quarterly bookings',
+    'description' => 'Q3 2026, all plans',
+    'action' => $this->Badge->render('+9.4%', ['variant' => 'outline']),
     'footer' => $this->Button->render('Details'),
 ]);
 
@@ -208,7 +208,7 @@ echo $this->Table->render(
         'amount' => ['label' => 'Amount', 'class' => 'text-right'],
     ],
     $rows,                                                         // arrays keyed by column, `_row` = <tr> attributes
-    ['caption' => 'Invoices', 'empty' => 'No results.', 'escape' => false, 'footer' => ['Total', '', '$250']],
+    ['caption' => 'Invoices', 'empty' => 'No results.', 'escape' => false, 'footer' => ['Total', '', '$5,936.00']],
 );
 ```
 Sortable headers show a sort indicator (`chevrons-up-down`, `arrow-up`, `arrow-down`) and the active
@@ -249,7 +249,7 @@ the field gets `data-invalid="true"`. Template-only alternative for the core hel
 
 ### Tabs
 ```php
-echo $this->Tabs->render(['Account' => $this->element('account'), 'Password' => $this->element('password')]);
+echo $this->Tabs->render(['Usage' => $this->element('usage'), 'Exports' => $this->element('exports')]);
 echo $this->Tabs->render([
     ['tab' => 'Outline', 'id' => 'outline', 'panel' => $table],
     ['tab' => 'Past ' . $this->Badge->render('3'), 'id' => 'past', 'panel' => '...', 'escape' => false],
@@ -278,26 +278,26 @@ The current page gets `aria-current="page"` automatically (`currentMatch`: `exac
 
 ### Dialog
 ```php
-echo $this->Dialog->render('edit-profile', $this->element('profile_form'), [
-    'title' => 'Edit profile',
-    'description' => 'Make changes to your profile here.',
-    'trigger' => 'Edit profile',
+echo $this->Dialog->render('digest-settings', $this->element('digest_form'), [
+    'title' => 'Weekly digest',
+    'description' => 'Choose who receives the summary email.',
+    'trigger' => 'Digest settings',
     'footer' => $this->Dialog->close('Cancel') . $this->Button->submit('Save'),
 ]);
-echo $this->Dialog->trigger('edit-profile', 'Open');
+echo $this->Dialog->trigger('digest-settings', 'Open');
 ```
 
 ### Toast
 ```php
 echo $this->Toast->toaster();   // already in the default layout
-echo $this->Toast->render('Event created', ['category' => 'info', 'description' => 'Sunday at 9:00', 'action' => ['label' => 'Undo', 'url' => '/undo']]);
+echo $this->Toast->render('Report exported', ['category' => 'info', 'description' => 'Churn forecast, November', 'action' => ['label' => 'Undo', 'url' => '/undo']]);
 ```
 
 ### Chart
 ```php
 echo $this->Chart->render($rows, [
-    'desktop' => ['label' => 'Desktop', 'color' => 'var(--chart-1)'],
-    'mobile' => ['label' => 'Mobile', 'color' => 'var(--chart-2)'],
+    'web' => ['label' => 'Dashboard signups', 'color' => 'var(--chart-1)'],
+    'api' => ['label' => 'API signups', 'color' => 'var(--chart-2)'],
 ], ['type' => 'bar', 'labelKey' => 'month', 'class' => 'h-[250px] w-full', 'chartOptions' => [...]]);
 ```
 Chart.js and the Basecoat chart adapter are loaded by the layout only when a chart was rendered.
@@ -324,7 +324,7 @@ echo $this->CommandMenu->trigger('command');
 echo $this->CommandMenu->render(['Pages' => [['label' => 'Orders', 'url' => ['controller' => 'Orders'], 'icon' => 'list']]], ['id' => 'command']);
 
 // Workspace / team dropdown (e.g. in the `sidebarActions` view var)
-echo $this->WorkspaceSwitcher->render([['name' => 'Acme', 'plan' => 'Pro plan', 'url' => '/w/acme']], ['addUrl' => '/workspaces/add']);
+echo $this->WorkspaceSwitcher->render([['name' => 'Fernway', 'plan' => 'Growth plan', 'url' => '/w/fernway']], ['addUrl' => '/workspaces/add']);
 
 // Radio group as selectable cards
 echo $this->ChoiceCards->render('plan', ['starter' => ['title' => 'Starter', 'description' => '3 projects', 'icon' => 'circle']], ['legend' => 'Plan', 'value' => 'starter']);
@@ -339,10 +339,10 @@ Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-them
 
 ### Other components
 ```php
-echo $this->Avatar->render('Jane Doe', ['src' => $user->avatar, 'size' => 'lg']);
+echo $this->Avatar->render('Elena Sarto', ['src' => $user->avatar, 'size' => 'lg']);
 echo $this->Avatar->group($people, ['max' => 3]);
-echo $this->Accordion->render(['Is it accessible?' => 'Yes.'], ['multiple' => true]);
-echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Acme Website'], ['collapse' => 4]);
+echo $this->Accordion->render(['Can I export raw events?' => 'Yes, daily.'], ['multiple' => true]);
+echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Churn forecast'], ['collapse' => 4]);
 echo $this->ButtonGroup->render([['text' => 'Day'], ['text' => 'Week'], ['text' => 'Month']], ['aria-label' => 'Range']);
 echo $this->EmptyState->render('No projects yet', ['description' => 'Create your first project.', 'icon' => 'inbox', 'actions' => $this->Button->link('New project', ['action' => 'add'])]);
 echo $this->Progress->render(60);

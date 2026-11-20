@@ -18,7 +18,7 @@ use function Cake\I18n\__d;
  *     ]],
  *     ['type' => 'submenu', 'label' => 'Settings', 'icon' => 'settings-2', 'items' => [...]],
  * ], [
- *     'header' => $this->Html->link('Acme Inc.', '/'),
+ *     'header' => $this->Html->link('Fernway', '/'),
  *     'footer' => $this->DropdownMenu->render(...),
  * ]);
  *

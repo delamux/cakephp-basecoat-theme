@@ -5,7 +5,7 @@
  */
 $context = [
     'schema' => ['name' => ['type' => 'string'], 'visibility' => ['type' => 'string'], 'archived' => ['type' => 'boolean']],
-    'defaults' => ['name' => 'Acme Website', 'visibility' => 'private', 'archived' => false],
+    'defaults' => ['name' => 'Churn forecast', 'visibility' => 'private', 'archived' => false],
     'errors' => ['name' => ['This name is already taken.']],
 ];
 // ---

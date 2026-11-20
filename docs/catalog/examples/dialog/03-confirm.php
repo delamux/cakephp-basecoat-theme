@@ -3,10 +3,10 @@
  * @title Confirmation without close button
  * @description closeButton and closeOnOverlay force an explicit choice.
  */
-echo $this->Dialog->render('delete-project', null, [
-    'title' => 'Delete Acme Website?',
-    'description' => 'This action cannot be undone and removes all its files.',
-    'trigger' => ['text' => 'Delete project', 'variant' => 'destructive', 'icon' => 'trash'],
+echo $this->Dialog->render('delete-dashboard', null, [
+    'title' => 'Delete the Churn forecast dashboard?',
+    'description' => 'This action cannot be undone and removes its 14 saved charts.',
+    'trigger' => ['text' => 'Delete dashboard', 'variant' => 'destructive', 'icon' => 'trash'],
     'closeButton' => false,
     'closeOnOverlay' => false,
     'footer' => $this->Dialog->close('Cancel', ['variant' => 'outline'])

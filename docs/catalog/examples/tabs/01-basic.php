@@ -4,7 +4,7 @@
  * @description label => panel HTML pairs; the id prefixes the tab and panel ids.
  */
 echo $this->Tabs->render([
-    'Account' => '<p class="text-sm">Make changes to your account here.</p>',
-    'Password' => '<p class="text-sm">Change your password here.</p>',
-    'Notifications' => '<p class="text-sm">Choose what you want to be notified about.</p>',
-], ['id' => 'settings']);
+    'Usage' => '<p class="text-sm">1.2M of 1.5M events used this month.</p>',
+    'Exports' => '<p class="text-sm">Daily export to the warehouse at 02:00 UTC.</p>',
+    'Alerts' => '<p class="text-sm">3 alert rules, last triggered on November 18.</p>',
+], ['id' => 'workspace']);

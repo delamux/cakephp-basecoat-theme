@@ -4,9 +4,9 @@
  * @description Payment methods as two-column cards with built-in icons; one option is disabled.
  */
 $methods = [
-    'card' => ['title' => 'Credit card', 'description' => 'Visa, Mastercard or American Express.', 'icon' => 'credit-card'],
-    'transfer' => ['title' => 'Bank transfer', 'description' => 'Settles in one to two business days.', 'icon' => 'landmark'],
-    'wallet' => ['title' => 'Digital wallet', 'description' => 'Not available in your region.', 'icon' => 'wallet', 'disabled' => true],
+    'card' => ['title' => 'Card', 'description' => 'Charged on the 1st of every month.', 'icon' => 'credit-card'],
+    'transfer' => ['title' => 'Bank transfer', 'description' => 'Invoice with 14-day terms, Scale plan only.', 'icon' => 'landmark'],
+    'wallet' => ['title' => 'Wallet', 'description' => 'Coming to Fernway in 2027.', 'icon' => 'wallet', 'disabled' => true],
 ];
 // ---
 echo $this->ChoiceCards->render('payment_type', $methods, [

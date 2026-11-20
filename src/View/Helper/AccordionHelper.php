@@ -9,8 +9,8 @@ namespace BasecoatTheme\View\Helper;
  *
  * ```
  * echo $this->Accordion->render([
- *     'Is it accessible?' => 'Yes. It adheres to the WAI-ARIA design pattern.',
- *     ['title' => 'Is it styled?', 'content' => '<p>Yes.</p>', 'open' => true],
+ *     'Can I export raw events?' => 'Yes. Scheduled exports run daily.',
+ *     ['title' => 'Is SSO included?', 'content' => '<p>On the Scale plan.</p>', 'open' => true],
  *     ['title' => 'Locked', 'content' => '...', 'disabled' => true],
  * ], ['multiple' => true]);
  * ```

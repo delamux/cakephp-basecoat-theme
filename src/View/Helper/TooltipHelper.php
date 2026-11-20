@@ -7,7 +7,7 @@ namespace BasecoatTheme\View\Helper;
  * Basecoat Tooltip (CSS-only, `data-tooltip` attribute).
  *
  * ```
- * echo $this->Tooltip->render('<button class="btn">Hover</button>', 'Add to library');
+ * echo $this->Tooltip->render('<button class="btn">Share</button>', 'Copy a read-only link');
  * echo $this->Button->render('Save', $this->Tooltip->attributes('Save changes', ['side' => 'bottom']));
  * ```
  */

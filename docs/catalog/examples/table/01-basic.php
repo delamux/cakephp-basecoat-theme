@@ -1,21 +1,21 @@
 <?php
 /**
- * @title Invoices table
+ * @title Billing table
  * @description Columns map keys to labels; cells may hold HTML (escape false) such as badges.
  */
 $rows = [
-    ['invoice' => 'INV-001', 'status' => $this->Badge->render('Paid', ['variant' => 'secondary']), 'method' => 'Credit Card', 'amount' => '$250.00'],
-    ['invoice' => 'INV-002', 'status' => $this->Badge->render('Pending', ['variant' => 'outline']), 'method' => 'PayPal', 'amount' => '$150.00'],
-    ['invoice' => 'INV-003', 'status' => $this->Badge->render('Unpaid', ['variant' => 'destructive']), 'method' => 'Bank Transfer', 'amount' => '$350.00'],
+    ['invoice' => 'FW-2311', 'customer' => 'Harbor & Pine', 'status' => $this->Badge->render('Paid', ['variant' => 'secondary']), 'amount' => '$1,280.00'],
+    ['invoice' => 'FW-2312', 'customer' => 'Quillon Studio', 'status' => $this->Badge->render('Due', ['variant' => 'outline']), 'amount' => '$96.00'],
+    ['invoice' => 'FW-2313', 'customer' => 'Ostrava Freight', 'status' => $this->Badge->render('Overdue', ['variant' => 'destructive']), 'amount' => '$4,560.00'],
 ];
 // ---
 echo $this->Table->render([
     'invoice' => 'Invoice',
+    'customer' => 'Customer',
     'status' => 'Status',
-    'method' => 'Method',
     'amount' => ['label' => 'Amount', 'class' => 'text-right'],
 ], $rows, [
-    'caption' => 'A list of your recent invoices.',
-    'footer' => ['', '', 'Total', ['content' => '$750.00', 'class' => 'text-right']],
+    'caption' => 'Fernway invoices issued in November.',
+    'footer' => ['', '', 'Total', ['content' => '$5,936.00', 'class' => 'text-right']],
     'escape' => false,
 ]);

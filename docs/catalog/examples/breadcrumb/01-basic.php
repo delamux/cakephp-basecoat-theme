@@ -6,5 +6,5 @@
 echo $this->Breadcrumb->render([
     'Home' => '/',
     'Projects' => ['controller' => 'Projects', 'action' => 'index'],
-    'Acme Website',
+    'Churn forecast',
 ]);

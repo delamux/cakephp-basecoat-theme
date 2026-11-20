@@ -123,7 +123,7 @@ class CspCompatibilityTest extends HelperTestCase
             . $this->View->MetricCard->render('Users', '12', ['change' => '+1', 'trend' => 'up'])
             . $this->View->PageHeader->render('Overview')
             . $this->View->TableToolbar->render(['filter' => ['q' => ['type' => 'search', 'label' => 'Search']]])
-            . $this->View->WorkspaceSwitcher->render([['name' => 'Acme', 'url' => '#']]);
+            . $this->View->WorkspaceSwitcher->render([['name' => 'Fernway', 'url' => '#']]);
 
         $this->assertNoInlineJs($html);
     }

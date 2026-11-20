@@ -103,7 +103,7 @@ foreach ($orders as $order) {
             'change' => '-0.6 pts', 'trend' => 'down', 'description' => 'Lower is better', 'icon' => 'trending-down',
         ]) ?>
         <?= $this->MetricCard->render('NPS', '61', [
-            'change' => '0', 'trend' => 'flat', 'description' => '318 responses', 'icon' => 'circle-check',
+            'change' => '±0 pts', 'trend' => 'flat', 'description' => 'vs. October · 318 responses', 'icon' => 'circle-check',
         ]) ?>
     </div>
 

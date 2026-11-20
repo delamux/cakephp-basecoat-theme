@@ -15,7 +15,7 @@ echo $this->Table->render([
     'owner' => 'Owner',
     'created' => ['label' => 'Created', 'sort' => true],
 ], [
-    ['name' => 'Acme Website', 'owner' => 'Jane Doe', 'created' => '2026-01-14'],
-    ['name' => 'Mobile App', 'owner' => 'Marta Vega', 'created' => '2026-03-02'],
-    ['name' => 'Data Pipeline', 'owner' => 'Leo Park', 'created' => '2026-05-21'],
+    ['name' => 'Churn forecast', 'owner' => 'Elena Sarto', 'created' => '2026-02-09'],
+    ['name' => 'Funnel review', 'owner' => 'Kofi Mensah', 'created' => '2026-04-17'],
+    ['name' => 'Warehouse sync', 'owner' => 'Pavel Novak', 'created' => '2026-08-03'],
 ]);
