@@ -1,0 +1,80 @@
+{#
+/**
+ * BasecoatTheme bake element: add / edit form (Card, two-column grid, Save + Cancel; delete in a dialog on edit).
+ */
+#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set fields = Bake.filterFields(fields, schema, modelObject) %}
+{% set pk = '$' ~ singularVar ~ '->' ~ primaryKey[0] %}
+<?php
+{% if 'add' in action %}
+$this->assign('title', {{ t|raw }}'New {{ singularHumanName|lower }}'));
+$this->start('breadcrumb');
+echo $this->Breadcrumb->render([{{ t|raw }}'{{ pluralHumanName }}') => ['action' => 'index'], {{ t|raw }}'New')]);
+$this->end();
+{% else %}
+$this->assign('title', {{ t|raw }}'Edit {{ singularHumanName|lower }}'));
+$this->start('breadcrumb');
+echo $this->Breadcrumb->render([
+    {{ t|raw }}'{{ pluralHumanName }}') => ['action' => 'index'],
+    h(${{ singularVar }}->{{ displayField }}) => ['action' => 'view', {{ pk|raw }}],
+    {{ t|raw }}'Edit'),
+]);
+$this->end();
+$this->start('header_actions');
+echo $this->Dialog->trigger('delete-{{ singularVar|dasherize }}', {{ t|raw }}'Delete'), ['icon' => 'trash', 'variant' => 'destructive', 'size' => 'sm', 'collapse' => 'sm']);
+$this->end();
+{% endif %}
+
+ob_start();
+echo $this->Form->create(${{ singularVar }}, ['class' => 'form grid gap-5']);
+echo '<div class="grid gap-4 sm:grid-cols-2">';
+{% for field in fields %}
+    {%~ if field not in primaryKey %}
+        {%~ if keyFields[field] is defined %}
+            {%~ set fieldData = Bake.columnData(field, schema) %}
+            {%~ if fieldData.null %}
+echo $this->Form->control('{{ field }}', ['options' => ${{ keyFields[field] }}, 'empty' => true]);
+            {%~ else %}
+echo $this->Form->control('{{ field }}', ['options' => ${{ keyFields[field] }}]);
+            {%~ endif %}
+        {%~ elseif field not in ['created', 'modified', 'updated'] %}
+            {%~ set fieldData = Bake.columnData(field, schema) %}
+            {%~ if fieldData.type == 'text' %}
+echo '<div class="sm:col-span-2">' . $this->Form->control('{{ field }}', ['type' => 'textarea', 'rows' => 4]) . '</div>';
+            {%~ elseif fieldData.type == 'boolean' %}
+echo '<div class="sm:col-span-2">' . $this->Form->control('{{ field }}') . '</div>';
+            {%~ elseif fieldData.type in ['date', 'datetime', 'time'] and fieldData.null %}
+echo $this->Form->control('{{ field }}', ['empty' => true]);
+            {%~ else %}
+echo $this->Form->control('{{ field }}');
+            {%~ endif %}
+        {%~ endif %}
+    {%~ endif %}
+{% endfor %}
+{% if associations.BelongsToMany is defined %}
+    {%~ for assocName, assocData in associations.BelongsToMany %}
+echo '<div class="sm:col-span-2">' . $this->Form->control('{{ assocData.property }}._ids', ['options' => ${{ assocData.variable }}]) . '</div>';
+    {%~ endfor %}
+{% endif %}
+echo '</div>';
+echo '<div class="flex gap-2">'
+    . $this->Form->button({{ t|raw }}'Save'))
+    . $this->Button->link({{ t|raw }}'Cancel'), {% if 'add' in action %}['action' => 'index']{% else %}['action' => 'view', {{ pk|raw }}]{% endif %}, ['variant' => 'ghost'])
+    . '</div>';
+echo $this->Form->end();
+$form = (string)ob_get_clean();
+?>
+<div class="px-4 lg:px-6">
+    <div class="max-w-3xl">
+        <?= $this->Card->render($form, ['title' => {% if 'add' in action %}{{ t|raw }}'New {{ singularHumanName|lower }}'){% else %}{{ t|raw }}'Edit {{ singularHumanName|lower }}'){% endif %}]) ?>
+    </div>
+{% if 'add' not in action %}
+    <?= $this->Dialog->render('delete-{{ singularVar|dasherize }}', null, [
+        'title' => {{ t|raw }}'Delete {{ singularHumanName|lower }} {0}?', ${{ singularVar }}->{{ displayField }}),
+        'description' => {{ t|raw }}'This cannot be undone.'),
+        'footer' => $this->Dialog->close({{ t|raw }}'Cancel'))
+            . $this->Form->postButton({{ t|raw }}'Delete'), ['action' => 'delete', {{ pk|raw }}], ['variant' => 'destructive']),
+    ]) ?>
+{% endif %}
+</div>
