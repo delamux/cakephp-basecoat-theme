@@ -13,7 +13,7 @@ return [
     'chats' => [
         ['id' => 1, 'name' => 'Kofi Mensah', 'group' => false, 'status' => 'online', 'preview' => 'The data migration can start on Thursday.', 'time' => '10:42', 'unread' => 2],
         ['id' => 2, 'name' => 'Harbor & Pine onboarding', 'group' => true, 'members' => 6, 'status' => 'online', 'preview' => 'Ines: I uploaded the field mapping.', 'time' => '10:15', 'unread' => 5],
-        ['id' => 3, 'name' => 'Elena Sarto', 'group' => false, 'status' => 'away', 'preview' => 'Can you add the Brightmoor cohort to the chart?', 'time' => '09:30', 'unread' => 0],
+        ['id' => 3, 'name' => 'Sofia Brandt', 'group' => false, 'status' => 'away', 'preview' => 'Can you add the Brightmoor cohort to the chart?', 'time' => '09:30', 'unread' => 0],
         ['id' => 4, 'name' => 'Pavel Novak', 'group' => false, 'status' => 'offline', 'preview' => 'Thanks, the dashboards look great.', 'time' => 'Yesterday', 'unread' => 0],
         ['id' => 5, 'name' => 'Growth team', 'group' => true, 'members' => 4, 'status' => 'online', 'preview' => 'Noor: Segments are published.', 'time' => 'Yesterday', 'unread' => 0],
         ['id' => 6, 'name' => 'Noor Haddad', 'group' => false, 'status' => 'offline', 'preview' => 'I will send the invoice list tomorrow.', 'time' => 'Tuesday', 'unread' => 0],

@@ -181,10 +181,10 @@ class ChatsScreenTest extends TestCase
     {
         $html = $this->render($this->data(), ['q' => 'kofi']);
 
-        $this->assertMatchesRegularExpression('/<form method="get" action="\/chats"[^>]*role="search">/', $html);
+        $this->assertMatchesRegularExpression('/<form method="get"[^>]*role="search"[^>]*action="\/chats"|<form method="get"[^>]*action="\/chats"[^>]*role="search"/', $html);
+        $this->assertMatchesRegularExpression('/<label class="label sr-only" for="q">Search chats<\/label>/', $html);
         $this->assertStringContainsString('name="q"', $html);
         $this->assertStringContainsString('value="kofi"', $html);
-        $this->assertStringContainsString('aria-label="Search chats"', $html);
         $this->assertStringContainsString('aria-label="Message"', $html);
     }
 
@@ -268,5 +268,36 @@ class ChatsScreenTest extends TestCase
 
         $this->assertStringContainsString("{{ t|raw }}'Start a call')", $source);
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe/', $source . (string)file_get_contents(ROOT . '/templates/bake/Screen/chats/data.php'));
+    }
+
+    public function testLayoutFitsPhones(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('class="grid min-h-[32rem] grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]"', $html);
+        $this->assertSame(2, preg_match_all('/<section class="[^"]*\bmin-w-0\b/', $html));
+        $this->assertMatchesRegularExpression('/<input type="text" class="input min-w-0 flex-1"/', $html);
+    }
+
+    public function testMessagesNameTheSenderForScreenReaders(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(3, substr_count($html, '<span class="sr-only">You</span><p>'));
+        $this->assertSame(3, substr_count($html, '<span class="sr-only">Kofi Mensah</span><p>'));
+    }
+
+    public function testAvatarsNextToNamesAreDecorative(): void
+    {
+        $html = $this->render();
+
+        // Read once as "Kofi Mensah", not "KM Online Kofi Mensah"; the status stays as hidden text.
+        $this->assertMatchesRegularExpression('/<span aria-hidden="true">KM<\/span><span class="avatar-badge[^>]*><span class="sr-only">Online<\/span>/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<span>[A-Z]{1,2}<\/span>/', $html);
+    }
+
+    public function testSampleDataDoesNotChatWithTheSignedInUser(): void
+    {
+        $this->assertNotContains('Elena Sarto', array_column(ScreenRegistry::data('chats')['chats'], 'name'));
     }
 }

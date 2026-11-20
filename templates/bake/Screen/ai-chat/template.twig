@@ -49,12 +49,16 @@ $this->assign('title', {{ t|raw }}'Assistant'));
 
     <div class="flex flex-col gap-4" role="log" aria-live="polite" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
         <?php foreach ($messages as $message) : ?>
-            <?php $mine = ($message['from'] ?? 'assistant') === 'user'; ?>
+            <?php
+            $mine = ($message['from'] ?? 'assistant') === 'user';
+            $author = (string)($message['author'] ?? ($mine ? {{ t|raw }}'You') : $assistant['name']));
+            ?>
             <article class="flex gap-3<?= $mine ? ' flex-row-reverse' : '' ?>" data-message-from="<?= h($mine ? 'user' : 'assistant') ?>">
-                <?= $this->Avatar->render((string)($message['author'] ?? ($mine ? {{ t|raw }}'You') : $assistant['name'])), ['size' => 'sm']) ?>
+                <?php // Decorative: the author is printed in the bubble. ?>
+                <?= $this->Avatar->render($author, ['size' => 'sm', 'decorative' => true]) ?>
                 <div class="flex min-w-0 max-w-[85%] flex-col gap-2 rounded-lg px-3 py-2 text-sm <?= $mine ? 'bg-primary text-primary-foreground' : 'bg-muted' ?>">
                     <p class="text-xs font-medium opacity-70">
-                        <?= h((string)($message['author'] ?? ($mine ? {{ t|raw }}'You') : $assistant['name']))) ?>
+                        <?= h($author) ?>
                         <?php if (!empty($message['time'])) : ?>
                             <span class="font-normal"> · <?= h((string)$message['time']) ?></span>
                         <?php endif; ?>
@@ -78,10 +82,11 @@ $this->assign('title', {{ t|raw }}'Assistant'));
     </div>
 
     <?php
-    // TODO: the composer posts to this page. Handle the POST in your controller (`message`, `model`),
-    // store the exchange and call your assistant service, or set 'url' => [...] to another action.
+    // TODO: the composer is inert. Wrap it in `$this->Form->create(null, ['url' => ['action' => 'send']])`
+    // (POST with the CSRF token) and `$this->Form->end()`, make "Send" a submit button, then read
+    // `message` and `model` in that action and call your assistant service.
     ?>
-    <?= $this->Form->create(null, ['type' => 'post', 'class' => 'sticky bottom-4']) ?>
+    <div class="sticky bottom-4" data-composer>
         <?= $this->Card->render(
             $this->Form->control('message', [
                 'type' => 'textarea',
@@ -95,7 +100,7 @@ $this->assign('title', {{ t|raw }}'Assistant'));
             . '<div class="mt-3 flex items-center justify-between gap-2">'
             . '<div class="flex items-center gap-2">'
             // TODO: connect the attach button to your upload handling.
-            . $this->Button->icon('paperclip', {{ t|raw }}'Attach file'), ['variant' => 'ghost'])
+            . $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost'])
             . $this->Form->control('model', [
                 'type' => 'select',
                 'id' => 'ai-chat-model',
@@ -105,8 +110,8 @@ $this->assign('title', {{ t|raw }}'Assistant'));
                 'templates' => ['inputContainer' => '{{ '{{content}}' }}', 'inputContainerError' => '{{ '{{content}}{{error}}' }}'],
             ])
             . '</div>'
-            . $this->Button->submit({{ t|raw }}'Send'), ['icon' => 'send'])
+            . $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send'])
             . '</div>',
         ) ?>
-    <?= $this->Form->end() ?>
+    </div>
 </div>

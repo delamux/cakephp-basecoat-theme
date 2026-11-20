@@ -23,6 +23,8 @@ use function Cake\Core\h;
  *   `button` holds ButtonHelper options for the submit button (default icon `send`; `'icon' => null` for text only).
  *   The composer is a plain POST form (`action` only when `url` is given).
  * - `headerActions`: HTML placed at the end of the header.
+ * - `hideAuthors`: render each message `author` as visually hidden text (`authorHidden` template), for
+ *   one-to-one chats where the bubble position shows the sender but screen readers still need it.
  *
  * @property \Cake\View\Helper\UrlHelper $Url
  * @property \BasecoatTheme\View\Helper\AvatarHelper $Avatar
@@ -58,6 +60,7 @@ class ConversationHelper extends AbstractComponentHelper
             'thread' => '<div{{attrs}}>{{content}}</div>',
             'message' => '<div{{attrs}}>{{author}}<p>{{text}}</p>{{time}}</div>',
             'author' => '<span class="block text-xs font-medium opacity-70">{{content}}</span>',
+            'authorHidden' => '<span class="sr-only">{{content}}</span>',
             'time' => '<span class="mt-1 block text-xs opacity-70">{{content}}</span>',
             'composer' => '<form{{attrs}}>{{csrf}}{{input}}{{button}}</form>',
             'input' => '<input type="text"{{attrs}}>',
@@ -79,7 +82,7 @@ class ConversationHelper extends AbstractComponentHelper
 
         $bubbles = '';
         foreach ($messages as $message) {
-            $bubbles .= $this->message($message, $escape);
+            $bubbles .= $this->message($message, $escape, !empty($options['hideAuthors']));
         }
         $thread = $this->renderTemplate('thread', $this->partAttributes('thread', [
             'role' => 'log',
@@ -92,7 +95,7 @@ class ConversationHelper extends AbstractComponentHelper
         }
 
         $attributes = $this->rootAttributes('flex flex-col rounded-xl border bg-card text-card-foreground', $options, [
-            'contact', 'composer', 'headerActions',
+            'contact', 'composer', 'headerActions', 'hideAuthors',
         ]);
 
         return $this->renderTemplate('root', $attributes, [
@@ -128,9 +131,10 @@ class ConversationHelper extends AbstractComponentHelper
     /**
      * @param array<string, mixed> $message Message.
      * @param bool $escape Escape text.
+     * @param bool $hideAuthor Render the author as visually hidden text.
      * @return string
      */
-    protected function message(array $message, bool $escape): string
+    protected function message(array $message, bool $escape, bool $hideAuthor = false): string
     {
         $mine = ($message['from'] ?? 'them') === 'me';
         $attributes = $this->partAttributes('message', [
@@ -138,7 +142,7 @@ class ConversationHelper extends AbstractComponentHelper
         ], 'flex max-w-[75%] flex-col rounded-lg px-3 py-2 text-sm');
 
         $author = !empty($message['author'])
-            ? $this->formatTemplate('author', ['content' => $this->text((string)$message['author'], $escape)])
+            ? $this->formatTemplate($hideAuthor ? 'authorHidden' : 'author', ['content' => $this->text((string)$message['author'], $escape)])
             : '';
         $time = !empty($message['time'])
             ? $this->formatTemplate('time', ['content' => $this->text((string)$message['time'], $escape)])

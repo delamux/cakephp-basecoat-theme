@@ -25,31 +25,41 @@ $avatar = function (array $chat, array $options = []) use ($statusLabel, $status
 
     return $this->Avatar->render((string)$chat['name'], $options + [
         // The dot never carries the status alone: the hidden text names it.
+        // The name is printed next to the avatar: only the status is read.
+        'decorative' => true,
         'badge' => '<span class="sr-only">' . h($statusLabel($status)) . '</span>',
         'badgeOptions' => ['class' => $statusClasses[$status] ?? 'bg-muted-foreground', 'data-status' => $status],
     ]);
 };
 
-// Messages of the open thread with the read receipt as text next to the time
+// Messages of the open thread: the read receipt as text next to the time, and the sender as
+// hidden text (`hideAuthors`), so screen readers do not depend on the bubble position or colour.
 $messages = [];
 foreach ((array)($activeChat['messages'] ?? []) as $message) {
+    $mine = ($message['from'] ?? '') === 'me';
     $receipt = ['sent' => {{ t|raw }}'Sent'), 'delivered' => {{ t|raw }}'Delivered'), 'read' => {{ t|raw }}'Read')][$message['status'] ?? ''] ?? '';
     $messages[] = [
-        'time' => trim((string)($message['time'] ?? '') . ($receipt !== '' && ($message['from'] ?? '') === 'me' ? ' · ' . $receipt : '')),
+        'time' => trim((string)($message['time'] ?? '') . ($receipt !== '' && $mine ? ' · ' . $receipt : '')),
+        'author' => $mine ? {{ t|raw }}'You') : (string)($message['author'] ?? $activeChat['name'] ?? ''),
     ] + $message;
 }
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
-    <div class="grid min-h-[32rem] gap-4 lg:grid-cols-[22rem_1fr]">
-        <section class="flex flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversations')) ?>">
+    <div class="grid min-h-[32rem] grid-cols-1 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <section class="flex min-w-0 flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversations')) ?>">
             <header class="flex items-center justify-between gap-2 border-b p-4">
                 <h2 class="text-lg font-semibold"><?= h({{ t|raw }}'Chats')) ?></h2>
                 <?php // TODO: point "New chat" at your own add action. ?>
                 <?= $this->Button->icon('plus', {{ t|raw }}'New chat'), ['variant' => 'outline', 'url' => '#']) ?>
             </header>
-            <form method="get" action="<?= h($this->Url->build(['action' => 'index'])) ?>" class="border-b p-3" role="search">
-                <input type="search" name="q" class="input w-full" value="<?= h((string)$this->getRequest()->getQuery('q', '')) ?>" placeholder="<?= h({{ t|raw }}'Search chats')) ?>" aria-label="<?= h({{ t|raw }}'Search chats')) ?>">
-            </form>
+            <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'border-b p-3', 'role' => 'search']) ?>
+                <?= $this->Form->control('q', [
+                    'type' => 'search',
+                    'label' => ['text' => {{ t|raw }}'Search chats'), 'class' => 'sr-only'],
+                    'placeholder' => {{ t|raw }}'Search chats'),
+                    'required' => false,
+                ]) ?>
+            <?= $this->Form->end() ?>
             <?php if ($chats) : ?>
                 <ul class="flex max-h-[28rem] flex-1 flex-col overflow-y-auto p-2">
                     <?php foreach ($chats as $chat) : ?>
@@ -86,7 +96,7 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
             <?php endif; ?>
         </section>
 
-        <section class="flex min-h-[32rem] flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
+        <section class="flex min-h-[32rem] min-w-0 flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
             <?php if ($activeChat) : ?>
                 <?php
                 $state = !empty($activeChat['group']) ? {{ t|raw }}'Group chat') : $statusLabel((string)($activeChat['status'] ?? 'offline'));
@@ -102,6 +112,7 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
                         . $this->Button->icon('ellipsis', {{ t|raw }}'More options'), ['variant' => 'ghost'])
                         . '</div>',
                     'composer' => false,
+                    'hideAuthors' => true,
                 ]) ?>
                 <?php
                 // TODO: wire the composer to a POST action: use the Conversation helper's own composer
@@ -110,7 +121,7 @@ foreach ((array)($activeChat['messages'] ?? []) as $message) {
                 <div class="flex items-center gap-2 border-t p-3">
                     <?= $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost']) ?>
                     <?= $this->Button->icon('smile', {{ t|raw }}'Add an emoji'), ['variant' => 'ghost']) ?>
-                    <input type="text" class="input flex-1" name="message" placeholder="<?= h({{ t|raw }}'Type a message…')) ?>" aria-label="<?= h({{ t|raw }}'Message')) ?>" autocomplete="off">
+                    <input type="text" class="input min-w-0 flex-1" name="message" placeholder="<?= h({{ t|raw }}'Type a message…')) ?>" aria-label="<?= h({{ t|raw }}'Message')) ?>" autocomplete="off">
                     <?= $this->Button->icon('mic', {{ t|raw }}'Record a voice message'), ['variant' => 'ghost']) ?>
                     <?= $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send']) ?>
                 </div>

@@ -153,7 +153,9 @@ class AiChatScreenTest extends TestCase
         $data = ScreenRegistry::data('ai-chat');
         $html = $this->render();
 
-        $this->assertStringContainsString('method="post"', $html);
+        // Inert like the chats and mail composers: no form posting to index until you wire it.
+        $this->assertStringNotContainsString('<form', $html);
+        $this->assertStringContainsString('data-composer', $html);
         $this->assertMatchesRegularExpression('/<textarea[^>]*name="message"[^>]*>/', $html);
         $this->assertMatchesRegularExpression('/<label[^>]*for="ai-chat-message"[^>]*>\s*Message\s*<\/label>/', $html);
         $this->assertMatchesRegularExpression('/<select[^>]*name="model"[^>]*>/', $html);
@@ -161,8 +163,8 @@ class AiChatScreenTest extends TestCase
             $selected = $value === $data['model'] ? ' selected="selected"' : '';
             $this->assertStringContainsString('<option value="' . $value . '"' . $selected . '>' . $label . '</option>', $html);
         }
-        $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Attach file<\/span>\s*<\/button>/s', $html);
-        $this->assertMatchesRegularExpression('/<button type="submit"[^>]*>.*?Send/s', $html);
+        $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Attach a file<\/span>\s*<\/button>/s', $html);
+        $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*<svg.*?<\/svg>\s*Send\s*<\/button>/s', $html);
     }
 
     public function testNoMotionOrOrb(): void
@@ -237,7 +239,7 @@ class AiChatScreenTest extends TestCase
         $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/ai-chat/template.twig');
 
         $this->assertStringContainsString("{{ t|raw }}'Send')", $template);
-        $this->assertStringContainsString("{{ t|raw }}'Attach file')", $template);
+        $this->assertStringContainsString("{{ t|raw }}'Attach a file')", $template);
         $this->assertStringContainsString("{{ t|raw }}'Copy code')", $template);
         $this->assertDoesNotMatchRegularExpression('/>\s*[A-Z][a-z]+ [a-z ]+<\//', preg_replace('/<\?.*?\?>/s', '', $template));
     }
