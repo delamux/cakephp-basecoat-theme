@@ -1,0 +1,63 @@
+{#
+/**
+ * BasecoatTheme bake element: index action. Bake's one, plus (when the table has the
+ * friendsofcake/search behavior) the `search` finder, the filter bar data (`$list`) and the CSV
+ * export of the filtered rows (`?export=csv`): every column except hidden and secret ones, related
+ * records by their display field.
+ */
+#}
+{% set t = plugin ? "__d('" ~ (plugin|underscore) ~ "', " : "__(" %}
+{% set belongsTo = Bake.aliasExtractor(modelObj, 'BelongsTo') %}
+    /**
+     * Index method
+     *
+     * @return \Cake\Http\Response|null|void Renders view
+     */
+    public function index()
+    {
+{% if listSearch %}
+        $query = $this->{{ currentModelName }}->find('search', search: $this->request->getQueryParams()){% if belongsTo %}
+
+            ->contain({{ Bake.exportArray(belongsTo)|raw }}){% endif %};
+{% elseif belongsTo %}
+        $query = $this->{{ currentModelName }}->find()
+            ->contain({{ Bake.exportArray(belongsTo)|raw }});
+{% else %}
+        $query = $this->{{ currentModelName }}->find();
+{% endif %}
+{% if Bake.hasPlugin('Authorization') %}
+        $query = $this->Authorization->applyScope($query);
+{% endif %}
+{% if listSearch %}
+    {%~ set schema = modelObj.getSchema() %}
+    {%~ set hidden = modelObj.newEmptyEntity().getHidden() %}
+    {%~ set foreignKeys = {} %}
+    {%~ for alias in belongsTo %}
+        {%~ set association = modelObj.getAssociation(alias) %}
+        {%~ set foreignKeys = foreignKeys|merge({(association.getForeignKey()): association}) %}
+    {%~ endfor %}
+
+        // Filter bar and CSV export (BasecoatTheme\Listing\ListFilter): the filters are the table's search filters
+        $list = new ListFilter($this->request, $this->{{ currentModelName }}, [
+            'export' => [
+    {%~ for column in schema.columns() %}
+        {%~ set type = schema.getColumnType(column) %}
+        {%~ if column not in hidden and not (column matches '/(password|passwd|token|secret|salt|hash|api_key)/i') and type not in ['binary', 'binaryuuid'] %}
+            {%~ if foreignKeys[column] is defined %}
+                {%~ set association = foreignKeys[column] %}
+                '{{ association.getProperty() }}.{{ association.getTarget().getDisplayField() }}' => {{ t|raw }}'{{ association.getAlias()|singularize|underscore|humanize }}'),
+            {%~ else %}
+                '{{ column }}' => {{ t|raw }}'{{ column|humanize }}'),
+            {%~ endif %}
+        {%~ endif %}
+    {%~ endfor %}
+            ],
+        ]);
+        if ($list->isExport()) {
+            return $list->csv($query, $this->response, '{{ pluralName|dasherize }}');
+        }
+{% endif %}
+        ${{ pluralName }} = $this->paginate($query);
+
+        $this->set(compact('{{ pluralName }}'{% if listSearch %}, 'list'{% endif %}));
+    }

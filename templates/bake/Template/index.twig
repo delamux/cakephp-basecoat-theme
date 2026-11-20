@@ -2,16 +2,23 @@
 /**
  * BasecoatTheme bake template: index (Card + Table + Pagination, row menu, delete in a dialog).
  * No inline JS (strict CSP): the delete confirmation is a Dialog opened through `data-dialog-open`.
+ * With `$list` (friendsofcake/search, see the controller): filter bar above the results (htmx
+ * refreshes `#list-results`), CSV export of the filtered rows and a "no results" state.
  */
 #}
 {% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
 {% set fields = Bake.filterFields(fields, schema, modelObject, indexColumns, ['binary', 'text']) %}
+{# Never list secrets (passwords, tokens…) nor the entity's hidden fields #}
+{% set hidden = modelObject.newEmptyEntity().getHidden() %}
+{% set fields = fields|filter(field => field not in hidden and not (field matches '/(password|passwd|token|secret|salt|hash|api_key)/i')) %}
 {% set pk = '$' ~ singularVar ~ '->' ~ primaryKey[0] %}
 <?php
 /**
  * @var \{{ namespace }}\View\AppView $this
  * @var iterable<\{{ entityClass }}> ${{ pluralVar }}
+ * @var \BasecoatTheme\Listing\ListFilter|null $list Search filters and CSV export (when the table has them)
  */
+$list ??= null;
 $this->assign('title', {{ t|raw }}'{{ pluralHumanName }}'));
 $this->start('header_actions');
 echo $this->Button->link({{ t|raw }}'New {{ singularHumanName }}'), ['action' => 'add'], ['icon' => 'plus', 'size' => 'sm', 'collapse' => 'sm']);
@@ -67,9 +74,17 @@ foreach (${{ pluralVar }} as ${{ singularVar }}) {
     ]);
 }
 ?>
-<div class="px-4 lg:px-6">
+<div class="flex flex-col gap-4 px-4 lg:px-6">
+    <?= $list ? $this->element('BasecoatTheme.list_filters', ['list' => $list]) : '' ?>
+    <div id="list-results" class="min-w-0">
     <?= $this->Card->render(
-        $rows === []
+        $rows === [] && $list?->isFiltered()
+            ? $this->EmptyState->render({{ t|raw }}'No results'), [
+                'icon' => 'search',
+                'description' => {{ t|raw }}'Nothing matches these filters.'),
+                'actions' => $this->Button->link({{ t|raw }}'Clear filters'), ['action' => 'index'], ['variant' => 'outline']),
+            ])
+            : ($rows === []
             ? $this->EmptyState->render({{ t|raw }}'No {{ pluralHumanName|lower }} yet'), [
                 'icon' => 'folder',
                 'actions' => $this->Button->link({{ t|raw }}'New {{ singularHumanName }}'), ['action' => 'add'], ['icon' => 'plus']),
@@ -91,14 +106,19 @@ foreach (${{ pluralVar }} as ${{ singularVar }}) {
     {%~ endif %}
 {% endfor %}
                 'actions' => ['label' => '', 'class' => 'w-8'],
-            ], $rows, ['escape' => false, 'headOptions' => ['class' => 'bg-muted']]) . '</div>',
+            ], $rows, ['escape' => false, 'headOptions' => ['class' => 'bg-muted']]) . '</div>'),
         [
             'class' => 'min-w-0',
             'title' => {{ t|raw }}'{{ pluralHumanName }}'),
             'description' => $this->Paginator->counter({{ t|raw }}'{{ '{{' }}count{{ '}}' }} records')),
+            // Inside #list-results: the link always carries the current filters and sort
+            'action' => $list?->hasExport() && $rows !== []
+                ? $this->Button->link({{ t|raw }}'Export CSV'), ['?' => $list->exportQuery()], ['icon' => 'arrow-down', 'variant' => 'outline', 'size' => 'sm', 'collapse' => 'sm'])
+                : null,
             'footer' => $this->Pagination->render(['counter' => true]),
             'footerOptions' => ['class' => 'justify-between'],
         ],
     ) ?>
+    </div>
     <?= $dialogs ?>
 </div>

@@ -36,3 +36,27 @@ msgstr "Cambiar tema"
 
 msgid "pagination"
 msgstr "paginación"
+
+msgid "All"
+msgstr "Todos"
+
+msgid "Clear"
+msgstr "Limpiar"
+
+msgid "Filter"
+msgstr "Filtrar"
+
+msgid "No"
+msgstr "No"
+
+msgid "Search…"
+msgstr "Buscar…"
+
+msgid "Yes"
+msgstr "Sí"
+
+msgid "to"
+msgstr "hasta"
+
+msgid "{0} from"
+msgstr "{0} desde"
