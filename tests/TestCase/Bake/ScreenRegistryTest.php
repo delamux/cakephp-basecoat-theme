@@ -35,6 +35,22 @@ class ScreenRegistryTest extends TestCase
         $this->assertNotSame('', $all['notifications']['description']);
     }
 
+    public function testOptionalIcon(): void
+    {
+        $this->assertSame('users', ScreenRegistry::get('users')['icon']);
+        $this->assertSame('bell', ScreenRegistry::get('notifications')['icon']);
+
+        $screen = ['title' => 'Demo', 'description' => 'Fixture screen.', 'controller' => 'Demo', 'path' => self::DEMO];
+        ScreenRegistry::register('demo', $screen);
+        $this->assertArrayNotHasKey('icon', ScreenRegistry::get('demo'));
+        ScreenRegistry::register('demo', $screen + ['icon' => 'inbox']);
+        $this->assertSame('inbox', ScreenRegistry::get('demo')['icon']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('icon');
+        ScreenRegistry::register('demo', $screen + ['icon' => '']);
+    }
+
     public function testGetUnknownThrows(): void
     {
         $this->expectException(InvalidArgumentException::class);

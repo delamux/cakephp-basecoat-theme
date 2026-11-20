@@ -1,0 +1,16 @@
+{#
+/**
+ * Fixture screen (ScreenBuilderTest): a GET form to `index` and a page link, as real screens have.
+ */
+#}
+<?php
+/**
+ * @var \{{ namespace }}\View\AppView $this
+ * @var string $heading
+ */
+?>
+<h2><?= h($heading) ?></h2>
+<?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index']]) ?>
+<?= $this->Form->end() ?>
+<?= $this->Html->link('Next page', ['?' => ['page' => 2, 'q' => 'pine']]) ?>
+<a href="#">TODO</a>

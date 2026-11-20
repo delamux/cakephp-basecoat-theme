@@ -20,12 +20,12 @@ use UnexpectedValueException;
 final class ScreenRegistry
 {
     /**
-     * @var array<string, array{title: string, description: string, controller: string, path: string}>|null
+     * @var array<string, array{title: string, description: string, controller: string, path: string, icon?: string}>|null
      */
     private static ?array $screens = null;
 
     /**
-     * @return array<string, array{title: string, description: string, controller: string, path: string}>
+     * @return array<string, array{title: string, description: string, controller: string, path: string, icon?: string}>
      */
     public static function all(): array
     {
@@ -34,7 +34,7 @@ final class ScreenRegistry
 
     /**
      * @param string $slug Screen slug.
-     * @return array{title: string, description: string, controller: string, path: string}
+     * @return array{title: string, description: string, controller: string, path: string, icon?: string}
      * @throws \InvalidArgumentException For an unknown slug (the message lists the valid ones).
      */
     public static function get(string $slug): array
@@ -77,9 +77,10 @@ final class ScreenRegistry
      *
      * @param string $slug Screen slug (`[a-z0-9_-]+`).
      * @param array<string, mixed> $screen `title`, `description`, `controller` (default controller
-     *   name) and `path` (directory with `template.twig` and `data.php`), all non-empty strings.
+     *   name) and `path` (directory with `template.twig` and `data.php`), all non-empty strings;
+     *   optional `icon` (IconHelper name, used e.g. by the catalog navigation).
      * @return void
-     * @throws \InvalidArgumentException For an invalid slug or a missing key.
+     * @throws \InvalidArgumentException For an invalid slug, a missing key or an empty `icon`.
      */
     public static function register(string $slug, array $screen): void
     {
@@ -92,6 +93,12 @@ final class ScreenRegistry
                 throw new InvalidArgumentException(sprintf('Screen `%s` needs a non-empty `%s`.', $slug, $key));
             }
             $valid[$key] = $screen[$key];
+        }
+        if (array_key_exists('icon', $screen)) {
+            if (!is_string($screen['icon']) || $screen['icon'] === '') {
+                throw new InvalidArgumentException(sprintf('Screen `%s`: `icon` must be a non-empty string.', $slug));
+            }
+            $valid['icon'] = $screen['icon'];
         }
         self::all();
         self::$screens[$slug] = $valid;
@@ -108,7 +115,7 @@ final class ScreenRegistry
     }
 
     /**
-     * @return array<string, array{title: string, description: string, controller: string, path: string}>
+     * @return array<string, array{title: string, description: string, controller: string, path: string, icon?: string}>
      */
     private static function builtIns(): array
     {
@@ -121,12 +128,14 @@ final class ScreenRegistry
                 'description' => 'User list with search, filters and a paginated table.',
                 'controller' => 'Users',
                 'path' => $dir . 'users',
+                'icon' => 'users',
             ],
             'notifications' => [
                 'title' => 'Notifications',
                 'description' => 'Notification feed grouped by day, with read and unread items.',
                 'controller' => 'Notifications',
                 'path' => $dir . 'notifications',
+                'icon' => 'bell',
             ],
         ];
     }
