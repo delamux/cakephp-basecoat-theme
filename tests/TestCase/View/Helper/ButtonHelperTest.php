@@ -93,6 +93,42 @@ class ButtonHelperTest extends HelperTestCase
         $this->assertStringStartsWith('<a href="/" aria-label="Home"', $button->icon('house', 'Home', ['url' => '/']));
     }
 
+    public function testIndicatorDot(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $out = $button->icon('bell', 'Notifications', ['indicator' => true]);
+        $this->assertStringContainsString('class="btn relative"', $out);
+        $this->assertMatchesRegularExpression('#<span class="[^"]*" aria-hidden="true"></span>#', $out);
+        $this->assertStringContainsString('<span class="sr-only">New</span>', $out);
+        $this->assertStringNotContainsString('indicator', $out);
+    }
+
+    public function testIndicatorCount(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $out = $button->icon('bell', 'Notifications', ['indicator' => 3]);
+        $this->assertStringContainsString('>3<', $out);
+        $this->assertStringContainsString('<span class="sr-only">3 new</span>', $out);
+        $out = $button->render('Inbox', ['indicator' => '9+', 'indicatorLabel' => 'Unread']);
+        $this->assertStringContainsString('>9+<', $out);
+        $this->assertStringContainsString('<span class="sr-only">Unread</span>', $out);
+        $this->assertStringContainsString('<span class="sr-only">New</span>', $button->link('Inbox', '/', ['indicator' => true]));
+    }
+
+    public function testIndicatorIsPartOfIconAriaLabel(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $this->assertStringContainsString('aria-label="Notifications, 3 new"', $button->icon('bell', 'Notifications', ['indicator' => 3]));
+        $this->assertStringContainsString('aria-label="Notifications, New"', $button->icon('bell', 'Notifications', ['indicator' => true]));
+    }
+
+    public function testNoIndicatorUnchanged(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $this->assertSame('<button type="button" class="btn">Save</button>', $button->render('Save'));
+        $this->assertSame('<button type="button" class="btn">Save</button>', $button->render('Save', ['indicator' => false]));
+    }
+
     public function testSubmitAndCustomTemplate(): void
     {
         $button = new ButtonHelper($this->View, ['templates' => ['button' => '<button{{attrs}}><span>{{content}}</span></button>']]);

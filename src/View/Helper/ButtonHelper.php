@@ -38,6 +38,8 @@ class ButtonHelper extends AbstractComponentHelper
         'attributes' => [],
         'classes' => [
             'icon' => null,
+            'indicatorDot' => 'absolute top-1 right-1 size-2 rounded-full bg-destructive',
+            'indicatorCount' => 'absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-medium text-white',
         ],
         // `collapse` option: classes of the label per breakpoint (literal strings so a
         // compiled Tailwind build can see them).
@@ -67,6 +69,9 @@ class ButtonHelper extends AbstractComponentHelper
      * - `collapse`: `sm`, `md`, `lg`, `xl` (or `true` = `sm`): with an icon, the label is only
      *   visible from that breakpoint (icon-only below it, label kept for screen readers and
      *   as `title`). Handy for header actions on mobile.
+     * - `indicator`: `true` adds a notification dot; an int/string adds a count badge. The
+     *   button gets the `relative` class.
+     * - `indicatorLabel`: Screen reader text of the indicator (default "New" / "{0} new").
      * - `escape`: Escape `$text` (default true).
      * - `class` and any HTML attribute.
      *
@@ -78,8 +83,13 @@ class ButtonHelper extends AbstractComponentHelper
     {
         $options += ['type' => 'button'];
         $options = $this->collapseOptions($text, $options);
-        $content = $this->content($text, $options);
-        $attributes = $this->rootAttributes('btn', $options, ['icon', 'iconPosition', 'iconOptions', 'collapse']);
+        $content = $this->content($text, $options) . $this->indicator($options);
+        $options = $this->indicatorClass($options);
+        $attributes = $this->rootAttributes(
+            'btn',
+            $options,
+            ['icon', 'iconPosition', 'iconOptions', 'collapse', 'indicator', 'indicatorLabel'],
+        );
 
         return $this->renderTemplate('button', $attributes, ['content' => $content], $options['templateVars'] ?? []);
     }
@@ -112,12 +122,13 @@ class ButtonHelper extends AbstractComponentHelper
     public function link(string $text, array|string|null $url = null, array $options = []): string
     {
         $options = $this->collapseOptions($text, $options);
-        $content = $this->content($text, $options);
+        $content = $this->content($text, $options) . $this->indicator($options);
+        $options = $this->indicatorClass($options);
         $href = $this->Url->build($url, ['fullBase' => (bool)($options['fullBase'] ?? false)]);
         $attributes = $this->rootAttributes(
             'btn',
             $options,
-            ['icon', 'iconPosition', 'iconOptions', 'fullBase', 'href', 'collapse'],
+            ['icon', 'iconPosition', 'iconOptions', 'fullBase', 'href', 'collapse', 'indicator', 'indicatorLabel'],
         );
 
         return $this->renderTemplate(
@@ -140,6 +151,10 @@ class ButtonHelper extends AbstractComponentHelper
      */
     public function icon(string $icon, string $label, array $options = []): string
     {
+        if ($this->hasIndicator($options)) {
+            // aria-label replaces the content as accessible name, so include the indicator text.
+            $label .= ', ' . $this->indicatorText($options);
+        }
         $options += ['size' => 'icon', 'aria-label' => $label, 'icon' => $icon];
         if (array_key_exists('url', $options)) {
             $url = $options['url'];
@@ -197,5 +212,75 @@ class ButtonHelper extends AbstractComponentHelper
         $options['title'] ??= $options['escape'] ?? true ? $text : strip_tags($text);
 
         return $options;
+    }
+
+    /**
+     * Adds the `relative` class when an indicator is requested.
+     *
+     * @param array<string, mixed> $options Options.
+     * @return array<string, mixed>
+     */
+    protected function indicatorClass(array $options): array
+    {
+        if ($this->hasIndicator($options)) {
+            $options['class'] = $this->mergeClasses('relative', $options['class'] ?? null);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string, mixed> $options Options.
+     * @return bool
+     */
+    protected function hasIndicator(array $options): bool
+    {
+        $indicator = $options['indicator'] ?? false;
+
+        return $indicator !== false && $indicator !== null && $indicator !== '';
+    }
+
+    /**
+     * Builds the indicator (dot or count badge) plus its screen reader label.
+     *
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    protected function indicator(array $options): string
+    {
+        if (!$this->hasIndicator($options)) {
+            return '';
+        }
+        $indicator = $options['indicator'];
+        $label = $this->indicatorText($options);
+        if ($indicator === true) {
+            $visual = sprintf('<span class="%s" aria-hidden="true"></span>', h((string)$this->getConfig('classes.indicatorDot')));
+        } else {
+            $count = (string)$indicator;
+            $visual = sprintf(
+                '<span class="%s" aria-hidden="true">%s</span>',
+                h((string)$this->getConfig('classes.indicatorCount')),
+                h($count),
+            );
+        }
+
+        return $visual . '<span class="sr-only">' . h($label) . '</span>';
+    }
+
+    /**
+     * Screen reader text of the indicator.
+     *
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    protected function indicatorText(array $options): string
+    {
+        if (isset($options['indicatorLabel'])) {
+            return (string)$options['indicatorLabel'];
+        }
+
+        return $options['indicator'] === true
+            ? __d('basecoat_theme', 'New')
+            : __d('basecoat_theme', '{0} new', (string)$options['indicator']);
     }
 }
