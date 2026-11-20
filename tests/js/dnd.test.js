@@ -69,3 +69,27 @@ test('overlaps and collisions', () => {
   assert.equal(dnd.overlaps({ row: 0, col: 1, span: 2 }, { row: 0, col: 2, span: 1 }, 'col'), true);
   assert.deepEqual(dnd.collisions(a, [{ row: 0, col: 1, span: 2 }, { row: 1, col: 1, span: 2 }, { row: 3, col: 0, span: 1 }]), [1]);
 });
+
+test('resolveEndpoint keeps same-origin http(s) URLs only', () => {
+  const origin = 'https://app.test';
+  const base = 'https://app.test/admin/boards/view/3';
+  assert.equal(dnd.resolveEndpoint('/boards/move', base, origin), 'https://app.test/boards/move');
+  assert.equal(dnd.resolveEndpoint('move', base, origin), 'https://app.test/admin/boards/view/move', 'relative to baseURI');
+  assert.equal(dnd.resolveEndpoint('https://app.test/x', base, origin), 'https://app.test/x');
+  assert.equal(dnd.resolveEndpoint('https://evil.test/x', base, origin), null);
+  assert.equal(dnd.resolveEndpoint('//evil.test/x', base, origin), null, 'protocol-relative');
+  assert.equal(dnd.resolveEndpoint('http://app.test/x', base, origin), null, 'other scheme = other origin');
+  assert.equal(dnd.resolveEndpoint('javascript:alert(1)', base, origin), null);
+  assert.equal(dnd.resolveEndpoint('', base, origin), null);
+  assert.equal(dnd.resolveEndpoint(null, base, origin), null);
+});
+
+test('edgeSpeed scrolls only near the edges, faster closer to them', () => {
+  assert.equal(dnd.edgeSpeed(200, 0, 400), 0);
+  assert.ok(dnd.edgeSpeed(30, 0, 400) < 0);
+  assert.ok(dnd.edgeSpeed(390, 0, 400) > 0);
+  assert.ok(dnd.edgeSpeed(5, 0, 400) < dnd.edgeSpeed(30, 0, 400), 'closer = faster');
+  assert.equal(dnd.edgeSpeed(-100, 0, 400), -20, 'capped outside the box');
+  assert.equal(dnd.edgeSpeed(900, 0, 400, 40, 15), 15);
+  assert.equal(dnd.edgeSpeed(10, 0, 0), 0, 'empty box');
+});

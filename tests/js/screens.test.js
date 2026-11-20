@@ -49,3 +49,11 @@ test('format and clamp', () => {
   assert.equal(screens.format('{visible} of {total} shown.', { visible: 2, total: 5 }), '2 of 5 shown.');
   assert.equal(screens.clamp(9, 0, 3), 3);
 });
+
+test('resolveEndpoint refuses cross-origin and non-http endpoints', () => {
+  const origin = 'http://localhost:8765';
+  assert.equal(screens.resolveEndpoint('/todos/toggle', 'http://localhost:8765/todos', origin), 'http://localhost:8765/todos/toggle');
+  assert.equal(screens.resolveEndpoint('https://other.test/toggle', 'http://localhost:8765/', origin), null);
+  assert.equal(screens.resolveEndpoint('data:text/plain,x', 'http://localhost:8765/', origin), null);
+  assert.equal(screens.resolveEndpoint('http://[bad', 'http://localhost:8765/', origin), null, 'invalid URL');
+});

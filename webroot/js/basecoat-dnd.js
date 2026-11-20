@@ -12,9 +12,10 @@
  *     data-dnd-group="name"       containers sharing a group accept each other's items
  *     data-dnd-axis="y|x"         list direction (default y): arrows along it reorder, the other arrows
  *                                 move to the previous/next container of the group (document order)
- *     data-dnd-id / id            id sent in events and POSTs;  data-dnd-label: name announced
+ *     data-dnd-id / data-id / id  id sent in events and POSTs (first present wins; data-id is the
+ *                                 name basecoat-screens.js uses);  data-dnd-label: name announced
  *   [data-dnd-item]               draggable (put it on the element that must move, e.g. the <li>)
- *     data-dnd-id / id, data-dnd-label (default: its text)
+ *     data-dnd-id / data-id / id, data-dnd-label (default: its text)
  *     [data-dnd-handle]           optional descendant: only the handle starts a drag and takes focus
  *
  * GRID MODE (bookings, schedules: items placed in a CSS grid by classes)
@@ -31,10 +32,13 @@
  *   Overlapping items are allowed: they get [data-dnd-collision] and the overlap is announced.
  *
  * KEYBOARD: focus an item (or its handle; items get tabindex="0" when needed) -> Space or Enter picks it
- *   up (Space only when the item is a link) -> arrows move (lists: Home/End too) -> Space/Enter drops,
- *   Escape (or leaving the item with Tab) cancels. Grids: Shift + arrows along the resize axis change
+ *   up (Space only when the item is a link) -> arrows move (lists: Home/End too) -> Space/Enter drops
+ *   (Enter never follows a link while dragging), Escape (or leaving the item with Tab) cancels. Grids: Shift + arrows along the resize axis change
  *   the span, also without picking the item up. Focus stays on the item.
- * POINTER: mouse/pen drag after 4px; touch after a 250ms press (so the page still scrolls).
+ * POINTER: mouse, pen, and touch on a [data-dnd-handle] / [data-dnd-resize] drag after 4px; touch elsewhere
+ *   after a 250ms press (so the page still scrolls). The item holds the pointer capture. Near (40px) the
+ *   edge of a scrollable ancestor or of the window the page auto-scrolls. Escape or leaving the window
+ *   cancels a pointer drag (the item goes back, the click is swallowed).
  * ANNOUNCER: one shared [data-basecoat-announcer] aria-live="polite" region (created when missing).
  *   Messages are translatable: data-dnd-i18n-<key>="…" on the container or any ancestor, or a JSON block
  *   <script type="application/json" data-dnd-i18n>{"<key>": "…"}</script>. Keys and placeholders: see
@@ -44,8 +48,11 @@
  *   basecoat:move   list: {mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}
  *                   grid: {mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}
  *   basecoat:resize grid: same detail as a grid move (span changed)
- *   basecoat:move-error after a failed POST (detail of the move + {status}); the change was reverted.
- * ENDPOINT: data-endpoint="/url" on the container or an ancestor: the change is POSTed as JSON
+ *   basecoat:move-error after a failed or refused POST (detail of the move + {status, reason:
+ *                   'response'|'origin'}); the change was reverted.
+ * ENDPOINT: data-endpoint="/url" on the container or an ancestor (resolved against document.baseURI;
+ *   only same-origin http(s) URLs are used: anything else is refused with console.error, the change is
+ *   reverted and basecoat:move-error fires with reason 'origin'): the change is POSTed as JSON
  *   (list: {action: 'move', id, from, to, index, fromIndex}; grid: {action: 'move'|'resize', id, grid,
  *   row, col, span}) with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken">, or the
  *   page's input[name=_csrfToken]). Non-2xx or network error -> revert + "failed" announcement.
@@ -113,7 +120,26 @@
     return found;
   }, []);
 
-  const pure = { clamp, insertionIndex, format, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions };
+  /** Absolute URL of a data-endpoint when it is same-origin, else null (invalid, cross-origin, javascript:…). */
+  const resolveEndpoint = (url, base, origin) => {
+    if (!url) return null;
+    try {
+      const resolved = new URL(url, base);
+      return resolved.origin === origin && /^https?:$/.test(resolved.protocol) ? resolved.href : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  /** Auto-scroll step (px per frame) for a pointer at `pos` in [start, end]: <0 near start, >0 near end, else 0. */
+  const edgeSpeed = (pos, start, end, zone = 40, max = 20) => {
+    if (end - start <= 0) return 0;
+    if (pos < start + zone) return -Math.ceil(max * Math.min(1, (start + zone - pos) / zone));
+    if (pos > end - zone) return Math.ceil(max * Math.min(1, (pos - (end - zone)) / zone));
+    return 0;
+  };
+
+  const pure = { clamp, insertionIndex, format, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   // Loaded twice? Keep the first instance (delegated listeners registered once).
@@ -160,9 +186,9 @@
   };
 
   let announceTimer = null;
-  const announce = (text) => {
+  const liveRegion = () => {
     let region = document.querySelector('[data-basecoat-announcer]');
-    if (!region) {
+    if (!region && document.body) {
       region = document.createElement('div');
       region.setAttribute('data-basecoat-announcer', '');
       region.setAttribute('aria-live', 'polite');
@@ -170,6 +196,11 @@
       region.className = 'sr-only';
       document.body.appendChild(region);
     }
+    return region;
+  };
+  const announce = (text) => {
+    const region = liveRegion();
+    if (!region) return;
     region.textContent = '';
     clearTimeout(announceTimer);
     // A short delay so the same text is announced again.
@@ -184,7 +215,7 @@
   const itemsOf = (container) => Array.from(container.querySelectorAll('[data-dnd-item]'))
     .filter((item) => containerOf(item) === container);
   const isGrid = (container) => container.hasAttribute('data-dnd-grid');
-  const idOf = (el) => (el ? el.getAttribute('data-dnd-id') || el.id || null : null);
+  const idOf = (el) => (el ? el.getAttribute('data-dnd-id') || el.getAttribute('data-id') || el.id || null : null);
   const labelOf = (el) => {
     const explicit = el.getAttribute('data-dnd-label') || el.getAttribute('aria-label');
     if (explicit) return explicit;
@@ -321,6 +352,8 @@
   let drag = null;
   let pending = null;
   let suppressClick = false;
+  let suppressPointer = null; // pointer whose drag was cancelled (Escape): swallow its click
+  let scrollFrame = null;
 
   const snapshot = (item) => {
     const container = containerOf(item);
@@ -348,6 +381,17 @@
 
   const finish = () => {
     if (!drag) return;
+    if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    scrollFrame = null;
+    if (drag.kind === 'pointer') {
+      const { item, pointerId } = drag;
+      drag = null; // before releasing, so lostpointercapture does not re-capture
+      try { if (item.hasPointerCapture(pointerId)) item.releasePointerCapture(pointerId); } catch (e) { /* pointer gone */ }
+      item.removeAttribute('data-dnd-dragging');
+      document.documentElement.removeAttribute('data-dnd-active');
+      setOver(null);
+      return;
+    }
     drag.item.removeAttribute('data-dnd-dragging');
     document.documentElement.removeAttribute('data-dnd-active');
     setOver(null);
@@ -355,20 +399,21 @@
   };
 
   const revert = (item, before) => {
+    const hadFocus = item.contains(document.activeElement);
     if (isGrid(before.container)) {
       applyPlacement(item, before.container, before.placement);
       markCollisions(before.container, item);
     } else {
       placeAt(before.container, item, before.index);
     }
+    if (hadFocus) refocus(item);
   };
 
   const cancel = () => {
     if (!drag) return;
     const { item, before } = drag;
-    const hadFocus = item.contains(document.activeElement);
+    if (drag.kind === 'pointer') suppressPointer = drag.pointerId;
     revert(item, before);
-    if (hadFocus) refocus(item);
     finish();
     if (isGrid(before.container)) announce(t(before.container, 'grid-cancelled', gridVars(item, before.container)));
     else announce(t(before.container, 'cancelled', listVars(item)));
@@ -404,14 +449,22 @@
       return 'reverted';
     }
     if (endpointHolder) {
-      const url = endpointHolder.getAttribute('data-endpoint');
+      const raw = endpointHolder.getAttribute('data-endpoint');
+      const fail = (status, reason) => {
+        revert(item, before);
+        announce(t(container, 'failed', { label: labelOf(item) }));
+        item.dispatchEvent(new CustomEvent('basecoat:move-error', { bubbles: true, detail: Object.assign({}, detail, { status, reason }) }));
+      };
+      const url = resolveEndpoint(raw, document.baseURI, window.location.origin);
+      if (!url) {
+        console.error('[BasecoatDnd] data-endpoint must be a same-origin http(s) URL; change reverted:', raw);
+        fail(0, 'origin');
+        return 'failed';
+      }
       item.setAttribute('data-dnd-busy', '');
       post(url, payload, container).then((result) => {
         item.removeAttribute('data-dnd-busy');
-        if (result.ok) return;
-        revert(item, before);
-        announce(t(container, 'failed', { label: labelOf(item) }));
-        item.dispatchEvent(new CustomEvent('basecoat:move-error', { bubbles: true, detail: Object.assign({}, detail, { status: result.status }) }));
+        if (!result.ok) fail(result.status, 'response');
       });
     }
     return 'committed';
@@ -423,6 +476,7 @@
     finish();
     const result = commit(item, before);
     const container = containerOf(item);
+    if (result === 'failed') return; // already reverted and announced
     if (result === 'reverted') {
       if (isGrid(container)) announce(t(container, 'grid-cancelled', gridVars(item, container)));
       else announce(t(container, 'cancelled', listVars(item)));
@@ -467,8 +521,15 @@
     return best ? { row: parseInt(best.getAttribute('data-dnd-row'), 10) || 0, col: parseInt(best.getAttribute('data-dnd-col'), 10) || 0 } : null;
   };
 
+  const capture = () => {
+    if (!drag || drag.kind !== 'pointer' || !drag.item.isConnected) return;
+    try { drag.item.setPointerCapture(drag.pointerId); } catch (e) { /* pointer no longer active */ }
+  };
+
   const pointerUpdate = (x, y) => {
     const { item } = drag;
+    drag.x = x;
+    drag.y = y;
     if (drag.grid) {
       const slot = slotAt(drag.grid, x, y);
       if (!slot) return;
@@ -499,7 +560,48 @@
     });
     const index = insertionIndex(mids, vertical ? y : x);
     const current = itemsOf(container).indexOf(item);
-    if (containerOf(item) !== container || current !== index) placeAt(container, item, index);
+    if (containerOf(item) !== container || current !== index) {
+      placeAt(container, item, index);
+      capture(); // moving the node in the DOM drops the pointer capture
+    }
+  };
+
+  // Auto-scroll: pointer within 40px of the edge of a scrollable ancestor of the item, or of the window.
+  const ZONE = 40;
+  const scrollable = (el) => {
+    const style = window.getComputedStyle(el);
+    return (/(auto|scroll|overlay)/.test(style.overflowY) && el.scrollHeight > el.clientHeight)
+      || (/(auto|scroll|overlay)/.test(style.overflowX) && el.scrollWidth > el.clientWidth);
+  };
+  const autoScroll = () => {
+    scrollFrame = null;
+    if (!drag || drag.kind !== 'pointer') return;
+    if (drag.x !== undefined) {
+      const { x, y } = drag;
+      let moved = false;
+      for (let el = drag.item.parentElement; el && el !== document.body && el !== document.documentElement && !moved; el = el.parentElement) {
+        if (!scrollable(el)) continue;
+        const r = el.getBoundingClientRect();
+        if (x < r.left - ZONE || x > r.right + ZONE || y < r.top - ZONE || y > r.bottom + ZONE) continue;
+        const left = el.scrollLeft;
+        const top = el.scrollTop;
+        el.scrollLeft += el.scrollWidth > el.clientWidth ? edgeSpeed(x, r.left, r.right, ZONE) : 0;
+        el.scrollTop += el.scrollHeight > el.clientHeight ? edgeSpeed(y, r.top, r.bottom, ZONE) : 0;
+        moved = el.scrollLeft !== left || el.scrollTop !== top;
+      }
+      if (!moved) {
+        const dx = edgeSpeed(x, 0, window.innerWidth, ZONE);
+        const dy = edgeSpeed(y, 0, window.innerHeight, ZONE);
+        if (dx || dy) {
+          const sx = window.scrollX;
+          const sy = window.scrollY;
+          window.scrollBy(dx, dy);
+          moved = window.scrollX !== sx || window.scrollY !== sy;
+        }
+      }
+      if (moved) pointerUpdate(x, y);
+    }
+    if (drag && drag.kind === 'pointer') scrollFrame = requestAnimationFrame(autoScroll);
   };
 
   const startPointerDrag = () => {
@@ -514,6 +616,8 @@
       extra.offset = slot && !p.resize ? { row: slot.row - now.row, col: slot.col - now.col } : { row: 0, col: 0 };
     }
     begin(p.item, 'pointer', extra);
+    capture();
+    scrollFrame = requestAnimationFrame(autoScroll);
   };
 
   const clearPending = () => {
@@ -534,8 +638,10 @@
       const interactive = event.target.closest(INTERACTIVE);
       if (!handle && interactive && interactive !== item && item.contains(interactive)) return;
     }
-    pending = { item, pointerId: event.pointerId, pointerType: event.pointerType, x: event.clientX, y: event.clientY, resize: !!resizeHandle, timer: null };
-    if (event.pointerType === 'touch') {
+    // Mouse, pen and touch on a handle start after 4px; touch elsewhere needs a 250ms press (page scroll).
+    const immediate = event.pointerType !== 'touch' || !!resizeHandle || !!handle;
+    pending = { item, pointerId: event.pointerId, pointerType: event.pointerType, x: event.clientX, y: event.clientY, resize: !!resizeHandle, immediate, timer: null };
+    if (!immediate) {
       pending.timer = setTimeout(() => { if (pending && pending.item === item) startPointerDrag(); }, 250);
     }
   });
@@ -543,7 +649,7 @@
   document.addEventListener('pointermove', (event) => {
     if (pending && event.pointerId === pending.pointerId) {
       const distance = Math.hypot(event.clientX - pending.x, event.clientY - pending.y);
-      if (pending.pointerType === 'touch') {
+      if (!pending.immediate) {
         if (distance > 8) clearPending(); // the user is scrolling
         return;
       }
@@ -556,11 +662,19 @@
     }
   });
 
+  const swallowClick = () => {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 0);
+  };
+
   document.addEventListener('pointerup', (event) => {
     if (pending && event.pointerId === pending.pointerId) clearPending();
+    if (suppressPointer !== null && event.pointerId === suppressPointer) {
+      suppressPointer = null;
+      swallowClick();
+    }
     if (drag && drag.kind === 'pointer' && event.pointerId === drag.pointerId) {
-      suppressClick = true;
-      setTimeout(() => { suppressClick = false; }, 0);
+      swallowClick();
       drop();
     }
   });
@@ -568,15 +682,29 @@
   document.addEventListener('pointercancel', (event) => {
     if (pending && event.pointerId === pending.pointerId) clearPending();
     if (drag && drag.kind === 'pointer' && event.pointerId === drag.pointerId) cancel();
+    if (suppressPointer === event.pointerId) suppressPointer = null;
+  });
+
+  // Capture lost (the node moved, or the browser took it): take it back while the drag lasts.
+  document.addEventListener('lostpointercapture', (event) => {
+    if (drag && drag.kind === 'pointer' && event.pointerId === drag.pointerId && event.target === drag.item) {
+      Promise.resolve().then(capture);
+    }
+  });
+
+  // Leaving the window (Alt+Tab, another app) cancels a drag.
+  window.addEventListener('blur', () => {
+    clearPending();
+    if (drag) cancel();
   });
 
   // Touch: once a drag started, keep the page from scrolling.
   document.addEventListener('touchmove', (event) => {
-    if (drag && drag.kind === 'pointer') event.preventDefault();
+    if ((drag && drag.kind === 'pointer') || (pending && pending.immediate && pending.pointerType === 'touch')) event.preventDefault();
   }, { passive: false });
 
   // No text selection, native link/image drag or click at the end of a pointer drag.
-  document.addEventListener('selectstart', (event) => { if (drag || (pending && pending.pointerType !== 'touch')) event.preventDefault(); });
+  document.addEventListener('selectstart', (event) => { if (drag || (pending && pending.immediate)) event.preventDefault(); });
   document.addEventListener('dragstart', (event) => {
     if (event.target instanceof Element && event.target.closest('[data-dnd-item]')) event.preventDefault();
   });
@@ -586,7 +714,9 @@
     event.preventDefault();
     event.stopPropagation();
   }, true);
-  document.addEventListener('contextmenu', (event) => { if (pending && pending.pointerType === 'touch') event.preventDefault(); });
+  document.addEventListener('contextmenu', (event) => {
+    if ((pending && pending.pointerType === 'touch') || (drag && drag.kind === 'pointer')) event.preventDefault();
+  });
 
   // ---------------------------------------------------------------- keyboard
   const keyboardListMove = (key) => {
@@ -639,6 +769,14 @@
   };
 
   document.addEventListener('keydown', (event) => {
+    // Escape cancels a pointer drag wherever the focus is.
+    if (drag && drag.kind === 'pointer') {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+      return;
+    }
     if (!(event.target instanceof Element) || event.altKey || event.ctrlKey || event.metaKey) return;
     const item = event.target.closest('[data-dnd-item]');
     if (!item || event.target !== focusTarget(item)) return;
@@ -648,7 +786,8 @@
     const pickKey = key === ' ' || key === 'Spacebar' || (key === 'Enter' && !event.target.matches('a[href]'));
 
     if (drag && drag.item === item && drag.kind === 'keyboard') {
-      if (pickKey) { event.preventDefault(); drop(); return; }
+      // Enter drops, also on a link item (no navigation while dragging).
+      if (pickKey || key === 'Enter') { event.preventDefault(); drop(); return; }
       if (key === 'Escape') { event.preventDefault(); cancel(); return; }
       const handled = isGrid(container) ? keyboardGridMove(key, event.shiftKey) : keyboardListMove(key);
       if (handled || key.startsWith('Arrow')) event.preventDefault();
@@ -669,7 +808,7 @@
         drag = { item, kind: 'keyboard', source: container, before };
         keyboardGridMove(key, true);
         drag = null;
-        commit(item, before);
+        if (commit(item, before) === 'reverted') announce(t(container, 'grid-cancelled', gridVars(item, container)));
       }
     }
   });
@@ -684,9 +823,11 @@
 
   // ---------------------------------------------------------------- init / cleanup
   const helpIds = new Map();
+  let helpCounter = 0;
   const helpId = (text) => {
     if (helpIds.has(text) && document.getElementById(helpIds.get(text))) return helpIds.get(text);
-    const id = `basecoat-dnd-help-${helpIds.size + 1}`;
+    let id;
+    do { helpCounter += 1; id = `basecoat-dnd-help-${helpCounter}`; } while (document.getElementById(id));
     const p = document.createElement('p');
     p.id = id;
     p.hidden = true;
@@ -711,24 +852,23 @@
         item.setAttribute('data-dnd-ready', '');
         const target = focusTarget(item);
         if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '0');
-        if (!target.hasAttribute('aria-describedby')) target.setAttribute('aria-describedby', help);
+        const described = (target.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (!described.includes(help)) target.setAttribute('aria-describedby', described.concat(help).join(' '));
       });
       if (grid) markCollisions(container, null);
     });
   };
 
-  const boot = () => init(document);
+  const boot = () => {
+    liveRegion(); // present before the first announcement, so screen readers pick it up
+    init(document);
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
   document.addEventListener('htmx:load', (event) => init(event.target));
   document.addEventListener('htmx:afterSwap', (event) => init(event.target));
   document.addEventListener('htmx:beforeCleanupElement', (event) => {
-    if (drag && event.target instanceof Element && event.target.contains(drag.item)) {
-      drag.item.removeAttribute('data-dnd-dragging');
-      document.documentElement.removeAttribute('data-dnd-active');
-      setOver(null);
-      drag = null;
-    }
+    if (drag && event.target instanceof Element && event.target.contains(drag.item)) finish();
     if (pending && event.target instanceof Element && event.target.contains(pending.item)) clearPending();
   });
 

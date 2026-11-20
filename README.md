@@ -738,14 +738,17 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
 | --- | --- | --- |
 | `basecoat:move` (cancelable) | item | list: `{mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}`; grid: `{mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}` |
 | `basecoat:resize` (cancelable) | grid item | same as a grid move |
-| `basecoat:move-error` | item | move detail + `status` (POST failed, change reverted) |
+| `basecoat:move-error` | item | move detail + `status`, `reason` (`'response'` or `'origin'`: POST failed or refused, change reverted) |
 | `basecoat:filter` | filter root | `{query, facet, visible, total}` |
 | `basecoat:view` | view root | `{view}` |
 | `basecoat:select` | scope | `{selected: [values], count}` |
 | `basecoat:toggle` (cancelable) | item | `{item, id, name, on}` |
+| `basecoat:toggle-error` | item | toggle detail + `status`, `reason` (reverted) |
 | `basecoat:remove` (cancelable) | item | `{item, id, action}` |
+| `basecoat:remove-error` | item | remove detail + `status`, `reason` (item put back) |
 | `basecoat:open` (cancelable) | master item | `{item, id, detail}` |
 | `basecoat:send` (cancelable) | composer form | `{text, log, message}` |
+| `basecoat:send-error` | composer form | send detail + `status`, `reason` (bubble gets `data-state="failed"`) |
 | `basecoat:step` (cancelable) | stepper | `{from, to, total}` |
 
 ### Keyboard model
@@ -755,10 +758,16 @@ Focus an item (or its handle; items without one get `tabindex="0"` and an `aria-
 along the axis reorder, across it go to the previous / next container of the group; **Home** / **End**)
 → **Space** / **Enter** drops, **Escape** (or Tab away) cancels. Grids: arrows move by one slot;
 **Shift + arrows** along the resize axis change the span, also without picking up. Focus stays on the
-moved item. Pointer: mouse / pen drag after 4px; touch after a 250ms press (the page still scrolls;
-handles with `touch-action: none` in `interactivity.css` drag at once). Every step is announced in one
+moved item; Enter never follows a link item while dragging. Pointer: mouse, pen, and touch on a
+`[data-dnd-handle]` / `[data-dnd-resize]` drag after 4px; touch elsewhere after a 250ms press (so the page
+still scrolls; give touch screens a handle). The item holds the pointer capture. Near (40px) the edge of a
+scrollable ancestor or of the window the view auto-scrolls. **Escape** or leaving the window cancels a
+pointer drag too. Every step is announced in one
 shared `aria-live="polite"` region (`[data-basecoat-announcer]`). `prefers-reduced-motion` turns off
 smooth scrolling, transitions and the composer reply delay.
+
+**Ids:** the `id` in events and POSTs is `data-id`, else `data-dnd-id`, else the element `id` — the same
+lookup in both scripts, so one `data-id` serves a card that is both draggable and toggleable.
 
 **Translations:** messages come from `data-dnd-i18n-<key>` / `data-screens-i18n-<key>` attributes on the
 element or an ancestor, or from a JSON block
@@ -776,8 +785,11 @@ ancestor to also POST each change as JSON — `{action: 'move', id, from, to, in
 `{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}`,
 `{action: 'archive', id}`, `{action: 'send', text}` — with `X-CSRF-Token` taken from `data-csrf-token` on
 an ancestor, `<meta name="csrfToken">` or the page's `input[name=_csrfToken]` (CakePHP's
-`CsrfProtectionMiddleware` reads the header). A non-2xx answer or a network error reverts the change and
-announces it. In the controller: `$this->request->allowMethod('post'); $data = $this->request->getData();`
+`CsrfProtectionMiddleware` reads the header). The endpoint is resolved against `document.baseURI` and
+must be a **same-origin** `http(s)` URL: anything else (another host, `//host`, `javascript:`) is refused
+with a `console.error`, so the CSRF token never leaves the site. A refused endpoint, a non-2xx answer or a
+network error reverts the change, announces it and fires the matching `*-error` event. While a toggle is
+being saved its item has `data-busy` / `aria-busy` and ignores further toggles. In the controller: `$this->request->allowMethod('post'); $data = $this->request->getData();`
 (JSON bodies are parsed by `BodyParserMiddleware`).
 
 ### CSP

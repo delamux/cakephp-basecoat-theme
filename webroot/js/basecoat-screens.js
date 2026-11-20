@@ -24,7 +24,9 @@
  *          [data-bulk-clear]. Select-all only affects visible items; indeterminate when some are checked.
  *          The row (closest tr or [data-select-row]) gets data-selected. Event basecoat:select on scope
  *          {selected: [values], count}.
- * TOGGLE   [data-toggle="name"] checkbox or button inside [data-toggle-item] (data-id = id):
+ * IDS      the id sent in events/POSTs is data-id, else data-dnd-id, else the element id (same lookup as
+ *          basecoat-dnd.js, so one data-id serves both libraries).
+ * TOGGLE   [data-toggle="name"] checkbox or button inside [data-toggle-item] (data-id):
  *          on -> item[data-state]="name" (or data-toggle-attr="data-starred": attribute set to "true"),
  *          off -> data-toggle-off value or attribute removed. Checkbox: on = checked. Button with
  *          aria-pressed: flips; other buttons set "on" (Mark as read, Accept). data-toggle-class on the
@@ -57,7 +59,12 @@
  * ENDPOINT data-endpoint="/url" on the item / form / list or an ancestor: toggles, removals and sends are
  *          POSTed as JSON ({action: 'toggle', id, name, on} | {action, id} | {action: 'send', text})
  *          with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken"> or
- *          input[name=_csrfToken]); on failure the change is reverted and announced.
+ *          input[name=_csrfToken]). The URL is resolved against document.baseURI and must be same-origin
+ *          http(s), otherwise it is refused (console.error). On failure or refusal the change is reverted
+ *          (sends: the bubble gets data-state="failed"), announced, and basecoat:toggle-error /
+ *          basecoat:remove-error / basecoat:send-error fire with the event detail + {status, reason:
+ *          'response'|'origin'}. While a toggle POST is pending the item has data-busy + aria-busy and
+ *          ignores further toggles and removals.
  * ANNOUNCER shared [data-basecoat-announcer] aria-live region (also used by basecoat-dnd.js). Messages:
  *          data-screens-i18n-<key> on the element or an ancestor, or
  *          <script type="application/json" data-screens-i18n>{…}</script>; keys in MESSAGES below.
@@ -104,7 +111,18 @@
     return next;
   };
 
-  const pure = { normalize, matchesQuery, matchesFacet, tokensOf, selectAllState, stepStates, clamp, format, swapClasses };
+  /** Absolute URL of a data-endpoint when it is same-origin http(s), else null. */
+  const resolveEndpoint = (url, base, origin) => {
+    if (!url) return null;
+    try {
+      const resolved = new URL(url, base);
+      return resolved.origin === origin && /^https?:$/.test(resolved.protocol) ? resolved.href : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const pure = { normalize, matchesQuery, matchesFacet, tokensOf, selectAllState, stepStates, clamp, format, swapClasses, resolveEndpoint };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.BasecoatScreens) return;
@@ -141,13 +159,9 @@
   };
 
   let announceTimer = null;
-  const announce = (text) => {
-    if (window.BasecoatDnd && typeof window.BasecoatDnd.announce === 'function') {
-      window.BasecoatDnd.announce(text);
-      return;
-    }
+  const liveRegion = () => {
     let region = document.querySelector('[data-basecoat-announcer]');
-    if (!region) {
+    if (!region && document.body) {
       region = document.createElement('div');
       region.setAttribute('data-basecoat-announcer', '');
       region.setAttribute('aria-live', 'polite');
@@ -155,6 +169,15 @@
       region.className = 'sr-only';
       document.body.appendChild(region);
     }
+    return region;
+  };
+  const announce = (text) => {
+    if (window.BasecoatDnd && typeof window.BasecoatDnd.announce === 'function') {
+      window.BasecoatDnd.announce(text);
+      return;
+    }
+    const region = liveRegion();
+    if (!region) return;
     region.textContent = '';
     clearTimeout(announceTimer);
     announceTimer = setTimeout(() => { region.textContent = text; }, 50);
@@ -166,7 +189,8 @@
     try { return document.querySelector(selector); } catch (e) { return null; }
   };
   const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const idOf = (el) => (el ? el.getAttribute('data-id') || el.id || null : null);
+  // Same id lookup as basecoat-dnd.js, so one attribute serves both libraries.
+  const idOf = (el) => (el ? el.getAttribute('data-id') || el.getAttribute('data-dnd-id') || el.id || null : null);
   const labelOf = (el) => el.getAttribute('data-label') || el.getAttribute('aria-label') || (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
   const isVisible = (el) => !el.closest('[hidden]');
   const dispatch = (el, name, detail, cancelable = true) => el.dispatchEvent(new CustomEvent(name, { bubbles: true, cancelable, detail }));
@@ -189,17 +213,26 @@
     const input = document.querySelector('input[name="_csrfToken"]');
     return input ? input.value : '';
   };
-  const endpointOf = (el) => {
-    const holder = el.closest('[data-endpoint]');
-    return holder ? holder.getAttribute('data-endpoint') : null;
-  };
-  const post = (url, payload, el) => {
+  /**
+   * POSTs `payload` to the data-endpoint of `el` (or an ancestor). Returns null without an endpoint, else
+   * a promise of {ok, status, reason: 'response'|'origin'}; cross-origin endpoints are refused.
+   */
+  const request = (el, payload) => {
+    const holder = el && el.closest('[data-endpoint]');
+    if (!holder) return null;
+    const raw = holder.getAttribute('data-endpoint');
+    const url = resolveEndpoint(raw, document.baseURI, window.location.origin);
+    if (!url) {
+      console.error('[BasecoatScreens] data-endpoint must be a same-origin http(s) URL; change reverted:', raw);
+      return Promise.resolve({ ok: false, status: 0, reason: 'origin' });
+    }
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
     const token = csrfToken(el);
     if (token) headers['X-CSRF-Token'] = token;
     return fetch(url, { method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(payload) })
-      .then((response) => response.ok, () => false);
+      .then((response) => ({ ok: response.ok, status: response.status, reason: 'response' }), () => ({ ok: false, status: 0, reason: 'response' }));
   };
+  const failEvent = (el, name, detail, result) => dispatch(el, name, Object.assign({}, detail, { status: result.status, reason: result.reason }), false);
 
   // ---------------------------------------------------------------- counts
   let countsQueued = false;
@@ -379,6 +412,11 @@
 
   const setToggle = (item, control, name, on) => {
     const attr = control.getAttribute('data-toggle-attr') || 'data-state';
+    // A POST for this item is pending: ignore the change (and undo the checkbox the user just flipped).
+    if (item.hasAttribute('data-busy')) {
+      writeToggle(item, control, name, readToggle(item, name, attr));
+      return;
+    }
     const before = item.getAttribute(attr);
     const wasOn = readToggle(item, name, attr);
     if (wasOn === on) {
@@ -399,19 +437,24 @@
     }
     applyAllFilters();
     queueCounts();
-    const url = endpointOf(item);
-    if (url) {
-      post(url, { action: 'toggle', id: detail.id, name, on }, item).then((ok) => {
-        if (ok) return;
+    const pending = request(item, { action: 'toggle', id: detail.id, name, on });
+    if (pending) {
+      item.setAttribute('data-busy', '');
+      item.setAttribute('aria-busy', 'true');
+      pending.then((result) => {
+        item.removeAttribute('data-busy');
+        item.removeAttribute('aria-busy');
+        if (result.ok) return;
         restore();
         announce(t(item, 'failed'));
+        failEvent(item, 'basecoat:toggle-error', detail, result);
       });
     }
   };
 
   const removeItem = (button) => {
     const item = button.closest('[data-toggle-item],[data-filter-item],[data-remove-target]');
-    if (!item) return;
+    if (!item || item.hasAttribute('data-busy')) return;
     const action = button.getAttribute('data-remove-item') || 'remove';
     const detail = { item, id: idOf(item), action };
     if (!dispatch(item, 'basecoat:remove', detail)) return;
@@ -420,21 +463,27 @@
     const label = labelOf(item);
     const focusNext = next || item.previousElementSibling;
     item.remove();
-    if (focusNext) {
-      const target = focusNext.matches('a[href],button,input,[tabindex]') ? focusNext : focusNext.querySelector('a[href],button,input,[tabindex]');
-      if (target) target.focus();
+    const focusable = 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]';
+    const target = focusNext && (focusNext.matches(focusable) ? focusNext : focusNext.querySelector(focusable));
+    if (target) {
+      target.focus();
+    } else if (parent) {
+      // Last item gone: keep the focus in the list instead of losing it to <body>.
+      if (!parent.hasAttribute('tabindex')) parent.setAttribute('tabindex', '-1');
+      parent.focus();
     }
     announce(t(button, 'removed', { label }));
     applyAllFilters();
     queueCounts();
-    const url = endpointOf(button);
-    if (url) {
-      post(url, { action, id: detail.id }, parent).then((ok) => {
-        if (ok) return;
+    const pending = request(parent, { action, id: detail.id });
+    if (pending) {
+      pending.then((result) => {
+        if (result.ok) return;
         parent.insertBefore(item, next && next.parentElement === parent ? next : null);
         announce(t(parent, 'failed'));
         applyAllFilters();
         queueCounts();
+        failEvent(item, 'basecoat:remove-error', detail, result);
       });
     }
   };
@@ -498,12 +547,13 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
     scrollLog(log, made.node);
-    const url = endpointOf(form);
-    if (url) {
-      post(url, { action: 'send', text }, form).then((ok) => {
-        if (ok) return;
+    const pending = request(form, { action: 'send', text });
+    if (pending) {
+      pending.then((result) => {
+        if (result.ok) return;
         if (made.node) made.node.setAttribute('data-state', 'failed');
         announce(t(form, 'send-failed'));
+        failEvent(form, 'basecoat:send-error', { text, log, message: made.node }, result);
       });
     }
     const replyId = form.getAttribute('data-composer-reply');
@@ -756,7 +806,10 @@
     refreshCounts();
   };
 
-  const boot = () => init(document);
+  const boot = () => {
+    liveRegion(); // present before the first announcement, so screen readers pick it up
+    init(document);
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
   document.addEventListener('htmx:load', (event) => init(event.target));

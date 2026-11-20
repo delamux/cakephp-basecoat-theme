@@ -32,6 +32,10 @@
 [data-dnd-resize] {
   cursor: ns-resize;
 }
+/* No iOS callout (link/image preview) on the long press that starts a touch drag. */
+[data-dnd-item] {
+  -webkit-touch-callout: none;
+}
 [data-dnd-grid][data-dnd-resize-axis="col"] [data-dnd-resize] {
   cursor: ew-resize;
 }
