@@ -341,6 +341,8 @@ echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['20
 
 // Filter bar above a table: a ListFilter (or its controls() array) plus actions
 echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
+// `hidden` keeps page context (folder, layout…) when filtering and in the "Clear" link
+echo $this->TableToolbar->render(['filter' => $controls, 'hidden' => ['path' => $path, 'view' => $view]]);
 
 // Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it; `hotkey` changes the key,
 // pass the same value to trigger() so the hint and aria-keyshortcuts match)

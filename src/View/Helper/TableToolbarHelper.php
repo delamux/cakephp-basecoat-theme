@@ -57,6 +57,8 @@ class TableToolbarHelper extends AbstractComponentHelper
      * - `url`: Form action (default current path).
      * - `submit`: Submit button text (default `Filter`).
      * - `htmx`: `false` or `['target' => 'results-id']`.
+     * - `hidden`: Extra hidden fields submitted with the filters (name => value), e.g. the current folder
+     *   or layout of the page; empty values are skipped. The "Clear" link keeps them too.
      * - `clear`: "Clear" link that resets the filters (keeping `sort` / `direction`). Default: shown for a
      *   `ListFilter` that is filtered, off for a controls array. `true` shows it (current URL), a string or
      *   array is the URL to link to (an existing query string is kept and merged), `false` hides it.
@@ -85,7 +87,11 @@ class TableToolbarHelper extends AbstractComponentHelper
             'url' => $url,
             'valueSources' => ['query'],
             'role' => 'search',
-        ] + $this->rootAttributes([], $options, ['filter', 'actions', 'url', 'submit', 'htmx', 'clear']);
+        ] + $this->rootAttributes([], $options, ['filter', 'actions', 'url', 'submit', 'htmx', 'clear', 'hidden']);
+        $hidden = array_filter(
+            array_map(fn(mixed $value): string => is_scalar($value) ? (string)$value : '', (array)($options['hidden'] ?? [])),
+            fn(string $value): bool => $value !== '',
+        );
         $htmx = $options['htmx'] ?? false;
         if (is_array($htmx) && !empty($htmx['target'])) {
             $target = '#' . ltrim((string)$htmx['target'], '#');
@@ -104,6 +110,9 @@ class TableToolbarHelper extends AbstractComponentHelper
             if (isset($query[$param]) && is_string($query[$param])) {
                 $out .= $this->Form->hidden($param, ['value' => $query[$param]]);
             }
+        }
+        foreach ($hidden as $name => $value) {
+            $out .= $this->Form->hidden((string)$name, ['value' => $value]);
         }
 
         foreach ($controls as $name => $control) {
@@ -141,7 +150,7 @@ class TableToolbarHelper extends AbstractComponentHelper
             $clear = $options['clear'] ?? ($filter instanceof ListFilter ? $filter->isFiltered() : false);
             $link = '';
             if ($clear !== false && $clear !== null) {
-                $link = '<a href="' . h($this->clearUrl($clear, $url, $query)) . '" class="btn" data-variant="ghost">'
+                $link = '<a href="' . h($this->clearUrl($clear, $url, $query, $hidden)) . '" class="btn" data-variant="ghost">'
                     . h(__d('basecoat_theme', 'Clear')) . '</a>';
             }
             $out .= '<div class="' . h((string)$this->getConfig('classes.buttons')) . '">'
@@ -163,11 +172,12 @@ class TableToolbarHelper extends AbstractComponentHelper
      * @param mixed $clear The `clear` option (`true`, URL string or URL array).
      * @param string $url Form action.
      * @param array<string, mixed> $query Current query string.
-     * @return string URL without the filters; `sort` / `direction` are kept.
+     * @param array<string, string> $hidden The `hidden` fields (kept).
+     * @return string URL without the filters; `sort` / `direction` and the hidden fields are kept.
      */
-    private function clearUrl(mixed $clear, string $url, array $query): string
+    private function clearUrl(mixed $clear, string $url, array $query, array $hidden = []): string
     {
-        $keep = array_intersect_key($query, array_flip(['sort', 'direction']));
+        $keep = array_intersect_key($query, array_flip(['sort', 'direction'])) + $hidden;
         if (is_array($clear)) {
             $clear['?'] = $keep + (array)($clear['?'] ?? []);
 
