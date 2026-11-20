@@ -650,11 +650,12 @@
    */
   const rescueFocus = (item) => {
     const active = document.activeElement;
-    if (active && active !== document.body && !active.closest('[hidden]')) return;
-    if (!item.isConnected) return;
+    if (active && active !== document.body && !active.closest('[hidden]')) return null;
+    if (!item.isConnected) return null;
     const sibling = visibleNeighbour(item);
     const target = (sibling && focusableIn(sibling)) || sibling || filterRootOf(item) || item.parentElement;
     if (target) focusElement(target);
+    return target;
   };
 
   /** Adapter of toggle `name` of `item` through `control` for toggleTransaction. */
@@ -701,6 +702,7 @@
       applyAllFilters();
       queueCounts();
     };
+    let rescued = null;
     const result = toggleTransaction({
       busy: () => item.hasAttribute('data-busy'),
       main: toggleChange(item, control, name, on),
@@ -713,12 +715,15 @@
         if (hadFocus) keepFocus(item, control, name);
         refresh();
         // ... and after the filters, which may hide the whole row (Status = Unread, then Mark as read)
-        if (hadFocus) rescueFocus(item);
+        if (hadFocus) rescued = rescueFocus(item);
       },
       send: (also) => request(endpoint, Object.assign({ action: 'toggle', id: detail.id, name, on }, also.length ? { also } : {})),
       setBusy: (busy) => setBusy(item, busy),
       fail: (failure) => {
         refresh();
+        // The row is back: so is the focus, unless the user moved on meanwhile
+        const active = document.activeElement;
+        if (rescued && (!active || active === document.body || active === rescued)) focusElement(control.closest('[hidden]') ? item : control);
         announce(t(item, 'failed'));
         failEvent(item, 'basecoat:toggle-error', detail, failure);
       },
