@@ -168,8 +168,8 @@ class ButtonHelper extends AbstractComponentHelper
             $options['indicatorLabel'] = '';
         }
         $text = $this->formatTemplate('iconLabel', ['label' => h($label)]);
+        // The label is already escaped into the hidden span: `escape` is always off.
         $options = ['escape' => false] + $options + ['size' => 'icon', 'icon' => $icon];
-        $options['escape'] = false;
         if (array_key_exists('url', $options)) {
             $url = $options['url'];
             unset($options['url']);

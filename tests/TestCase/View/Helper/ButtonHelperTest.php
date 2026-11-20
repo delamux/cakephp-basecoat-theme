@@ -92,6 +92,11 @@ class ButtonHelperTest extends HelperTestCase
         $this->assertStringStartsWith('<button type="button" class="btn" data-variant="ghost" data-size="icon">', $out);
         $this->assertStringEndsWith('<span class="sr-only">Close</span></button>', $out);
         $this->assertStringEndsWith('<span class="sr-only">Home</span></a>', $button->icon('house', 'Home', ['url' => '/']));
+        $this->assertStringEndsWith(
+            '<span class="sr-only">Tom &amp; Ana</span></button>',
+            $button->icon('x', 'Tom & Ana', ['escape' => true]),
+            'The label is escaped once; an `escape` option never escapes the hidden span',
+        );
     }
 
     public function testIndicatorDot(): void
