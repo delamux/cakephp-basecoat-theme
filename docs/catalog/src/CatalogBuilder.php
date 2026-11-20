@@ -27,7 +27,7 @@ use Throwable;
  * - `index.html`: `pages/index.php` rendered with the theme's `default` layout;
  * - `components/index.html`: helpers grouped as in the registry;
  * - `components/<slug>.html`: one page per helper with its examples (preview, PHP, HTML);
- * - `screens/index.html`, `screens/<slug>.html` and `screens/<slug>/preview.html`: the bake
+ * - `screens/index.html`, `screens/<slug>.html` and `screens/<slug>/preview.html` (+ `embed.html`, the iframe variant): the bake
  *   screens (see ScreenBuilder);
  * - `assets/`: catalog CSS/JS and the plugin scripts (`webroot/js/*.js`, also under `basecoat_theme/js/`);
  * - `basecoat_theme/css/`: the plugin stylesheets (screens load them with `BasecoatTheme.<name>`).
@@ -153,6 +153,10 @@ final class CatalogBuilder
                 $this->write($outDir, $path, $this->renderScreenPreview($slug, $screens, $baked));
                 $pages[] = $path;
 
+                $path = 'screens/' . $slug . '/embed.html';
+                $this->write($outDir, $path, $this->renderScreenPreview($slug, $screens, $baked, true));
+                $pages[] = $path;
+
                 $path = 'screens/' . $slug . '.html';
                 $content = $this->renderTemplate($this->view(), 'screen_page', [
                     'slug' => $slug,
@@ -188,10 +192,11 @@ final class CatalogBuilder
      * @param string $slug Screen slug.
      * @param array<string, array{title: string, description: string, controller: string, path: string, icon?: string}> $screens Screens with a page.
      * @param array{command: string, controller: string, files: array<string, string>, template: string, data: array<string, mixed>} $baked ScreenBuilder::bake() result.
+     * @param bool $embed Render for the iframe of the screen page (`basecoatEmbed`: no sidebar, no toggle).
      * @return string
      * @throws \RuntimeException When the template throws or emits any PHP error; the message names the screen.
      */
-    private function renderScreenPreview(string $slug, array $screens, array $baked): string
+    private function renderScreenPreview(string $slug, array $screens, array $baked, bool $embed = false): string
     {
         $view = $this->view($baked['controller']);
         $view->setTheme('BasecoatTheme');
@@ -202,6 +207,7 @@ final class CatalogBuilder
             'sidebarMenu' => $this->previewMenu($slug, $screens),
             'sidebarUser' => ['name' => 'Elena Sarto', 'email' => 'elena.sarto@example.com'],
         ]);
+        $view->set('basecoatEmbed', $embed);
         $view->append('meta', '<link rel="icon" href="data:,">');
 
         $html = $this->strict(sprintf('Screen `%s` (template `%s`)', $slug, $baked['template']), function () use ($view, $baked): string {

@@ -108,6 +108,24 @@ class ScreenBuilderTest extends TestCase
         $this->assertStringContainsString('src="../../assets/basecoat-theme.js"', $html);
     }
 
+    public function testEmbedPreviewHasNoAppSidebar(): void
+    {
+        $report = $this->build();
+
+        $this->assertContains('screens/demo/embed.html', $report->pages);
+        $html = $this->page('screens/demo/embed.html');
+        $this->assertStringNotContainsString('<aside', $html);
+        $this->assertStringNotContainsString('data-sidebar-toggle', $html);
+        $this->assertStringContainsString('<h1 class="truncate text-base font-medium">', $html);
+        $this->assertStringContainsString('data-theme-toggle', $html);
+        $this->assertStringContainsString('<h1 data-screen="demo">Demo</h1>', $html);
+        $this->assertStringContainsString('src="../../assets/basecoat-theme.js"', $html);
+
+        $full = $this->page('screens/demo/preview.html');
+        $this->assertStringContainsString('<aside', $full);
+        $this->assertStringContainsString('data-sidebar-toggle', $full);
+    }
+
     public function testPageShowsExactBakeOutput(): void
     {
         $this->build();
@@ -121,7 +139,7 @@ class ScreenBuilderTest extends TestCase
         $this->assertStringContainsString(h($files['templates/Demo/index.php']), $html);
         $this->assertStringContainsString('src/Controller/DemoController.php', $html);
         $this->assertStringContainsString('templates/Demo/index.php', $html);
-        $this->assertMatchesRegularExpression('/<iframe[^>]*src="\.\.\/screens\/demo\/preview\.html"/', $html);
+        $this->assertMatchesRegularExpression('/<iframe[^>]*src="\.\.\/screens\/demo\/embed\.html"/', $html);
         $this->assertMatchesRegularExpression('/<a[^>]*href="\.\.\/screens\/demo\/preview\.html"[^>]*>.*Open full page/s', $html);
         $this->assertStringContainsString('<span class="sr-only"> (opens in a new tab)</span>', $html);
         foreach (['Copy command', 'Copy controller code', 'Copy template code'] as $label) {

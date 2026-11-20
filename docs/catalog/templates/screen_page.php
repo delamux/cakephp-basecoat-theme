@@ -22,6 +22,7 @@ $codeBlock = function (string $codeId, string $language, string $code, string $c
 };
 
 $preview = '/screens/' . $slug . '/preview.html';
+$embed = '/screens/' . $slug . '/embed.html';
 $tabs = [];
 foreach ($baked['files'] as $path => $code) {
     $isController = str_starts_with($path, 'src/');
@@ -48,7 +49,7 @@ foreach ($baked['files'] as $path => $code) {
 </section>
 
 <?= $this->Card->render(
-    '<div class="catalog-screen-preview"><iframe src="' . h($preview) . '" title="' . h($screen['title']) . ' screen preview" class="catalog-screen-frame" loading="lazy"></iframe></div>',
+    '<div class="catalog-screen-preview"><iframe src="' . h($embed) . '" title="' . h($screen['title']) . ' screen preview" class="catalog-screen-frame" loading="lazy"></iframe></div>',
     [
         'id' => 'screen-preview',
         'title' => 'Preview',

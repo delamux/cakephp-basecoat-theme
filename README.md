@@ -74,6 +74,7 @@ Use the auth layout for login pages: `$this->viewBuilder()->setLayout('auth');`
 | `sidebarUser` | `['name', 'email', 'avatar', 'menu' => [...DropdownMenu items]]` |
 | `lang` | `<html lang>` |
 | `basecoatCharts` | Force loading Chart.js (auto-detected when `ChartHelper` rendered a chart) |
+| `basecoatEmbed` | `true` renders the layout without the sidebar and its toggle (header with title and theme toggle only), for screens shown inside an iframe. Default `false` |
 
 Blocks: `sidebar` (replace the whole sidebar), `header_actions`, `breadcrumb`, `meta`, `css`, `script`, `scriptBottom`.
 
