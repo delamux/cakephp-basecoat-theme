@@ -12,6 +12,7 @@ use Cake\Console\ConsoleOptionParser;
 use Cake\Core\Configure;
 use Cake\TwigView\View\TwigView;
 use InvalidArgumentException;
+use UnexpectedValueException;
 
 /**
  * `bin/cake bake screen <screen> [<controller>]`: bakes a ready-made screen (see ScreenRegistry)
@@ -54,7 +55,7 @@ class BakeScreenCommand extends BakeCommand
         try {
             $screen = ScreenRegistry::get($slug);
             $files = $this->renderFiles($slug, $args->getArgument('controller') ?? $screen['controller'], $this->plugin);
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException | UnexpectedValueException $e) {
             $io->error($e->getMessage());
 
             return static::CODE_ERROR;
@@ -77,6 +78,7 @@ class BakeScreenCommand extends BakeCommand
      * @return array<string, string> Contents by path relative to the app (or plugin) root:
      *   `src/Controller/<Controller>Controller.php` and `templates/<Controller>/index.php`.
      * @throws \InvalidArgumentException For an unknown screen or an invalid controller name.
+     * @throws \UnexpectedValueException When the screen `data.php` is missing or not an array.
      */
     public function renderFiles(string $slug, string $controller, ?string $plugin = null): array
     {

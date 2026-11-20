@@ -10,15 +10,19 @@ use Cake\Console\TestSuite\ConsoleIntegrationTestTrait;
 use Cake\Core\Configure;
 use Cake\TestSuite\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionMethod;
+use TestApp\Command\ScratchBakeScreenCommand;
+use UnexpectedValueException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
  * `bin/cake bake screen` with the `demo` fixture screen (tests/test_app/templates/bake/Screen/demo).
  *
- * App output goes where bake writes app code: `APP` (src) and the first `App.paths.templates`
- * entry. Templates and `--plugin` output go to a scratch dir under TMP; `APP` is a constant (the
- * test app `src/`), so controllers land in tests/test_app/src/Controller, removed in tearDown.
+ * Everything is written to a per-test scratch dir under TMP: `templates/` via the first
+ * `App.paths.templates` entry, `--plugin` output via `App.paths.plugins`, and app `src/` via
+ * TestApp\Command\ScratchBakeScreenCommand (registered as `bake screen` by the test app), since
+ * the real command writes to the `APP` constant (checked in testAppSourcesGoToApp).
  */
 class BakeScreenCommandTest extends TestCase
 {
@@ -28,10 +32,7 @@ class BakeScreenCommandTest extends TestCase
 
     private string $scratch;
 
-    /**
-     * @var list<string>
-     */
-    private array $created = [];
+    private string $src;
 
     protected function setUp(): void
     {
@@ -46,16 +47,15 @@ class BakeScreenCommandTest extends TestCase
             'controller' => 'Demo',
             'path' => self::DEMO,
         ]);
-        $this->created = [APP . 'Controller'];
-        $this->assertDirectoryDoesNotExist(APP . 'Controller', 'Leftover tests/test_app/src/Controller');
+        $this->src = $this->scratch . 'src' . DS;
+        ScratchBakeScreenCommand::$srcRoot = $this->src;
     }
 
     protected function tearDown(): void
     {
         ScreenRegistry::reset();
-        foreach ([...$this->created, $this->scratch] as $dir) {
-            $this->removeDir($dir);
-        }
+        ScratchBakeScreenCommand::$srcRoot = null;
+        $this->removeDir($this->scratch);
         parent::tearDown();
     }
 
@@ -64,7 +64,7 @@ class BakeScreenCommandTest extends TestCase
         $this->exec('bake screen demo Inbox');
 
         $this->assertExitSuccess();
-        $controller = APP . 'Controller' . DS . 'InboxController.php';
+        $controller = $this->src . 'Controller' . DS . 'InboxController.php';
         $template = $this->scratch . 'templates' . DS . 'Inbox' . DS . 'index.php';
         $this->assertFileExists($controller);
         $this->assertFileExists($template);
@@ -88,7 +88,7 @@ class BakeScreenCommandTest extends TestCase
         $this->exec('bake screen demo');
 
         $this->assertExitSuccess();
-        $this->assertFileExists(APP . 'Controller' . DS . 'DemoController.php');
+        $this->assertFileExists($this->src . 'Controller' . DS . 'DemoController.php');
         $this->assertFileExists($this->scratch . 'templates' . DS . 'Demo' . DS . 'index.php');
     }
 
@@ -101,7 +101,7 @@ class BakeScreenCommandTest extends TestCase
         $this->exec('bake screen demo Inbox');
 
         $this->assertExitSuccess();
-        $code = (string)file_get_contents(APP . 'Controller' . DS . 'InboxController.php');
+        $code = (string)file_get_contents($this->src . 'Controller' . DS . 'InboxController.php');
         $this->assertStringContainsString(
             "\$this->set('items', " . PhpLiteral::export($data['items'], 2) . ');',
             $code,
@@ -117,7 +117,7 @@ class BakeScreenCommandTest extends TestCase
         $this->assertSame(['src/Controller/InboxController.php', 'templates/Inbox/index.php'], array_keys($files));
         $this->assertStringContainsString('class InboxController extends AppController', $files['src/Controller/InboxController.php']);
         $this->assertStringContainsString('<h1 data-screen="demo">Inbox</h1>', $files['templates/Inbox/index.php']);
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
         $this->assertDirectoryDoesNotExist($this->scratch);
 
         $plugin = $command->renderFiles('demo', 'Inbox', 'Fernway/Desk');
@@ -138,7 +138,7 @@ class BakeScreenCommandTest extends TestCase
         $this->exec('bake screen demo ' . $name);
 
         $this->assertExitSuccess();
-        $this->assertFileExists(APP . 'Controller' . DS . 'InboxController.php');
+        $this->assertFileExists($this->src . 'Controller' . DS . 'InboxController.php');
         $this->assertFileExists($this->scratch . 'templates' . DS . 'Inbox' . DS . 'index.php');
     }
 
@@ -147,7 +147,7 @@ class BakeScreenCommandTest extends TestCase
         $this->exec('bake screen demo team_inbox');
 
         $this->assertExitSuccess();
-        $this->assertFileExists(APP . 'Controller' . DS . 'TeamInboxController.php');
+        $this->assertFileExists($this->src . 'Controller' . DS . 'TeamInboxController.php');
         $this->assertFileExists($this->scratch . 'templates' . DS . 'TeamInbox' . DS . 'index.php');
     }
 
@@ -157,7 +157,7 @@ class BakeScreenCommandTest extends TestCase
 
         $this->assertExitError();
         $this->assertErrorContains('Invalid controller name');
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
     }
 
     public function testUnknownScreen(): void
@@ -168,7 +168,7 @@ class BakeScreenCommandTest extends TestCase
         $this->assertErrorContains('Unknown screen `nope`');
         $this->assertErrorContains('users');
         $this->assertErrorContains('notifications');
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
         $this->assertDirectoryDoesNotExist($this->scratch);
     }
 
@@ -178,7 +178,7 @@ class BakeScreenCommandTest extends TestCase
 
         $this->assertExitError();
         $this->assertErrorContains('--list');
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
     }
 
     public function testList(): void
@@ -191,13 +191,13 @@ class BakeScreenCommandTest extends TestCase
             $this->assertOutputContains($screen['title']);
         }
         $this->assertOutputContains('demo');
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
     }
 
     public function testDoesNotOverwriteWithoutForce(): void
     {
         $this->exec('bake screen demo Inbox');
-        $controller = APP . 'Controller' . DS . 'InboxController.php';
+        $controller = $this->src . 'Controller' . DS . 'InboxController.php';
         file_put_contents($controller, '<?php // edited');
 
         $this->exec('bake screen demo Inbox', ['n']);
@@ -210,7 +210,7 @@ class BakeScreenCommandTest extends TestCase
     public function testForceOverwrites(): void
     {
         $this->exec('bake screen demo Inbox');
-        $controller = APP . 'Controller' . DS . 'InboxController.php';
+        $controller = $this->src . 'Controller' . DS . 'InboxController.php';
         file_put_contents($controller, '<?php // edited');
 
         $this->exec('bake screen demo Inbox --force');
@@ -235,7 +235,61 @@ class BakeScreenCommandTest extends TestCase
             '@var \Fernway\View\AppView $this',
             (string)file_get_contents($root . 'templates' . DS . 'Inbox' . DS . 'index.php'),
         );
-        $this->assertDirectoryDoesNotExist(APP . 'Controller');
+        $this->assertDirectoryDoesNotExist($this->src . 'Controller');
+    }
+
+    public function testAppSourcesGoToApp(): void
+    {
+        $outputPath = new ReflectionMethod(BakeScreenCommand::class, 'outputPath');
+        $command = new BakeScreenCommand();
+
+        $this->assertSame(
+            str_replace('/', DS, APP . 'Controller/InboxController.php'),
+            $outputPath->invoke($command, 'src/Controller/InboxController.php', null),
+        );
+        $this->assertSame(
+            str_replace('/', DS, rtrim($this->scratch . 'templates', DS) . '/Inbox/index.php'),
+            $outputPath->invoke($command, 'templates/Inbox/index.php', null),
+        );
+        $this->assertSame(
+            str_replace('/', DS, '/plugins/Fernway/src/Controller/InboxController.php'),
+            $outputPath->invoke($command, 'src/Controller/InboxController.php', '/plugins/Fernway/'),
+        );
+    }
+
+    public function testDataThatIsNotAnArray(): void
+    {
+        $dir = $this->scratch . 'screens' . DS . 'broken';
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . DS . 'template.twig', '<p>{{ name }}</p>');
+        file_put_contents($dir . DS . 'data.php', "<?php\nreturn 'not an array';\n");
+        ScreenRegistry::register('broken', [
+            'title' => 'Broken', 'description' => 'Bad data.', 'controller' => 'Broken', 'path' => $dir,
+        ]);
+
+        $this->exec('bake screen broken');
+
+        $this->assertExitError();
+        $this->assertErrorContains('must return an array');
+        $this->assertDirectoryDoesNotExist($this->src);
+    }
+
+    public function testMissingData(): void
+    {
+        $dir = $this->scratch . 'screens' . DS . 'nodata';
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . DS . 'template.twig', '<p>{{ name }}</p>');
+        ScreenRegistry::register('nodata', [
+            'title' => 'No data', 'description' => 'No data.php.', 'controller' => 'NoData', 'path' => $dir,
+        ]);
+
+        $this->exec('bake screen nodata');
+
+        $this->assertExitError();
+        $this->assertErrorContains('has no');
+        $this->assertDirectoryDoesNotExist($this->src);
+        $this->expectException(UnexpectedValueException::class);
+        (new BakeScreenCommand())->renderFiles('nodata', 'NoData');
     }
 
     private function lintExitCode(string $file): int

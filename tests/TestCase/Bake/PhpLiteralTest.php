@@ -86,6 +86,24 @@ PHP;
         $this->assertSame($value, eval('return ' . $literal . ';'));
     }
 
+    public function testControlCharactersUseADoubleQuotedString(): void
+    {
+        $value = "Fernway\x00 \x07bell \x1B[0m \x7F \r\n\t \"q\" 'a' \$x {\$y} \\ café";
+        $literal = PhpLiteral::export($value);
+
+        $this->assertStringStartsWith('"', $literal);
+        $this->assertStringNotContainsString("\x00", $literal);
+        $this->assertStringNotContainsString("\x1B", $literal);
+        $this->assertStringContainsString('\\x00', $literal);
+        $this->assertStringContainsString('\\x7F', $literal);
+        $this->assertStringContainsString('café', $literal);
+        $this->assertSame($value, eval('return ' . $literal . ';'));
+
+        $list = ["tab\tand newline\n only", "vt\x0B"];
+        $this->assertStringContainsString("'tab", PhpLiteral::export($list), 'Tab/newline alone stay single-quoted');
+        $this->assertSame($list, eval('return ' . PhpLiteral::export($list) . ';'));
+    }
+
     public function testObjectsAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);

@@ -7,7 +7,8 @@ use InvalidArgumentException;
 
 /**
  * Writes values as PHP source for baked code: short arrays, 4-space indentation, one element per
- * line, lists without keys, single-quoted strings (only `\` and `'` escaped, UTF-8 kept as is),
+ * line, lists without keys, single-quoted strings (only `\` and `'` escaped, UTF-8 kept as is;
+ * double-quoted with escapes when the string has control characters other than `\t` and `\n`),
  * lowercase `null`/`true`/`false`. `eval('return ' . PhpLiteral::export($v) . ';') === $v`.
  */
 final class PhpLiteral
@@ -62,6 +63,23 @@ final class PhpLiteral
      */
     private static function string(string $value): string
     {
-        return "'" . addcslashes($value, "\\'") . "'";
+        if (!preg_match('/[\x00-\x08\x0B-\x1F\x7F]/', $value)) {
+            return "'" . addcslashes($value, "\\'") . "'";
+        }
+
+        // Control characters: a double-quoted string with escapes, so the source stays readable.
+        $escaped = preg_replace_callback(
+            '/[\x00-\x1F\x7F"\\\\$]/',
+            static fn (array $m): string => match ($m[0]) {
+                "\n" => '\\n',
+                "\t" => '\\t',
+                "\r" => '\\r',
+                '"', '\\', '$' => '\\' . $m[0],
+                default => sprintf('\\x%02X', ord($m[0])),
+            },
+            $value,
+        );
+
+        return '"' . $escaped . '"';
     }
 }
