@@ -131,6 +131,18 @@ class CatalogBuilderTest extends TestCase
         $this->build($registry, 'examples', true);
     }
 
+    public function testAutoIdsUniqueAcrossExamplesOfAPage(): void
+    {
+        $this->build(['tabs' => ['alias' => 'Tabs', 'title' => 'Tabs', 'group' => 'Layout', 'intro' => '']], 'ids');
+
+        $html = (string)file_get_contents($this->out . '/components/tabs.html');
+        preg_match_all('/\sid="([^"]+)"/', $html, $matches);
+        $this->assertContains('tabs-1', $matches[1]);
+        $this->assertContains('tabs-2', $matches[1]);
+        $duplicates = array_keys(array_filter(array_count_values($matches[1]), fn(int $count): bool => $count > 1));
+        $this->assertSame([], $duplicates);
+    }
+
     public function testIndexPageRendered(): void
     {
         $report = $this->build();

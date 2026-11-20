@@ -4,12 +4,14 @@ declare(strict_types=1);
 namespace BasecoatTheme\Docs;
 
 use BasecoatTheme\View\BasecoatHelpers;
+use BasecoatTheme\View\Helper\AbstractComponentHelper;
 use Cake\Http\ServerRequest;
 use Cake\Http\Session;
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
 use Cake\View\View;
+use Closure;
 use ErrorException;
 use RuntimeException;
 use Throwable;
@@ -71,8 +73,9 @@ final class CatalogBuilder
             $path = 'components/' . $slug . '.html';
             $blocks = '';
             $charts = false;
+            $idCounters = [];
             foreach ($helper['examples'] as $example) {
-                $preview = $this->runExample($example);
+                $preview = $this->runExample($example, $idCounters);
                 $charts = $charts || str_contains($preview, 'data-basecoat-chart');
                 $blocks .= $this->renderTemplate($this->view('/' . $path), 'example', [
                     'example' => $example,
@@ -138,13 +141,18 @@ final class CatalogBuilder
     /**
      * Runs an example in a fresh View and returns its output.
      *
+     * The helpers' auto-id counters carry over between the examples of a page (`$idCounters`),
+     * so two examples never render the same generated DOM id.
+     *
      * @param \BasecoatTheme\Docs\ExampleFile $example Example.
+     * @param array<string, array<string, int>> $idCounters Id counters by helper alias (read and updated).
      * @return string
      * @throws \RuntimeException When the example throws or emits any PHP error.
      */
-    private function runExample(ExampleFile $example): string
+    private function runExample(ExampleFile $example, array &$idCounters): string
     {
         $view = $this->view('/components/' . $example->slug . '.html');
+        $this->seedIdCounters($view, $idCounters);
         set_error_handler(function (int $severity, string $message, string $file, int $line): bool {
             if (!(error_reporting() & $severity)) {
                 return false;
@@ -152,7 +160,10 @@ final class CatalogBuilder
             throw new ErrorException($message, 0, $severity, $file, $line);
         });
         try {
-            return $this->evaluate($view, $example->path, []);
+            $html = $this->evaluate($view, $example->path, []);
+            $idCounters = $this->readIdCounters($view);
+
+            return $html;
         } catch (Throwable $e) {
             throw new RuntimeException(sprintf(
                 'Example `%s` failed: %s (%s:%d)',
@@ -163,6 +174,49 @@ final class CatalogBuilder
             ), 0, $e);
         } finally {
             restore_error_handler();
+        }
+    }
+
+    /**
+     * Auto-id counters of the component helpers loaded in a View, by alias.
+     *
+     * @param \Cake\View\View $view View.
+     * @return array<string, array<string, int>>
+     */
+    private function readIdCounters(View $view): array
+    {
+        $read = fn(): array => $this->idCounters;
+        $counters = [];
+        foreach ($view->helpers()->loaded() as $alias) {
+            $helper = $view->helpers()->get($alias);
+            if ($helper instanceof AbstractComponentHelper) {
+                $counters[$alias] = Closure::bind($read, $helper, AbstractComponentHelper::class)();
+            }
+        }
+
+        return $counters;
+    }
+
+    /**
+     * Restores auto-id counters into the component helpers of a fresh View.
+     *
+     * @param \Cake\View\View $view View.
+     * @param array<string, array<string, int>> $idCounters Id counters by helper alias.
+     * @return void
+     */
+    private function seedIdCounters(View $view, array $idCounters): void
+    {
+        $write = function (array $counters): void {
+            $this->idCounters = $counters;
+        };
+        foreach ($idCounters as $alias => $counters) {
+            if (!$view->helpers()->has($alias)) {
+                continue;
+            }
+            $helper = $view->helpers()->get($alias);
+            if ($helper instanceof AbstractComponentHelper) {
+                Closure::bind($write, $helper, AbstractComponentHelper::class)($counters);
+            }
         }
     }
 
