@@ -17,10 +17,11 @@
     <?php else : ?>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <?php foreach ($screens as $slug => $screen) : ?>
-                <a href="/screens/<?= h($slug) ?>.html" class="catalog-tile">
+                <?php $titleId = 'screen-' . $slug . '-title'; ?>
+                <a href="/screens/<?= h($slug) ?>.html" class="catalog-tile" aria-labelledby="<?= h($titleId) ?>">
                     <?= $this->Card->render(
                         '<code class="text-xs text-muted-foreground">bin/cake bake screen ' . h($slug) . '</code>',
-                        ['title' => $screen['title'], 'description' => $screen['description'], 'titleTag' => 'h2'],
+                        ['title' => $screen['title'], 'description' => $screen['description'], 'titleTag' => 'h2', 'titleOptions' => ['id' => $titleId]],
                     ) ?>
                 </a>
             <?php endforeach; ?>

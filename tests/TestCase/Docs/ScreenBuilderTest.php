@@ -91,6 +91,7 @@ class ScreenBuilderTest extends TestCase
         }
         $index = $this->page('screens/index.html');
         $this->assertStringContainsString('href="../screens/demo.html"', $index);
+        $this->assertMatchesRegularExpression('#<a href="\.\./screens/demo\.html" class="catalog-tile" aria-labelledby="screen-demo-title">.*<h2 id="screen-demo-title">Demo</h2>#s', $index, 'The tile link is named by the screen title');
         $this->assertStringContainsString('Demo fixture screen.', $index);
         $this->assertSame([], $report->warnings);
         $this->assertDirectoryDoesNotExist($this->out . '/.bake', 'Scratch files removed');
