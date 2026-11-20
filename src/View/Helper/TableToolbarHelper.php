@@ -20,6 +20,7 @@ use BasecoatTheme\Listing\ListFilter;
  * Renders the same controls and `hx-*` attributes as the `BasecoatTheme.list_filters` element, with
  * `dateRange` controls shown as a `DateRangeField` popover (same `field[from]` / `field[to]`).
  *
+ * @property \Cake\View\Helper\UrlHelper $Url
  * @property \BasecoatTheme\View\Helper\FormHelper $Form
  * @property \BasecoatTheme\View\Helper\DateRangeFieldHelper $DateRangeField
  */
@@ -28,7 +29,7 @@ class TableToolbarHelper extends AbstractComponentHelper
     /**
      * @var array<int|string, string|array<string, mixed>>
      */
-    protected array $helpers = ['BasecoatTheme.Form', 'BasecoatTheme.DateRangeField'];
+    protected array $helpers = ['Url', 'BasecoatTheme.Form', 'BasecoatTheme.DateRangeField'];
 
     /**
      * Default configuration.
@@ -56,6 +57,9 @@ class TableToolbarHelper extends AbstractComponentHelper
      * - `url`: Form action (default current path).
      * - `submit`: Submit button text (default `Filter`).
      * - `htmx`: `false` or `['target' => 'results-id']`.
+     * - `clear`: "Clear" link that resets the filters (keeping `sort` / `direction`). Default: shown for a
+     *   `ListFilter` that is filtered, off for a controls array. `true` shows it (current URL), a string or
+     *   array is the URL to link to, `false` hides it.
      *
      * @param array<string, mixed> $options Options.
      * @return string
@@ -131,11 +135,18 @@ class TableToolbarHelper extends AbstractComponentHelper
         }
 
         if ($controls !== []) {
+            $clear = $options['clear'] ?? ($filter instanceof ListFilter ? $filter->isFiltered() : false);
+            $link = '';
+            if ($clear !== false && $clear !== null) {
+                $link = '<a href="' . h($this->clearUrl($clear, $url, $query)) . '" class="btn" data-variant="ghost">'
+                    . h(__d('basecoat_theme', 'Clear')) . '</a>';
+            }
             $out .= '<div class="' . h((string)$this->getConfig('classes.buttons')) . '">'
                 . $this->Form->button(
                     (string)($options['submit'] ?? __d('basecoat_theme', 'Filter')),
                     ['type' => 'submit', 'variant' => 'secondary'],
                 )
+                . $link
                 . '</div>';
         }
         if ($actions !== '') {
@@ -143,5 +154,24 @@ class TableToolbarHelper extends AbstractComponentHelper
         }
 
         return $out . $this->Form->end();
+    }
+
+    /**
+     * @param mixed $clear The `clear` option (`true`, URL string or URL array).
+     * @param string $url Form action.
+     * @param array<string, mixed> $query Current query string.
+     * @return string URL without the filters; `sort` / `direction` are kept.
+     */
+    private function clearUrl(mixed $clear, string $url, array $query): string
+    {
+        $keep = array_intersect_key($query, array_flip(['sort', 'direction']));
+        if (is_array($clear)) {
+            $clear['?'] = $keep + (array)($clear['?'] ?? []);
+
+            return $this->Url->build($clear);
+        }
+        $base = is_string($clear) ? $clear : $url;
+
+        return $this->Url->build($base) . ($keep ? '?' . http_build_query($keep) : '');
     }
 }

@@ -17,18 +17,24 @@ $orders = [
     ['customer' => 'Northwind Studio', 'total' => '$860.50', 'status' => 'Pending', 'variant' => 'secondary'],
     ['customer' => 'Tomas Berg', 'total' => '$92.00', 'status' => 'Failed', 'variant' => 'destructive'],
 ];
+// A filtered state: the toolbar fields take their values from the query string
+$this->setRequest($this->getRequest()->withQueryParams([
+    'q' => 'studio',
+    'status' => 'pending',
+    'created' => ['from' => '2026-11-01', 'to' => '2026-11-30'],
+]));
 $rows = [];
 foreach ($orders as $order) {
     $rows[] = [
         'customer' => $order['customer'],
         'total' => $order['total'],
-        'status' => $this->Badge->render($order['status'], ['variant' => $order['variant']]),
-        'actions' => $this->DropdownMenu->render('', [
+        'status' => ['content' => $this->Badge->render($order['status'], ['variant' => $order['variant']]), 'escape' => false],
+        'actions' => ['escape' => false, 'content' => $this->DropdownMenu->render('', [
             ['label' => 'View', 'url' => '/orders/view'],
             ['label' => 'Refund'],
             '-',
             ['label' => 'Delete', 'variant' => 'destructive'],
-        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'aria-label' => 'Row actions']]),
+        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'aria-label' => 'Row actions']])],
     ];
 }
 // ---
@@ -37,11 +43,11 @@ echo $this->TableToolbar->render([
     'filter' => $controls,
     'actions' => $this->Button->link('New order', '/orders/add', ['variant' => 'primary']),
     'htmx' => ['target' => 'orders-list'],
+    'clear' => true,
 ]);
 echo '<div id="orders-list">';
 echo $this->Table->render(
     ['customer' => 'Customer', 'total' => ['label' => 'Total', 'class' => 'text-right'], 'status' => 'Status', 'actions' => ''],
     $rows,
-    ['escape' => false],
 );
 echo '</div></div>';

@@ -15,9 +15,12 @@ namespace BasecoatTheme\View\Helper;
  * ]);
  * ```
  *
- * The inputs are always in the form, so it works without JavaScript; the theme script fills them
- * from the preset buttons (`data-range-from` / `data-range-to`) and keeps the trigger text
- * (`data-range-label`) up to date.
+ * The inputs are always in the form, so the current values are submitted without JavaScript. Limitation:
+ * Basecoat hides the panel with `aria-hidden="true"` (set in the markup, not by its script, which only
+ * toggles it on click), so without JavaScript the panel cannot be opened and the dates cannot be edited.
+ * Dropping the attribute would show the panel permanently, so it is kept. The theme script fills the
+ * inputs from the preset buttons (`data-range-from` / `data-range-to`), closes the popover and keeps the
+ * trigger text (`data-range-label`) up to date.
  *
  * @property \BasecoatTheme\View\Helper\IconHelper $Icon
  */

@@ -103,4 +103,50 @@ class TableToolbarHelperTest extends HelperTestCase
         $this->assertSame('', (new TableToolbarHelper($this->View))->render());
         $this->assertSame('', (new TableToolbarHelper($this->View))->render(['filter' => []]));
     }
+
+    /**
+     * @param array<string, mixed> $query Query string.
+     */
+    private function listFilter(array $query, bool $search): ListFilter
+    {
+        $connection = new Connection(['driver' => new Sqlite(['database' => ':memory:'])]);
+        $connection->execute('CREATE TABLE articles (id INTEGER PRIMARY KEY, title VARCHAR(100), created DATETIME)');
+        $table = new Table(['alias' => 'Articles', 'table' => 'articles', 'connection' => $connection]);
+        $table->addBehavior('Search.Search');
+        $table->getBehavior('Search')->searchManager()
+            ->add('q', 'BasecoatTheme.Contains', ['fields' => ['title']]);
+        if ($search) {
+            $table->find('search', search: $query)->all();
+        }
+
+        return new ListFilter(new ServerRequest(['url' => '/x', 'query' => $query]), $table);
+    }
+
+    public function testClearLinkForFilteredListFilter(): void
+    {
+        $query = ['q' => 'abc', 'sort' => 'name', 'direction' => 'asc', 'page' => '3'];
+        $view = new View(new ServerRequest(['url' => '/x', 'query' => $query]));
+        $out = (new TableToolbarHelper($view))->render(['filter' => $this->listFilter($query, true)]);
+
+        $this->assertStringContainsString('class="btn" data-variant="ghost">Clear</a>', $out);
+        $this->assertStringContainsString('href="/x?sort=name&amp;direction=asc"', $out);
+        $this->assertStringNotContainsString('q=abc"', $out);
+    }
+
+    public function testNoClearLinkWhenNotFiltered(): void
+    {
+        $out = (new TableToolbarHelper($this->View))->render(['filter' => $this->listFilter([], true)]);
+        $this->assertStringNotContainsString('Clear', $out);
+    }
+
+    public function testClearOptionForArrayControls(): void
+    {
+        $helper = new TableToolbarHelper($this->View);
+        $this->assertStringNotContainsString('Clear', $helper->render(['filter' => $this->controls()]));
+        $this->assertStringContainsString('>Clear</a>', $helper->render(['filter' => $this->controls(), 'clear' => true]));
+        $this->assertStringContainsString(
+            'href="/orders"',
+            $helper->render(['filter' => $this->controls(), 'clear' => '/orders']),
+        );
+    }
 }
