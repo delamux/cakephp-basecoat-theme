@@ -41,7 +41,7 @@ class MetricCardHelper extends AbstractComponentHelper
             'flat' => 'text-muted-foreground',
             'top' => 'flex items-center justify-between gap-2',
             'label' => 'text-muted-foreground text-sm font-medium',
-            'link' => 'after:absolute after:inset-0',
+            'link' => 'after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50',
             'icon' => 'text-muted-foreground size-4',
             'value' => 'text-2xl font-semibold tabular-nums',
             'change' => 'text-sm font-medium',

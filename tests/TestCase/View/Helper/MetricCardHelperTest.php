@@ -59,6 +59,9 @@ class MetricCardHelperTest extends HelperTestCase
         $card = new MetricCardHelper($this->View);
         $out = $card->render('Users', '5', ['url' => '/users']);
         $this->assertStringContainsString('<a href="/users"', $out);
+        $this->assertMatchesRegularExpression('#class="card relative"#', $out);
+        $this->assertStringContainsString('after:absolute after:inset-0', $out);
+        $this->assertStringContainsString('focus-visible:after:ring-[3px]', $out);
     }
 
     public function testEscapes(): void

@@ -151,6 +151,10 @@ class ButtonHelper extends AbstractComponentHelper
      */
     public function icon(string $icon, string $label, array $options = []): string
     {
+        if ($this->hasIndicator($options)) {
+            // aria-label replaces the content as accessible name, so include the indicator text.
+            $label .= ', ' . $this->indicatorText($options);
+        }
         $options += ['size' => 'icon', 'aria-label' => $label, 'icon' => $icon];
         if (array_key_exists('url', $options)) {
             $url = $options['url'];
@@ -248,12 +252,11 @@ class ButtonHelper extends AbstractComponentHelper
             return '';
         }
         $indicator = $options['indicator'];
+        $label = $this->indicatorText($options);
         if ($indicator === true) {
-            $label = $options['indicatorLabel'] ?? __d('basecoat_theme', 'New');
             $visual = sprintf('<span class="%s" aria-hidden="true"></span>', h((string)$this->getConfig('classes.indicatorDot')));
         } else {
             $count = (string)$indicator;
-            $label = $options['indicatorLabel'] ?? __d('basecoat_theme', '{0} new', $count);
             $visual = sprintf(
                 '<span class="%s" aria-hidden="true">%s</span>',
                 h((string)$this->getConfig('classes.indicatorCount')),
@@ -261,6 +264,23 @@ class ButtonHelper extends AbstractComponentHelper
             );
         }
 
-        return $visual . '<span class="sr-only">' . h((string)$label) . '</span>';
+        return $visual . '<span class="sr-only">' . h($label) . '</span>';
+    }
+
+    /**
+     * Screen reader text of the indicator.
+     *
+     * @param array<string, mixed> $options Options.
+     * @return string
+     */
+    protected function indicatorText(array $options): string
+    {
+        if (isset($options['indicatorLabel'])) {
+            return (string)$options['indicatorLabel'];
+        }
+
+        return $options['indicator'] === true
+            ? __d('basecoat_theme', 'New')
+            : __d('basecoat_theme', '{0} new', (string)$options['indicator']);
     }
 }

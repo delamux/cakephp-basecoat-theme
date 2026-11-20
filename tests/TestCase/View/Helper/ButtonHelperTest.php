@@ -115,6 +115,13 @@ class ButtonHelperTest extends HelperTestCase
         $this->assertStringContainsString('<span class="sr-only">New</span>', $button->link('Inbox', '/', ['indicator' => true]));
     }
 
+    public function testIndicatorIsPartOfIconAriaLabel(): void
+    {
+        $button = new ButtonHelper($this->View);
+        $this->assertStringContainsString('aria-label="Notifications, 3 new"', $button->icon('bell', 'Notifications', ['indicator' => 3]));
+        $this->assertStringContainsString('aria-label="Notifications, New"', $button->icon('bell', 'Notifications', ['indicator' => true]));
+    }
+
     public function testNoIndicatorUnchanged(): void
     {
         $button = new ButtonHelper($this->View);
