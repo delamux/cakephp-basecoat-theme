@@ -77,14 +77,14 @@ final class CatalogBuilder
             foreach ($helper['examples'] as $example) {
                 $preview = $this->runExample($example, $idCounters);
                 $charts = $charts || str_contains($preview, 'data-basecoat-chart');
-                $blocks .= $this->renderTemplate($this->view('/' . $path), 'example', [
+                $blocks .= $this->renderTemplate($this->view(), 'example', [
                     'example' => $example,
                     'id' => 'example-' . $slug . '-' . $example->order,
                     'preview' => $preview,
                     'html' => HtmlFormatter::pretty($preview),
                 ]);
             }
-            $content = $this->renderTemplate($this->view('/' . $path), 'helper_page', [
+            $content = $this->renderTemplate($this->view(), 'helper_page', [
                 'entry' => $helper['entry'],
                 'examples' => $blocks,
             ]);
@@ -93,7 +93,7 @@ final class CatalogBuilder
         }
 
         $path = 'components/index.html';
-        $content = $this->renderTemplate($this->view('/' . $path), 'components_index', ['groups' => $this->groups($helpers)]);
+        $content = $this->renderTemplate($this->view(), 'components_index', ['groups' => $this->groups($helpers)]);
         $this->write($outDir, $path, $this->renderLayout($path, 'Components', $content, $this->menu($helpers, $path), false));
         $pages[] = $path;
 
@@ -151,7 +151,7 @@ final class CatalogBuilder
      */
     private function runExample(ExampleFile $example, array &$idCounters): string
     {
-        $view = $this->view('/components/' . $example->slug . '.html');
+        $view = $this->view();
         $this->seedIdCounters($view, $idCounters);
         set_error_handler(function (int $severity, string $message, string $file, int $line): bool {
             if (!(error_reporting() & $severity)) {
@@ -228,7 +228,7 @@ final class CatalogBuilder
      */
     private function renderHome(array $menu): string
     {
-        $view = $this->view('/index.html');
+        $view = $this->view();
         $view->setTheme('BasecoatTheme');
         $view->setLayout('default');
         $view->set([
@@ -253,7 +253,7 @@ final class CatalogBuilder
      */
     private function renderLayout(string $path, string $title, string $content, array $menu, bool $charts): string
     {
-        $html = $this->renderTemplate($this->view('/' . $path), 'layout', [
+        $html = $this->renderTemplate($this->view(), 'layout', [
             'title' => $title,
             'content' => $content,
             'menu' => $menu,
@@ -340,15 +340,17 @@ final class CatalogBuilder
     }
 
     /**
-     * Fresh View for a page path, with every Basecoat helper loaded.
+     * Fresh View with every Basecoat helper loaded and its own request.
      *
-     * @param string $path Root-relative path of the page (e.g. `/components/badge.html`).
      * @return \Cake\View\View
      */
-    private function view(string $path): View
+    private function view(): View
     {
+        // Examples run as if rendered by `ArticlesController::index()`, so array URLs,
+        // sort links and pagination resolve against the fallback routes.
         $request = new ServerRequest([
-            'url' => $path,
+            'url' => '/articles/index',
+            'params' => ['plugin' => null, 'controller' => 'Articles', 'action' => 'index', 'pass' => []],
             'base' => '',
             'webroot' => '/',
             'session' => new Session(),
