@@ -64,13 +64,14 @@ $thread = function (array $chat, array $items) use ($statusLabel): string {
         'hideAuthors' => true,
     ]);
 
-    // TODO: wire the composer to your own POST action (set `method`/`action`, add the CSRF token) or
-    // set `data-endpoint` (the URL of your send action) on the form: the script then POSTs
-    // `{action: 'send', text}` as JSON. Without JavaScript the form is a plain GET to this page.
+    // TODO: wire the composer to your own POST action (set `method`/`action`, add the CSRF token and a
+    // `name="message"` on the input) or set `data-endpoint` (the URL of your send action) on the form: the
+    // script then POSTs `{action: 'send', id, text}` as JSON. Without JavaScript the form is a plain GET to
+    // this page; the input has no `name` so the message never ends up in the URL.
     return $html . '<form method="get" data-composer="#chat-pane [role=log]" data-composer-template="chat-message-template" class="flex items-center gap-2 border-t p-3">'
         . $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost'])
         . $this->Button->icon('smile', {{ t|raw }}'Add an emoji'), ['variant' => 'ghost'])
-        . '<input type="text" class="input min-w-0 flex-1" name="message" placeholder="' . h({{ t|raw }}'Type a message…')) . '" aria-label="' . h({{ t|raw }}'Message')) . '" autocomplete="off" required>'
+        . '<input type="text" class="input min-w-0 flex-1" placeholder="' . h({{ t|raw }}'Type a message…')) . '" aria-label="' . h({{ t|raw }}'Message')) . '" autocomplete="off" required>'
         . $this->Button->icon('mic', {{ t|raw }}'Record a voice message'), ['variant' => 'ghost'])
         . $this->Button->submit({{ t|raw }}'Send'), ['icon' => 'send'])
         . '</form>';

@@ -245,10 +245,13 @@ class MailScreenTest extends TestCase
         $this->assertStringContainsString('value="invoice"', $html);
         // The tabs keep the search term.
         // Server fallback: real links. The current one is `aria-current` (styled by it, so the script can switch it).
-        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=unread&amp;q=invoice" aria-current="true" data-filter-facet="#mail-list" data-filter-value=":has\(\[data-unread=&quot;true&quot;\]\)" class="btn aria-\[current=true\]:bg-secondary[^"]*" data-variant="ghost"[^>]*>\s*Unread/s', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=unread&amp;q=invoice" aria-current="true" data-filter-facet="#mail-list" data-filter-value=":has\(\[data-unread=&quot;true&quot;\],\[aria-current=&quot;true&quot;\]\)" class="btn aria-\[current=true\]:bg-secondary[^"]*" data-variant="ghost"[^>]*>\s*Unread/s', $html);
         // "All" has no filter value: the script shows every row.
         $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=all&amp;q=invoice" data-filter-facet="#mail-list" class="btn [^"]*" data-variant="ghost"[^>]*>\s*All/s', $html);
         $this->assertStringContainsString('data-filter-input="#mail-list"', $html);
+        // Read state is browser-only: the template points at basecoat:open to save it
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/mail/template.twig');
+        $this->assertStringContainsString('basecoat:open', $template);
     }
 
     public function testRendersWithEmptyData(): void

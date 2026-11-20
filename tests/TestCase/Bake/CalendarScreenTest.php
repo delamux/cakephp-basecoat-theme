@@ -194,11 +194,12 @@ class CalendarScreenTest extends TestCase
 
         // November 2026 (starts on a Sunday): six weeks, every day (also empty or outside the month) is a drop target.
         $this->assertSame(42, substr_count($html, 'data-dnd-container data-dnd-group="calendar-days"'));
-        $this->assertMatchesRegularExpression('/<ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press" data-id="2026-11-24" data-dnd-label="Tuesday 24 November" data-dnd-var-short="Tue 24 Nov">/', $html);
+        $this->assertMatchesRegularExpression('/<ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press" data-id="2026-11-24" data-dnd-label="Tuesday 24 November" data-dnd-var-short="Tue 24 Nov" data-dnd-var-date="2026-11-24">/', $html);
         // The Upcoming entries mirror the chips: date text and order follow a move
         $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="8"[^>]*data-dnd-mirror="\[data-upcoming=&quot;8&quot;\]"/', $html);
         $this->assertMatchesRegularExpression('/data-upcoming="\d+" data-dnd-sort="\{container-id\}\|[^"]*" data-dnd-sort-key="2026-11-\d\d\|/', $html);
-        $this->assertStringContainsString('data-dnd-text="short"', $html);
+        // ... and so does the machine-readable date of the entry (data-dnd-attr + data-dnd-var-date)
+        $this->assertMatchesRegularExpression('/<time datetime="2026-11-\d\d" data-dnd-attr="datetime:\{date\}" data-dnd-text="short">/', $html);
         // The <li> moves, the chip link is its handle (so it stays a link and takes focus).
         $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="8" data-dnd-label="09:00 Support rota handover"[^>]*>\s*<a href="#"[^>]*data-dnd-handle data-event="8"/', $html);
         $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="4" data-dnd-label="Usage report due"[^>]*>/', $html);

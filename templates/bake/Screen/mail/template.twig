@@ -34,7 +34,8 @@ $labelBadge = fn (string $key): string => $this->Badge->render($labels[$key] ?? 
 ]);
 $tabs = ['all' => {{ t|raw }}'All'), 'unread' => {{ t|raw }}'Unread')];
 // What the script filters the list by (data-filter-value): everything, or the rows that still hold an unread message.
-$tabFilters = ['all' => '', 'unread' => ':has([data-unread="true"])'];
+// The open message stays listed under Unread (it was just read) until another filter change.
+$tabFilters = ['all' => '', 'unread' => ':has([data-unread="true"],[aria-current="true"])'];
 // Folder counts the script keeps in step with the list (data-count-for).
 $liveCounts = ['inbox' => '#mail-list [data-unread="true"]', 'starred' => '#mail-list [data-starred="true"]'];
 // Reading pane of one message: heading, header, body and reply box. Printed for the open message and
@@ -187,6 +188,8 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                 // The script opens a message in the reading pane from its <template> (below), marks it read and
                 // handles the star / archive / delete buttons of each row. TODO: set `data-endpoint` on the list to
                 // POST `{action: 'toggle', id, name: 'starred', on}` and `{action: 'archive'|'delete', id}` as JSON.
+                // Marking as read is browser-only (no request): save it from a `basecoat:open` listener
+                // (event.detail.id is the message id) or in your view action.
                 ?>
                 <ul id="mail-list" class="flex flex-col divide-y rounded-lg border lg:max-h-[40rem] lg:overflow-y-auto" data-master="#mail-pane" data-master-focus data-master-empty="mail-empty">
                     <?php foreach ($messages as $message) : ?>

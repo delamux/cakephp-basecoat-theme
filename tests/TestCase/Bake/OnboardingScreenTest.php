@@ -377,6 +377,11 @@ class OnboardingScreenTest extends TestCase
 
         $this->assertMatchesRegularExpression('#<script src="/basecoat_theme/js/basecoat-screens\.js"[^>]*defer#', $this->view->fetch('script'));
         $this->assertStringContainsString('href="/basecoat_theme/css/interactivity.css"', $this->view->fetch('css'));
+        // Same asset blocks as the other screens
+        $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/onboarding/template.twig');
+        $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);", $template);
+        $this->assertStringContainsString("\$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);", $template);
+        $this->assertStringNotContainsString("'block' => true", $template);
     }
 
     /**

@@ -20,8 +20,8 @@
  * @var int $perPage Notifications per page.
  */
 $this->assign('title', {{ t|raw }}'Notifications'));
-$this->Html->css('BasecoatTheme.interactivity', ['block' => true]);
-$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => true, 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
 
 // Footer: "Showing 1 to 10 of 24" and previous / next links that keep the current filters
 $request = $this->getRequest();
@@ -34,8 +34,11 @@ $last = $total > 0 ? $first + count($notifications) - 1 : 0;
 
 // Behaviour hooks (webroot/js/basecoat-screens.js). Without JS nothing below changes: the toolbar is a
 // GET form, Accept / Decline are inert or POST forms (see 'urls') and "Mark as read" waits for your action.
-// TODO: to save the changes on the server set data-endpoint="/your/update/url" on the <section> below: toggles are POSTed as JSON {action: 'toggle', id, name: 'read'|'accepted'|'declined', on}
-// with the CSRF token, and reverted when the request fails. Listen to basecoat:toggle for your own handling.
+// TODO: to save the changes on the server set data-endpoint="/your/update/url" on the <section> below: toggles are POSTed as JSON
+// {action: 'toggle', id, name: 'read'|'accepted'|'declined', on, also: ['answered', 'read']} (Accept / Decline also mark the row
+// answered and read, in the same request; `also` lists the chained toggles that were switched on) and "Mark all as read" as
+// {action: 'toggle-all', name: 'read', on: true, ids}, with the CSRF token, and reverted when the request fails. Listen to
+// basecoat:toggle for your own handling.
 $root = '#notifications-root';
 $unreadOnPage = count(array_filter($notifications, fn (array $row): bool => !empty($row['unread'])));
 

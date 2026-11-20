@@ -347,8 +347,10 @@ class ChatsScreenTest extends TestCase
         $this->assertStringContainsString('<template id="chat-message-template">', $html);
         $this->assertStringContainsString('<p data-composer-text></p>', $html);
         $this->assertStringContainsString('data-composer-time', $html);
-        // No JS: still a plain GET form with a submit button and a required, named input.
-        $this->assertMatchesRegularExpression('/<input type="text"[^>]*name="message"[^>]*required>/', $html);
+        // No JS: still a GET form with a submit button and a required input, unnamed so the message never
+        // lands in the URL until the form is wired to a POST action.
+        $this->assertMatchesRegularExpression('/<input type="text" class="input min-w-0 flex-1" placeholder="[^"]*" aria-label="Message" autocomplete="off" required>/', $html);
+        $this->assertStringNotContainsString('name="message"', $html);
         $this->assertMatchesRegularExpression('/<button[^>]*type="submit"[^>]*>/', $html);
         $this->assertStringNotContainsString('data-endpoint', $html);
     }

@@ -137,8 +137,8 @@ foreach ($dndMessages as $key => $message) {
                                             <span class="sr-only"><?= h($day->i18nFormat('d MMMM')) ?><?= $isToday ? ', ' . h({{ t|raw }}'Today')) : '' ?></span>
                                         </time>
                                     </div>
-                                    <?php // data-dnd-touch="press": a swipe on a chip scrolls the page, a long press picks it up; data-dnd-var-short is the date shown by the Upcoming list ?>
-                                    <ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press" data-id="<?= h($key) ?>" data-dnd-label="<?= h($day->i18nFormat('EEEE d MMMM')) ?>" data-dnd-var-short="<?= h($day->i18nFormat('EEE d MMM')) ?>">
+                                    <?php // data-dnd-touch="press": a swipe on a chip scrolls the page, a long press picks it up; data-dnd-var-short / data-dnd-var-date are the date shown by the Upcoming list and its <time datetime> ?>
+                                    <ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press" data-id="<?= h($key) ?>" data-dnd-label="<?= h($day->i18nFormat('EEEE d MMMM')) ?>" data-dnd-var-short="<?= h($day->i18nFormat('EEE d MMM')) ?>" data-dnd-var-date="<?= h($key) ?>">
                                         <?php foreach ($dayEvents as $index => $event) : ?>
                                             <?php
                                             $colors = $palette[$event['category']] ?? $neutral;
@@ -186,7 +186,7 @@ foreach ($dndMessages as $key => $message) {
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium"><?= h($event['title']) ?></p>
                                     <p class="text-muted-foreground text-xs">
-                                        <time datetime="<?= h($event['date']) ?>" data-dnd-text="short"><?= h((new DateTime($event['date'] . ' 00:00:00', 'UTC'))->i18nFormat('EEE d MMM')) ?></time><?php if (!empty($event['time'])) : ?>, <?= h($event['time']) ?><?php endif; ?>
+                                        <time datetime="<?= h($event['date']) ?>" data-dnd-attr="datetime:{date}" data-dnd-text="short"><?= h((new DateTime($event['date'] . ' 00:00:00', 'UTC'))->i18nFormat('EEE d MMM')) ?></time><?php if (!empty($event['time'])) : ?>, <?= h($event['time']) ?><?php endif; ?>
                                     </p>
                                     <?= $this->Badge->render((string)($categories[$event['category']] ?? $event['category']), ['variant' => 'outline', 'class' => 'mt-1']) ?>
                                 </div>

@@ -25,8 +25,8 @@
  * @var array<string, mixed> $preferences Defaults of the preferences step.
  */
 $this->assign('title', {{ t|raw }}'Onboarding'));
-$this->Html->css('BasecoatTheme.interactivity', ['block' => true]);
-$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => true, 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
+$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
 
 $stepKeys = array_keys($steps);
 $count = count($stepKeys);

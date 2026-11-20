@@ -95,7 +95,7 @@ foreach ($messages as $message) {
     <?php
     // The script appends your message and a canned reply (templates below) to the log. TODO: for a real
     // assistant set `data-endpoint` (the URL of your send action) on the form: the script POSTs
-    // `{action: 'send', text}` as JSON and shows the reply you render. Without JavaScript the form is a
+    // `{action: 'send', id, text}` as JSON and shows the reply you render. Without JavaScript the form is a
     // plain GET to this page (`message` and `model` in the query string): point it at your own POST
     // action (`'type' => 'post'`, the Form helper adds the CSRF token) and call your assistant service.
     ?>
