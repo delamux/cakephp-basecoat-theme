@@ -30,13 +30,22 @@ $this->assign('title', {{ t|raw }}'Workflow'));
 // sequential-workflow-designer, pinned (MIT, https://github.com/nocode-js/sequential-workflow-designer).
 // Self-host these files if your CSP does not allow cdn.jsdelivr.net.
 $designerCdn = 'https://cdn.jsdelivr.net/npm/sequential-workflow-designer@0.40.4/';
-$this->Html->css([
-    $designerCdn . 'css/designer.css',
-    $designerCdn . 'css/designer-light.css',
-    $designerCdn . 'css/designer-dark.css',
-    'BasecoatTheme.workflow',
-], ['block' => true]);
-$this->Html->script($designerCdn . 'dist/index.umd.js', ['block' => true, 'defer' => true]);
+// Subresource Integrity: the browser refuses a file whose hash differs (update both together).
+$designerFiles = [
+    'css/designer.css' => 'sha384-znKw/3SWPAtj2LiGZbohpsI01kjYMBozYyhnEUy2w6MQ7kdGULnxSQose0aOKPE+',
+    'css/designer-light.css' => 'sha384-ynKYR4zBohyZJlrnw8zqv0qjsKdOrBkQx9qPFf3y2YxfkOmzDEwhd0T6+fJlaaVg',
+    'css/designer-dark.css' => 'sha384-tayoa0t5i831+FzkRTMJdr/mj9MQkLo/na3qp6UZOHDYHmRlnWz2Wd9jBXyEQ7jy',
+];
+foreach ($designerFiles as $file => $integrity) {
+    $this->Html->css($designerCdn . $file, ['block' => true, 'integrity' => $integrity, 'crossorigin' => 'anonymous']);
+}
+$this->Html->css('BasecoatTheme.workflow', ['block' => true]);
+$this->Html->script($designerCdn . 'dist/index.umd.js', [
+    'block' => true,
+    'defer' => true,
+    'integrity' => 'sha384-lP7E6/vUWEwkA8P1HktX9/Sf2VfTZlQn22nHKd2NaKjdKaUcDLQ9CGc7Z9q3nbsv',
+    'crossorigin' => 'anonymous',
+]);
 
 // The designer expects objects for `properties` and `branches`, also when they are empty.
 $prepare = function (array $steps) use (&$prepare): array {
@@ -54,7 +63,7 @@ $prepare = function (array $steps) use (&$prepare): array {
 
     return $steps;
 };
-$json = fn (mixed $value): string => (string)json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$json = fn (mixed $value): string => (string)json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 $definitionJson = $json([
     'properties' => (object)($definition['properties'] ?? []),
     'sequence' => $prepare($definition['sequence'] ?? []),
@@ -114,18 +123,20 @@ $runStatuses = [
 
 // The steps as an ordered list (nested lists for the branches): shown without JavaScript and
 // hidden by basecoat-theme.js once the designer is mounted.
-$stepList = function (array $steps) use (&$stepList): string {
-    $html = '<ol class="flex flex-col gap-2" data-workflow-steps>';
+$branchCount = 0;
+$stepList = function (array $steps, ?string $labelledBy = null) use (&$stepList, &$branchCount): string {
+    $html = '<ol class="flex flex-col gap-2" data-workflow-steps' . ($labelledBy ? ' aria-labelledby="' . h($labelledBy) . '"' : '') . '>';
     foreach ($steps as $step) {
         $html .= '<li class="rounded-lg border bg-background p-3 text-sm" data-step-type="' . h((string)($step['type'] ?? '')) . '">'
             . '<span class="font-medium">' . h((string)($step['name'] ?? '')) . '</span>';
         if (!empty($step['branches'])) {
             $html .= '<ul class="mt-3 grid gap-3 sm:grid-cols-2" data-workflow-branches>';
             foreach ((array)$step['branches'] as $branch => $branchSteps) {
+                $branchId = 'workflow-branch-' . ++$branchCount;
                 $html .= '<li class="flex flex-col gap-2 rounded-lg bg-muted/50 p-2">'
-                    . '<span class="text-muted-foreground text-xs font-medium uppercase">' . h((string)$branch) . '</span>'
+                    . '<span id="' . $branchId . '" class="text-muted-foreground text-xs font-medium uppercase">' . h((string)$branch) . '</span>'
                     . ($branchSteps
-                        ? $stepList((array)$branchSteps)
+                        ? $stepList((array)$branchSteps, $branchId)
                         : '<p class="text-muted-foreground text-xs">' . h({{ t|raw }}'No steps in this branch')) . '</p>')
                     . '</li>';
             }
@@ -168,7 +179,8 @@ $runRows = array_map(function (array $run) use ($runStatuses): array {
     <section class="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card" data-workflow-designer aria-labelledby="workflow-steps-title">
         <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-4 py-3">
             <h3 id="workflow-steps-title" class="font-semibold"><?= h({{ t|raw }}'Steps')) ?></h3>
-            <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'Drag steps from the toolbox and select a step to edit it.')) ?></p>
+            <?php // Shown by basecoat-theme.js once the designer is mounted (meaningless in the plain list). ?>
+            <p class="text-muted-foreground text-sm" data-workflow-hint hidden><?= h({{ t|raw }}'Drag steps from the toolbox and select a step to edit it.')) ?></p>
         </header>
         <script type="application/json" data-workflow-definition><?= $definitionJson ?></script>
         <script type="application/json" data-workflow-config><?= $json($config) ?></script>

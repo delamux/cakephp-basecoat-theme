@@ -580,7 +580,8 @@ the exact files the command writes.
   (`sequential-workflow-designer@0.40.4`: `css/designer.css`, `css/designer-light.css`,
   `css/designer-dark.css`, `dist/index.umd.js`), plus `BasecoatTheme.workflow` (`webroot/css/workflow.css`,
   served at `/basecoat_theme/css/workflow.css`), through the view `css` / `script` blocks, so the default
-  layout prints them in `<head>` (HtmlHelper adds the CSP nonce). If your layout does not fetch these
+  layout prints them in `<head>` (HtmlHelper adds the CSP nonce). The CDN files carry Subresource
+  Integrity hashes (`integrity="sha384-…" crossorigin="anonymous"`): update them with the version. If your layout does not fetch these
   blocks, add `<?= $this->fetch('css') ?>` and `<?= $this->fetch('script') ?>`. Self-host the files by
   changing `$designerCdn` in the template.
 - **Mounting:** `webroot/js/basecoat-theme.js` (`pluginJs`) mounts the designer on
@@ -588,7 +589,8 @@ the exact files the command writes.
   `<script type="application/json">` data blocks (never executed). It keeps
   `<input type="hidden" name="definition">` up to date with the JSON of the definition and re-creates
   the designer in its `light` / `dark` theme when `.dark` changes on `<html>`, which resets the zoom, the
-  selection and the undo history. The step editor and the workflow editor are Basecoat fields, built as
+  selection and the undo history (if the new one fails, the previous designer stays). Designers whose
+  container is removed (also `htmx:beforeCleanupElement`) are destroyed. The step editor and the workflow editor are Basecoat fields, built as
   DOM with text set through `textContent`. `window.BasecoatTheme.initWorkflows(root)` mounts designers
   added later (htmx content is handled).
 - **Data:** `definition` is the library's format (`properties`, `sequence`; steps with `id`,
@@ -597,7 +599,8 @@ the exact files the command writes.
   editor come from the `fields` map in the template. "Save" and "Run test" are inert: the TODOs show how
   to post the `definition` input to your own action.
 - **Without JavaScript** (or when the library fails to load or throws), the steps render as an ordered
-  list with a nested list per branch. The canvas stays `hidden`.
+  list with a nested list per branch (labelled by the branch name). The canvas and the "Drag steps…" hint
+  (`data-workflow-hint`) stay `hidden`.
 - **Accessibility:** the canvas is a labelled region, but it is not keyboard-operable: adding or moving
   steps needs a pointer (drag and drop), and steps on the canvas cannot take focus (library limitation).
   The keyboard path is the editor panel: the workflow editor lists every step as a button that selects

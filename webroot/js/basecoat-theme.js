@@ -202,7 +202,8 @@
     input.type = typeof value === 'number' ? 'number' : 'text';
     input.value = value === undefined || value === null ? '' : String(value);
     input.disabled = readonly;
-    input.addEventListener('input', () => onInput(input.type === 'number' ? Number(input.value) : input.value));
+    // An emptied number field stays '' (Number('') would be 0)
+    input.addEventListener('input', () => onInput(input.type === 'number' && input.value !== '' ? Number(input.value) : input.value));
     return input;
   };
 
@@ -323,43 +324,53 @@
       });
     };
 
-    const create = () => {
-      state.theme = workflowTheme();
-      canvas.hidden = false;
-      try {
-        state.designer = lib.Designer.create(canvas, state.definition, {
-          theme: state.theme,
-          undoStackSize: 20,
-          toolbox: { groups: (Array.isArray(config.toolbox) ? config.toolbox : []).map((group) => ({ name: group.name, steps: normalizeSteps(group.steps) })) },
-          steps: { iconUrlProvider: () => null },
-          controlBar: true,
-          contextMenu: true,
-          // Delete / Backspace remove the selected step only when the focus is not in another control
-          keyboard: {
-            canHandleKey: () => {
-              const active = document.activeElement;
-              return !active || active === document.body || !!active.closest('.sqd-workspace');
-            },
-          },
-          editors: { rootEditorProvider, stepEditorProvider },
-          i18n,
-        });
-      } catch (e) {
-        console.error('[BasecoatTheme] Workflow designer error', e);
-        canvas.hidden = true;
-        if (fallback) fallback.hidden = false;
-        state.designer = null;
-        return;
-      }
-      if (fallback) fallback.hidden = true;
-      container.dataset.workflowMounted = 'true';
-      state.designer.onDefinitionChanged.subscribe((event) => {
+    const build = (theme) => lib.Designer.create(canvas, state.definition, {
+      theme,
+      undoStackSize: 20,
+      toolbox: { groups: (Array.isArray(config.toolbox) ? config.toolbox : []).map((group) => ({ name: group.name, steps: normalizeSteps(group.steps) })) },
+      steps: { iconUrlProvider: () => null },
+      controlBar: true,
+      contextMenu: true,
+      // Delete / Backspace remove the selected step only when the focus is not in another control
+      keyboard: {
+        canHandleKey: () => {
+          const active = document.activeElement;
+          return !active || active === document.body || !!active.closest('.sqd-workspace');
+        },
+      },
+      editors: { rootEditorProvider, stepEditorProvider },
+      i18n,
+    });
+
+    const attach = (designer, theme) => {
+      state.designer = designer;
+      state.theme = theme;
+      designer.onDefinitionChanged.subscribe((event) => {
         state.definition = event.definition;
         if (input) input.value = JSON.stringify(event.definition);
       });
       enhance();
-      state.designer.onIsToolboxCollapsedChanged.subscribe(enhance);
-      state.designer.onIsEditorCollapsedChanged.subscribe(enhance);
+      designer.onIsToolboxCollapsedChanged.subscribe(enhance);
+      designer.onIsEditorCollapsedChanged.subscribe(enhance);
+    };
+
+    // First mount: on failure the server-rendered list stays.
+    const create = () => {
+      const theme = workflowTheme();
+      canvas.hidden = false;
+      let designer;
+      try {
+        designer = build(theme);
+      } catch (e) {
+        console.error('[BasecoatTheme] Workflow designer error', e);
+        canvas.querySelectorAll(':scope > .sqd-designer').forEach((el) => el.remove());
+        canvas.hidden = true;
+        return;
+      }
+      if (fallback) fallback.hidden = true;
+      container.querySelectorAll('[data-workflow-hint]').forEach((hint) => { hint.hidden = false; });
+      container.dataset.workflowMounted = 'true';
+      attach(designer, theme);
     };
 
     // Enter / Space on the controls made focusable by enhance()
@@ -370,18 +381,46 @@
       control.click();
     });
 
+    // Theme switch: build the new designer next to the old one and swap; if it throws, keep the old one.
     state.recreate = () => {
-      if (!state.designer || state.theme === workflowTheme()) return;
-      state.definition = state.designer.getDefinition();
-      state.designer.destroy();
+      const theme = workflowTheme();
+      if (!state.designer || state.theme === theme) return;
+      const previous = state.designer;
+      const previousRoot = canvas.querySelector(':scope > .sqd-designer');
+      state.definition = previous.getDefinition();
+      let designer;
+      try {
+        designer = build(theme);
+      } catch (e) {
+        console.error('[BasecoatTheme] Workflow designer error', e);
+        canvas.querySelectorAll(':scope > .sqd-designer').forEach((el) => { if (el !== previousRoot) el.remove(); });
+        state.theme = theme; // do not retry on every class change; the previous designer keeps working
+        return;
+      }
+      previous.destroy();
+      attach(designer, theme);
+    };
+    state.destroy = () => {
+      state.designer?.destroy();
       state.designer = null;
-      create();
     };
     create();
     if (state.designer) workflows.push(state);
   };
 
+  // Designers whose container left the document (htmx swaps, removed nodes): destroy them.
+  const pruneWorkflows = (removed) => {
+    for (let i = workflows.length - 1; i >= 0; i--) {
+      const { container } = workflows[i];
+      if (!container.isConnected || (removed && (removed === container || removed.contains(container)))) {
+        workflows[i].destroy();
+        workflows.splice(i, 1);
+      }
+    }
+  };
+
   const initWorkflows = (root = document) => {
+    pruneWorkflows();
     if (!window.sequentialWorkflowDesigner) return;
     const scope = root instanceof Element || root instanceof Document ? root : document;
     const found = Array.from(scope.querySelectorAll('[data-workflow-designer]:not([data-workflow-mounted])'));
@@ -394,14 +433,8 @@
 
   // The designer has its own light / dark theme: re-create it when `.dark` changes on <html>.
   new MutationObserver(() => {
-    for (let i = workflows.length - 1; i >= 0; i--) {
-      if (!workflows[i].container.isConnected) {
-        workflows[i].designer?.destroy();
-        workflows.splice(i, 1);
-      } else {
-        workflows[i].recreate();
-      }
-    }
+    pruneWorkflows();
+    workflows.forEach((state) => state.recreate());
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
   const boot = () => { initCharts(); initToasts(); initProgress(); initWorkflows(); };
@@ -419,6 +452,9 @@
     initToasts(event.target);
     initProgress(event.target);
     initWorkflows(event.target);
+  });
+  document.addEventListener('htmx:beforeCleanupElement', (event) => {
+    if (workflows.length && event.target instanceof Element) pruneWorkflows(event.target);
   });
 
   Object.assign(window.BasecoatTheme, { initCharts, initToasts, initProgress, initWorkflows, toggleTheme });

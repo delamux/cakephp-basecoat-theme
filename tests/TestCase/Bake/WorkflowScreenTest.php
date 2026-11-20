@@ -220,11 +220,11 @@ class WorkflowScreenTest extends TestCase
 
         $cdn = 'https://cdn.jsdelivr.net/npm/sequential-workflow-designer@' . self::VERSION . '/';
         foreach (['css/designer.css', 'css/designer-light.css', 'css/designer-dark.css'] as $file) {
-            $this->assertStringContainsString('href="' . $cdn . $file . '"', $css);
+            $this->assertMatchesRegularExpression('#<link rel="stylesheet" href="' . preg_quote($cdn . $file, '#') . '" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous"/?>#', $css);
         }
         $this->assertStringContainsString('href="/basecoat_theme/css/workflow.css"', $css);
         $this->assertLessThan(strpos($css, 'workflow.css'), strpos($css, 'designer-dark.css'), 'The restyle loads after the library CSS');
-        $this->assertStringContainsString('<script src="' . $cdn . 'dist/index.umd.js" defer="defer"></script>', $script);
+        $this->assertMatchesRegularExpression('#<script src="' . preg_quote($cdn, '#') . 'dist/index\.umd\.js" defer="defer" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous"></script>#', $script);
         $this->assertStringNotContainsString('sequential-workflow-designer@', $html, 'Assets go to the blocks, not the content');
     }
 
@@ -297,6 +297,31 @@ class WorkflowScreenTest extends TestCase
         $this->assertSame($evil, $this->jsonBlock($html, 'definition')['sequence'][0]['name']);
     }
 
+    public function testInvalidUtf8IsSubstitutedInTheJson(): void
+    {
+        $html = $this->render($this->data([
+            'definition' => ['properties' => ['name' => "Bad \xB1 name"], 'sequence' => [
+                ['id' => 's1', 'componentType' => 'task', 'type' => 'task', 'name' => "Step \xC3\x28", 'properties' => []],
+            ]],
+        ]));
+
+        $definition = $this->jsonBlock($html, 'definition');
+        $this->assertSame("Bad \u{FFFD} name", $definition['properties']['name']);
+        $this->assertStringContainsString("\u{FFFD}", $definition['sequence'][0]['name']);
+        $this->assertMatchesRegularExpression('/<input type="hidden" name="definition" value="[^"]+" data-workflow-input>/', $html);
+    }
+
+    public function testBranchListsAreLabelledByTheirBranchAndTheHintWaitsForTheDesigner(): void
+    {
+        $html = $this->render();
+
+        foreach (['Yes', 'No'] as $branch) {
+            $this->assertSame(1, preg_match('#<span id="(workflow-branch-\d+)"[^>]*>' . $branch . '</span><ol [^>]*aria-labelledby="([^"]+)"#', $html, $m), $branch);
+            $this->assertSame($m[1], $m[2]);
+        }
+        $this->assertMatchesRegularExpression('/<p class="text-muted-foreground text-sm" data-workflow-hint hidden>Drag steps/', $html);
+    }
+
     public function testNoInlineJsOrStyles(): void
     {
         $html = $this->render();
@@ -355,6 +380,9 @@ class WorkflowScreenTest extends TestCase
         $this->assertStringContainsString('sequentialWorkflowDesigner', $js);
         $this->assertStringContainsString('onDefinitionChanged', $js);
         $this->assertStringNotContainsString('innerHTML', $js, 'Editors build DOM with textContent');
+        $this->assertStringContainsString('htmx:beforeCleanupElement', $js, 'Designers of removed content are destroyed');
+        $this->assertStringContainsString('[data-workflow-hint]', $js, 'The hint is shown once mounted');
+        $this->assertStringContainsString("input.value !== '' ? Number(input.value)", $js, 'An emptied number field stays empty');
     }
 
     public function testRestyleMapsBothDesignerThemesToBasecoatTokens(): void
