@@ -19,11 +19,13 @@
     },
     "autoload-dev": {
         "psr-4": {
+            "BasecoatTheme\\Docs\\": "docs/catalog/src/",
             "BasecoatTheme\\Test\\": "tests/",
             "TestApp\\": "tests/test_app/src/"
         }
     },
     "scripts": {
+        "docs": "php bin/build-gh-pages",
         "test": "phpunit --colors=always"
     },
     "config": {
