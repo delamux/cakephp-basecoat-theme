@@ -97,4 +97,18 @@ class CommandMenuHelperTest extends HelperTestCase
         $this->assertStringContainsString('data-command-hotkey="j"', $html);
         $this->assertStringNotContainsString('role="group"', $html);
     }
+
+    public function testItemUrlWithQueryIsEscapedOnce(): void
+    {
+        $html = (new CommandMenuHelper($this->View))->render([
+            'Pages' => [
+                ['label' => 'Paid orders', 'url' => '/orders?status=paid&sort=total'],
+                ['label' => 'Failed orders', 'url' => ['controller' => 'Orders', 'action' => 'index', '?' => ['status' => 'failed', 'page' => 2]]],
+            ],
+        ]);
+
+        $this->assertStringContainsString('href="/orders?status=paid&amp;sort=total"', $html);
+        $this->assertStringContainsString('href="/orders?status=failed&amp;page=2"', $html);
+        $this->assertStringNotContainsString('&amp;amp;', $html);
+    }
 }

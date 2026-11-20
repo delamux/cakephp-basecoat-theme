@@ -158,7 +158,7 @@ class ConversationHelper extends AbstractComponentHelper
     {
         $attributes = ['method' => 'post'];
         if (isset($composer['url'])) {
-            $attributes['action'] = $this->Url->build($composer['url']);
+            $attributes['action'] = $this->Url->build($composer['url'], ['escape' => false]);
         }
         $attributes = $this->partAttributes('composer', $attributes, 'flex items-center gap-2 border-t p-3');
 

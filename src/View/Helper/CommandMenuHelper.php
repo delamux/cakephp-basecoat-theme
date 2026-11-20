@@ -224,7 +224,7 @@ class CommandMenuHelper extends AbstractComponentHelper
         ];
 
         if (isset($item['url'])) {
-            $data['url'] = h($this->Url->build($item['url']));
+            $data['url'] = $this->Url->build($item['url']);
 
             return $this->renderTemplate('itemLink', $this->partAttributes('item', $attributes), $data);
         }

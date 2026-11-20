@@ -168,10 +168,22 @@ class TableToolbarHelper extends AbstractComponentHelper
         if (is_array($clear)) {
             $clear['?'] = $keep + (array)($clear['?'] ?? []);
 
-            return $this->Url->build($clear);
+            return $this->Url->build($clear, ['escape' => false]);
         }
         $base = is_string($clear) ? $clear : $url;
+        if ($keep === []) {
+            return $this->Url->build($base, ['escape' => false]);
+        }
 
-        return $this->Url->build($base) . ($keep ? '?' . http_build_query($keep) : '');
+        $fragment = '';
+        $hash = strpos($base, '#');
+        if ($hash !== false) {
+            $fragment = substr($base, $hash);
+            $base = substr($base, 0, $hash);
+        }
+        [$path, $existing] = explode('?', $base, 2) + [1 => ''];
+        parse_str($existing, $params);
+
+        return $this->Url->build($path, ['escape' => false]) . '?' . http_build_query($keep + $params) . $fragment;
     }
 }

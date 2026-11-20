@@ -84,4 +84,14 @@ class ConversationHelperTest extends HelperTestCase
         $this->assertStringNotContainsString('bg-muted', $html);
         $this->assertStringNotContainsString('bg-primary', $html);
     }
+
+    public function testComposerUrlWithQueryIsEscapedOnce(): void
+    {
+        $html = (new ConversationHelper($this->View))->render([], [
+            'composer' => ['url' => ['controller' => 'Tickets', 'action' => 'reply', '?' => ['ticket' => 7, 'tab' => 'chat']]],
+        ]);
+
+        $this->assertStringContainsString('action="/tickets/reply?ticket=7&amp;tab=chat"', $html);
+        $this->assertStringNotContainsString('&amp;amp;', $html);
+    }
 }

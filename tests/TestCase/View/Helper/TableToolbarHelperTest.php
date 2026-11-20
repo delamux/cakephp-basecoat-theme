@@ -160,4 +160,26 @@ class TableToolbarHelperTest extends HelperTestCase
             $helper->render(['filter' => $this->controls(), 'clear' => '/orders']),
         );
     }
+
+    public function testClearUrlsAreEscapedOnce(): void
+    {
+        $query = ['q' => 'abc', 'sort' => 'name', 'direction' => 'asc'];
+        $helper = new TableToolbarHelper(new View(new ServerRequest(['url' => '/x', 'query' => $query])));
+
+        $out = $helper->render(['filter' => $this->controls(), 'clear' => ['controller' => 'Orders', 'action' => 'index', '?' => ['view' => 'all']]]);
+        $this->assertStringContainsString('href="/orders?sort=name&amp;direction=asc&amp;view=all"', $out);
+        $this->assertStringNotContainsString('&amp;amp;', $out);
+
+        $out = $helper->render(['filter' => $this->controls(), 'clear' => '/orders?view=all&tab=open']);
+        $this->assertStringContainsString('href="/orders?sort=name&amp;direction=asc&amp;view=all&amp;tab=open"', $out);
+        $this->assertStringNotContainsString('&amp;amp;', $out);
+        $this->assertSame(1, substr_count((string)preg_replace('/.*href="([^"]*)"[^>]*>Clear.*/s', '$1', $out), '?'));
+    }
+
+    public function testClearUrlWithoutKeptParamsKeepsItsQuery(): void
+    {
+        $helper = new TableToolbarHelper($this->View);
+        $out = $helper->render(['filter' => $this->controls(), 'clear' => '/orders?view=all&tab=open']);
+        $this->assertStringContainsString('href="/orders?view=all&amp;tab=open"', $out);
+    }
 }
