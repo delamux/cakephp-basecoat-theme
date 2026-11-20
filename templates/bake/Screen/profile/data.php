@@ -36,11 +36,11 @@ return [
         ['id' => 6, 'icon' => 'check', 'text' => 'Closed the invoicing review for Lantern Books', 'time' => '2 weeks ago'],
     ],
     'projects' => [
-        ['id' => 1, 'name' => 'Harbor & Pine onboarding', 'customer' => 'Harbor & Pine', 'progress' => 80, 'status' => 'On track', 'due' => 'Dec 4'],
-        ['id' => 2, 'name' => 'Quillon Studio renewal', 'customer' => 'Quillon Studio', 'progress' => 45, 'status' => 'At risk', 'due' => 'Dec 18'],
-        ['id' => 3, 'name' => 'Ostrava Freight rollout', 'customer' => 'Ostrava Freight', 'progress' => 25, 'status' => 'On track', 'due' => 'Jan 22'],
-        ['id' => 4, 'name' => 'Brightmoor Clinic kick-off', 'customer' => 'Brightmoor Clinic', 'progress' => 10, 'status' => 'Planned', 'due' => 'Feb 5'],
-        ['id' => 5, 'name' => 'Lantern Books invoicing', 'customer' => 'Lantern Books', 'progress' => 100, 'status' => 'Done', 'due' => 'Nov 12'],
-        ['id' => 6, 'name' => 'Support playbook v2', 'customer' => 'Fernway', 'progress' => 60, 'status' => 'On track', 'due' => 'Dec 30'],
+        ['id' => 1, 'name' => 'Harbor & Pine onboarding', 'customer' => 'Harbor & Pine', 'progress' => 80, 'status' => 'on_track', 'due' => 'Dec 4'],
+        ['id' => 2, 'name' => 'Quillon Studio renewal', 'customer' => 'Quillon Studio', 'progress' => 45, 'status' => 'at_risk', 'due' => 'Dec 18'],
+        ['id' => 3, 'name' => 'Ostrava Freight rollout', 'customer' => 'Ostrava Freight', 'progress' => 25, 'status' => 'on_track', 'due' => 'Jan 22'],
+        ['id' => 4, 'name' => 'Brightmoor Clinic kick-off', 'customer' => 'Brightmoor Clinic', 'progress' => 10, 'status' => 'planned', 'due' => 'Feb 5'],
+        ['id' => 5, 'name' => 'Lantern Books invoicing', 'customer' => 'Lantern Books', 'progress' => 100, 'status' => 'done', 'due' => 'Nov 12'],
+        ['id' => 6, 'name' => 'Support playbook v2', 'customer' => 'Fernway', 'progress' => 60, 'status' => 'on_track', 'due' => 'Dec 30'],
     ],
 ];

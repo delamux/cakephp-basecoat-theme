@@ -100,11 +100,16 @@ class ProfileScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<h3[^>]*>Elena Sarto<\/h3>/', $html);
+        // The visible name is the page's h2 (no extra sr-only heading).
+        $this->assertMatchesRegularExpression('/<h2[^>]*>Elena Sarto<\/h2>/', $html);
+        $this->assertSame(1, substr_count($html, '<h2'));
         $this->assertStringContainsString('Head of Operations', $html);
         $this->assertStringContainsString('Lisbon, Portugal', $html);
         $this->assertMatchesRegularExpression('/<a [^>]*href="#"[^>]*>.*?Edit profile<\/a>/s', $html);
         $this->assertMatchesRegularExpression('/<a [^>]*href="#"[^>]*>.*?Message<\/a>/s', $html);
+        // "Message" uses the chat icon, not the mail icon of the Email detail.
+        preg_match('/<a [^>]*>((?:(?!<\/a>).)*)Message<\/a>/s', $html, $message);
+        $this->assertStringContainsString('M7.9 20A9 9 0 1 0 4 16.1L2 22Z', $message[1]);
         // The visible name is next to the avatar: initials are hidden from screen readers.
         $this->assertStringContainsString('aria-hidden="true"', $html);
         $this->assertDoesNotMatchRegularExpression('/<h1/', $html);
@@ -171,9 +176,10 @@ class ProfileScreenTest extends TestCase
         $this->assertStringContainsString('aria-label="Progress of Support playbook v2"', $html);
         $this->assertStringContainsString('aria-valuenow="60"', $html);
         // Status is text, not colour only.
-        foreach (['On track', 'At risk', 'Planned', 'Done'] as $status) {
-            $this->assertMatchesRegularExpression('/data-status="' . $status . '"[^>]*>' . $status . '</', $html);
+        foreach (['on_track' => 'On track', 'at_risk' => 'At risk', 'planned' => 'Planned', 'done' => 'Done'] as $key => $status) {
+            $this->assertMatchesRegularExpression('/data-status="' . $key . '"[^>]*>' . $status . '</', $html);
         }
+        $this->assertMatchesRegularExpression('/data-variant="destructive"[^>]*data-status="at_risk"|data-status="at_risk"[^>]*data-variant="destructive"/', $html);
     }
 
     public function testSettingsFormPostsToAPlaceholderWithLabelledFields(): void
@@ -211,6 +217,8 @@ class ProfileScreenTest extends TestCase
         $this->assertStringContainsString('No projects', $html);
         $this->assertStringContainsString('No skills listed yet.', $html);
         $this->assertStringContainsString('Noor Haddad', $html);
+        // No about text: the About card is skipped.
+        $this->assertDoesNotMatchRegularExpression('/>About<\/h3>/', $html);
     }
 
     public function testEscaping(): void
@@ -246,5 +254,8 @@ class ProfileScreenTest extends TestCase
 
         $this->assertStringContainsString("__d('Demo', 'Edit profile')", $code);
         $this->assertStringContainsString("__d('Demo', 'Progress of {0}'", $code);
+        // Stat labels and descriptions are data: never msgids built from variables.
+        $this->assertDoesNotMatchRegularExpression("/__d\\('Demo', \\(string\\)\\$/", $code);
+        $this->assertDoesNotMatchRegularExpression("/__d\\('Demo', \\$/", $code);
     }
 }

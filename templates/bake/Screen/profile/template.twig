@@ -15,7 +15,7 @@
  * @var array<string, mixed> $profile Member: name, role, location, email, phone, timezone, joined, about, bio, skills, notifications (mentions, weekly_digest, product_news).
  * @var array<int, array<string, mixed>> $stats Metrics: label, value, change, trend, description, icon.
  * @var array<int, array<string, mixed>> $activity Timeline entries: id, icon, text, time.
- * @var array<int, array<string, mixed>> $projects Projects: id, name, customer, progress (0-100), status, due.
+ * @var array<int, array<string, mixed>> $projects Projects: id, name, customer, progress (0-100), status (on_track, at_risk, planned, done), due.
  */
 $this->assign('title', {{ t|raw }}'Profile'));
 
@@ -27,21 +27,24 @@ $details = [
     ['globe', {{ t|raw }}'Time zone'), (string)($profile['timezone'] ?? '')],
     ['calendar', {{ t|raw }}'Joined'), (string)($profile['joined'] ?? '')],
 ];
-$statusVariants = ['On track' => 'secondary', 'At risk' => 'destructive', 'Planned' => 'outline', 'Done' => 'default'];
+$statusVariants = ['on_track' => 'secondary', 'at_risk' => 'destructive', 'planned' => 'outline', 'done' => 'default'];
 $statusLabels = [
-    'On track' => {{ t|raw }}'On track'),
-    'At risk' => {{ t|raw }}'At risk'),
-    'Planned' => {{ t|raw }}'Planned'),
-    'Done' => {{ t|raw }}'Done'),
+    'on_track' => {{ t|raw }}'On track'),
+    'at_risk' => {{ t|raw }}'At risk'),
+    'planned' => {{ t|raw }}'Planned'),
+    'done' => {{ t|raw }}'Done'),
 ];
 
 // Overview
 $overview = '<div class="grid gap-4 lg:grid-cols-3">';
 $overview .= '<div class="flex min-w-0 flex-col gap-4 lg:col-span-2">';
-$overview .= $this->Card->render(
-    '<p class="text-sm leading-relaxed">' . h((string)($profile['about'] ?? '')) . '</p>',
-    ['title' => {{ t|raw }}'About'), 'titleTag' => 'h3'],
-);
+$about = (string)($profile['about'] ?? '');
+if ($about !== '') {
+    $overview .= $this->Card->render(
+        '<p class="text-sm leading-relaxed">' . h($about) . '</p>',
+        ['title' => {{ t|raw }}'About'), 'titleTag' => 'h3'],
+    );
+}
 $skills = '';
 foreach ((array)($profile['skills'] ?? []) as $skill) {
     $skills .= '<li>' . $this->Badge->render((string)$skill, ['variant' => 'secondary']) . '</li>';
@@ -51,11 +54,12 @@ $overview .= $this->Card->render(
     ['title' => {{ t|raw }}'Skills'), 'titleTag' => 'h3'],
 );
 $overview .= '<div class="grid gap-4 sm:grid-cols-3">';
+// Stat labels and descriptions are data (translate them where you build $stats).
 foreach ($stats as $stat) {
-    $overview .= $this->MetricCard->render({{ t|raw }}(string)$stat['label']), (string)$stat['value'], [
+    $overview .= $this->MetricCard->render((string)$stat['label'], (string)$stat['value'], [
         'change' => $stat['change'] ?? null,
         'trend' => $stat['trend'] ?? 'flat',
-        'description' => isset($stat['description']) ? {{ t|raw }}(string)$stat['description']) : null,
+        'description' => isset($stat['description']) ? (string)$stat['description'] : null,
         'icon' => $stat['icon'] ?? null,
     ]);
 }
@@ -131,8 +135,6 @@ $settings .= $this->Form->end();
 $settingsPanel = '<div class="max-w-2xl">' . $this->Card->render($settings, ['title' => {{ t|raw }}'Profile settings'), 'description' => {{ t|raw }}'Update how you appear to your team.'), 'titleTag' => 'h3']) . '</div>';
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
-    <h2 class="sr-only"><?= h({{ t|raw }}'Profile')) ?></h2>
-
     <section class="overflow-hidden rounded-xl border" aria-label="<?= h({{ t|raw }}'Profile of {0}', $name)) ?>">
         <?php // Decorative cover: a CSS gradient, no image. ?>
         <div class="from-primary/30 via-primary/10 to-muted h-28 bg-linear-to-r sm:h-36" aria-hidden="true"></div>
@@ -140,7 +142,7 @@ $settingsPanel = '<div class="max-w-2xl">' . $this->Card->render($settings, ['ti
             <div class="-mt-10 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
                 <?= $this->Avatar->render($name, ['decorative' => true, 'class' => 'border-background size-20 border-4 text-2xl']) ?>
                 <div class="min-w-0 sm:pb-1">
-                    <h3 class="truncate text-xl font-semibold"><?= h($name) ?></h3>
+                    <h2 class="truncate text-xl font-semibold"><?= h($name) ?></h2>
                     <p class="text-muted-foreground text-sm"><?= h((string)($profile['role'] ?? '')) ?></p>
                     <?php if (!empty($profile['location'])) : ?>
                         <p class="text-muted-foreground mt-1 inline-flex items-center gap-1 text-sm">
@@ -153,7 +155,7 @@ $settingsPanel = '<div class="max-w-2xl">' . $this->Card->render($settings, ['ti
             </div>
             <div class="flex flex-wrap gap-2">
                 <?php // TODO: link "Edit profile" and "Message" to your own actions. ?>
-                <?= $this->Button->link({{ t|raw }}'Message'), '#', ['icon' => 'mail', 'variant' => 'outline']) ?>
+                <?= $this->Button->link({{ t|raw }}'Message'), '#', ['icon' => 'message-circle', 'variant' => 'outline']) ?>
                 <?= $this->Button->link({{ t|raw }}'Edit profile'), '#', ['icon' => 'pencil']) ?>
             </div>
         </div>
