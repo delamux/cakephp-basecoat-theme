@@ -124,7 +124,7 @@ class ScreenBuilderTest extends TestCase
         $this->assertMatchesRegularExpression('/<a[^>]*href="\.\.\/screens\/demo\/preview\.html"[^>]*>.*Open full page/s', $html);
         $this->assertStringContainsString('<span class="sr-only"> (opens in a new tab)</span>', $html);
         foreach (['Copy command', 'Copy controller code', 'Copy template code'] as $label) {
-            $this->assertStringContainsString('aria-label="' . $label . '"', $html);
+            $this->assertStringContainsString('<span class="sr-only">' . $label . '</span>', $html);
         }
     }
 

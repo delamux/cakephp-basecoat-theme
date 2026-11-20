@@ -48,13 +48,13 @@ foreach ($users as $user) {
         ],
         'actions' => [
             'escape' => false,
-            'content' => $this->DropdownMenu->render('<span class="sr-only">' . h('Actions for ' . $user['name']) . '</span>', [
+            'content' => $this->DropdownMenu->render('', [
                 // TODO: link these items to your own view, edit and delete actions.
                 ['label' => 'View profile', 'url' => '#'],
                 ['label' => 'Edit user', 'url' => '#'],
                 '-',
                 ['label' => 'Suspend', 'url' => '#', 'variant' => 'destructive'],
-            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm'], 'align' => 'end', 'escape' => false]),
+            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Actions for ' . $user['name']], 'align' => 'end']),
         ],
     ];
 }

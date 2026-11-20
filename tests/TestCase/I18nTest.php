@@ -29,7 +29,7 @@ class I18nTest extends TestCase
         $this->loadPlugins(['BasecoatTheme']);
         I18n::setLocale('es_ES');
         $sidebar = new SidebarHelper(new View(new ServerRequest()));
-        $this->assertStringContainsString('aria-label="Mostrar u ocultar menú"', $sidebar->toggle());
+        $this->assertStringContainsString('<span class="sr-only">Mostrar u ocultar menú</span>', $sidebar->toggle());
     }
 
     public function testDashboardHelpersAreTranslated(): void

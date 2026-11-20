@@ -98,7 +98,7 @@ class PaginationHelper extends AbstractComponentHelper
             $out = '';
             if (!empty($options['first'])) {
                 $out .= (string)$this->Paginator->first(
-                    $options['first'] === true ? $this->Icon->render('chevrons-left') : $options['first'],
+                    $options['first'] === true ? $this->iconLabel('chevrons-left', __d('basecoat_theme', 'First page')) : $options['first'],
                     $linkOptions + ['escape' => false],
                 );
             }
@@ -114,7 +114,7 @@ class PaginationHelper extends AbstractComponentHelper
             $out .= $this->Paginator->next($options['next'] ?? $this->nextLabel(), $linkOptions + ['escape' => false]);
             if (!empty($options['last'])) {
                 $out .= (string)$this->Paginator->last(
-                    $options['last'] === true ? $this->Icon->render('chevrons-right') : $options['last'],
+                    $options['last'] === true ? $this->iconLabel('chevrons-right', __d('basecoat_theme', 'Last page')) : $options['last'],
                     $linkOptions + ['escape' => false],
                 );
             }
@@ -247,7 +247,7 @@ class PaginationHelper extends AbstractComponentHelper
      */
     protected function prevLabel(): string
     {
-        return $this->Icon->render('chevron-left') . '<span class="hidden sm:block">'
+        return $this->Icon->render('chevron-left') . '<span class="sr-only sm:not-sr-only">'
             . h(__d('basecoat_theme', 'Previous')) . '</span>';
     }
 
@@ -258,7 +258,19 @@ class PaginationHelper extends AbstractComponentHelper
      */
     protected function nextLabel(): string
     {
-        return '<span class="hidden sm:block">' . h(__d('basecoat_theme', 'Next')) . '</span>'
+        return '<span class="sr-only sm:not-sr-only">' . h(__d('basecoat_theme', 'Next')) . '</span>'
             . $this->Icon->render('chevron-right');
+    }
+
+    /**
+     * Icon plus its visually hidden name (icon-only first/last links).
+     *
+     * @param string $icon Icon name.
+     * @param string $label Accessible name.
+     * @return string
+     */
+    protected function iconLabel(string $icon, string $label): string
+    {
+        return $this->Icon->render($icon) . '<span class="sr-only">' . h($label) . '</span>';
     }
 }

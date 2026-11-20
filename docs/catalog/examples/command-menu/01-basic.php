@@ -10,7 +10,7 @@ $groups = [
     ],
     'Preferences' => [
         ['label' => 'Toggle theme', 'icon' => 'sun', 'keywords' => 'dark light mode'],
-        ['label' => 'Settings', 'url' => '#settings', 'icon' => 'list', 'shortcut' => ['Ctrl', ',']],
+        ['label' => 'Settings', 'url' => '#settings', 'icon' => 'settings-2', 'shortcut' => ['Ctrl', ',']],
     ],
 ];
 // ---

@@ -24,7 +24,7 @@ class DialogHelperTest extends HelperTestCase
         );
         $this->assertStringContainsString('class="dialog w-full sm:max-w-[425px]"', $out);
         $this->assertStringContainsString('<div><header><h2 id="profile-title">Edit profile</h2><p id="profile-description">Make changes</p></header><section><form></form></section><footer><button>Save</button></footer>', $out);
-        $this->assertStringContainsString('aria-label="Close dialog"', $out);
+        $this->assertStringContainsString('<span class="sr-only">Close dialog</span>', $out);
         $this->assertStringContainsString('data-dialog-backdrop-close', $out);
     }
 

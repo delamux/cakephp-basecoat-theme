@@ -29,6 +29,12 @@ msgstr "Página {{page}} de {{pages}}"
 msgid "Previous"
 msgstr "Anterior"
 
+msgid "First page"
+msgstr "Primera página"
+
+msgid "Last page"
+msgstr "Última página"
+
 msgid "Toggle sidebar"
 msgstr "Mostrar u ocultar menú"
 

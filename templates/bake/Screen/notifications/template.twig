@@ -51,12 +51,7 @@ if ($unreadCount > 0) {
                 'disabled' => $unreadCount === 0,
             ]),
             // TODO: link the settings button to your notification preferences page.
-            $this->Button->render('<span class="sr-only">Notification settings</span>', [
-                'icon' => 'settings-2',
-                'variant' => 'ghost',
-                'size' => 'icon',
-                'escape' => false,
-            ]),
+            $this->Button->icon('settings-2', 'Notification settings', ['variant' => 'ghost']),
         ],
     ]) ?>
 
