@@ -47,7 +47,9 @@
  *          data-text-off as text and `hidden` when data-toggle-hidden="on|off" matches. Every control of
  *          the toggle (inside the item or targeting it) gets checked / aria-pressed.
  *          [data-toggle-all="name"][data-toggle-scope="#list"] (+ data-announce-on): turns every item on.
- *          Event basecoat:toggle (cancelable) on the item {item, id, name, on}.
+ *          Event basecoat:toggle (cancelable) on the item {item, id, name, on} (chained toggles fire their
+ *          own). Focus: when the toggle hides its row (an active filter such as Status = Unread), focus
+ *          moves to the next visible row, else the previous one, else the filter root.
  * REMOVE   [data-remove-item="archive"] button: removes the element of its data-remove-target="#row", else
  *          its closest [data-toggle-item] / [data-filter-item] / [data-remove-target] ancestor. Focus goes
  *          to the next visible row. When the row is open in a master-detail pane, the pane gets the
@@ -89,13 +91,17 @@
  *          listed; Upload fires basecoat:upload (cancelable) on the zone {files: File[]}: send them
  *          yourself (FormData + CSRF token). Messages files-added, file-removed, files-cleared.
  * ENDPOINT data-endpoint="/url" on the item / form / list or an ancestor: toggles, removals and sends are
- *          POSTed as JSON ({action: 'toggle', id, name, on} | {action, id} | {action: 'send', text})
+ *          POSTed as JSON ({action: 'toggle', id, name, on[, also: [chained names]]} | {action: 'toggle-all',
+ *          name, on: true, ids} | {action, id} (removals) | {action: 'send', id (form id), text})
  *          with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken"> or
  *          input[name=_csrfToken]). The URL is resolved against document.baseURI and must be same-origin
  *          http(s), otherwise it is refused (console.error). On failure or refusal the change is reverted
  *          (sends: the bubble gets data-state="failed"), announced, and basecoat:toggle-error /
  *          basecoat:remove-error / basecoat:send-error fire with the event detail + {status, reason:
- *          'response'|'origin'}. While a toggle POST is pending the item has data-busy + aria-busy and
+ *          'response'|'origin'}. A toggle and its data-toggle-also chain are one POST and are reverted
+ *          together; data-toggle-all is one POST for every item (all reverted on failure; the error event
+ *          fires on the scope with {ids, name, on}). A failed removal puts the row back, the reading pane
+ *          and the focus too. While a toggle POST is pending the item has data-busy + aria-busy and
  *          ignores further toggles and removals.
  * ANNOUNCER shared [data-basecoat-announcer] aria-live region (also used by basecoat-dnd.js). Messages:
  *          data-screens-i18n-<key> on the element or an ancestor, or
@@ -151,7 +157,7 @@
   const stepStates = (current, total) => Array.from({ length: total }, (_, i) => (i < current ? 'complete' : i === current ? 'current' : 'upcoming'));
 
   const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
-  const format = (template, vars) => String(template).replace(/\{(\w+)\}/g, (m, key) => (
+  const format = (template, vars) => String(template).replace(/\{([\w-]+)\}/g, (m, key) => (
     vars && vars[key] !== undefined && vars[key] !== null ? String(vars[key]) : m
   ));
 
@@ -175,7 +181,109 @@
     }
   };
 
-  const pure = { normalize, matchesQuery, matchesFacet, matchesFacets, tokensOf, countValue, formatSize, joinValues, selectAllState, stepStates, clamp, format, swapClasses, resolveEndpoint };
+  /**
+   * POSTs `payload` as JSON to `endpoint` ({raw: data-endpoint value, token: CSRF token}) through
+   * env.fetch; env {base, origin, fetch, error}. Returns null without an endpoint, else a promise of
+   * {ok, status, reason: 'response'|'origin'}; a cross-origin / non-http(s) endpoint is refused (env.error)
+   * without any request, so the token never leaves the site.
+   */
+  const endpointRequest = (endpoint, payload, env) => {
+    if (!endpoint) return null;
+    const url = resolveEndpoint(endpoint.raw, env.base, env.origin);
+    if (!url) {
+      env.error(`data-endpoint must be a same-origin http(s) URL; change reverted: ${endpoint.raw}`);
+      return Promise.resolve({ ok: false, status: 0, reason: 'origin' });
+    }
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    if (endpoint.token) headers['X-CSRF-Token'] = endpoint.token;
+    return env.fetch(url, { method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(payload) })
+      .then((response) => ({ ok: response.ok, status: response.status, reason: 'response' }), () => ({ ok: false, status: 0, reason: 'response' }));
+  };
+
+  /** Settles an optimistic change: hooks.busy(true / false) around `pending`, hooks.revert(result) on failure. */
+  const settle = (pending, hooks) => {
+    if (!pending) return null;
+    if (hooks.busy) hooks.busy(true);
+    return pending.then((result) => {
+      if (hooks.busy) hooks.busy(false);
+      if (!result.ok && hooks.revert) hooks.revert(result);
+      return result;
+    });
+  };
+
+  /**
+   * A toggle and its chained toggles (data-toggle-also) as one transaction, DOM-free. `main` and each of
+   * `chained` are adapters {name, on, isOn(), read() -> snapshot, write(on), restore(snapshot), confirm()
+   * -> false when basecoat:toggle was cancelled}. A busy item ignores the change (the control is resynced).
+   * The chained toggles (only when switching on, skipping those already on) are applied directly, so they
+   * never hit the busy flag, and go in the same request: send(alsoNames) -> null | promise. On failure every
+   * applied toggle is restored (last first) and fail(result) runs. Returns {status: 'busy'|'unchanged'|
+   * 'cancelled'|'applied', also, pending, undo}.
+   */
+  const toggleTransaction = ({ busy, main, chained, after, send, setBusy, fail }) => {
+    if (busy()) {
+      main.write(main.isOn());
+      return { status: 'busy', also: [], pending: null, undo: () => {} };
+    }
+    if (main.isOn() === main.on) {
+      main.write(main.on);
+      return { status: 'unchanged', also: [], pending: null, undo: () => {} };
+    }
+    const applied = [];
+    const undo = () => applied.slice().reverse().forEach((entry) => entry.change.restore(entry.snapshot));
+    const apply = (change) => {
+      const snapshot = change.read();
+      change.write(change.on);
+      if (!change.confirm()) {
+        change.restore(snapshot);
+        return false;
+      }
+      applied.push({ change, snapshot });
+      return true;
+    };
+    if (!apply(main)) return { status: 'cancelled', also: [], pending: null, undo: () => {} };
+    if (main.on) (chained || []).forEach((change) => { if (change.isOn() !== change.on) apply(change); });
+    const also = applied.slice(1).map((entry) => entry.change.name);
+    if (after) after();
+    const pending = settle(send(also), {
+      busy: setBusy,
+      revert: (result) => {
+        undo();
+        if (fail) fail(result);
+      },
+    });
+    return { status: 'applied', also, pending, undo };
+  };
+
+  /** The next visible ({hidden: false}) sibling of `el`, else the previous one, else null. */
+  const visibleNeighbour = (el) => {
+    const walk = (start, step) => {
+      let current = start;
+      while (current && current.hidden) current = current[step];
+      return current || null;
+    };
+    return walk(el.nextElementSibling, 'nextElementSibling') || walk(el.previousElementSibling, 'previousElementSibling');
+  };
+
+  /** JSON.parse with a cache of at most `limit` texts (cleared when full); invalid JSON -> null + onError. */
+  const createJsonCache = (limit, onError) => {
+    const cache = new Map();
+    return {
+      parse: (text) => {
+        if (!text) return null;
+        if (cache.has(text)) return cache.get(text);
+        let value = null;
+        try { value = JSON.parse(text); } catch (e) { if (onError) onError(e); }
+        if (cache.size >= limit) cache.clear();
+        cache.set(text, value);
+        return value;
+      },
+      clear: () => cache.clear(),
+      size: () => cache.size,
+    };
+  };
+
+  const pure = { normalize, matchesQuery, matchesFacet, matchesFacets, tokensOf, countValue, formatSize, joinValues, selectAllState, stepStates, clamp, format, swapClasses, resolveEndpoint, endpointRequest, settle, toggleTransaction, visibleNeighbour, createJsonCache };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.BasecoatScreens) return;
@@ -194,15 +302,9 @@
     'files-cleared': 'List cleared.',
   };
 
-  const jsonCache = new Map();
-  const parseJson = (text) => {
-    if (!text) return null;
-    if (jsonCache.has(text)) return jsonCache.get(text);
-    let value = null;
-    try { value = JSON.parse(text); } catch (e) { console.error('[BasecoatScreens] Invalid JSON', e); }
-    jsonCache.set(text, value);
-    return value;
-  };
+  // Parsed data-* JSON, cached (bounded; cleared on htmx swaps)
+  const jsonCache = createJsonCache(200, (e) => console.error('[BasecoatScreens] Invalid JSON', e));
+  const parseJson = jsonCache.parse;
 
   const t = (context, key, vars) => {
     for (let el = context; el && el.getAttribute; el = el.parentElement) {
@@ -296,25 +398,22 @@
     const input = document.querySelector('input[name="_csrfToken"]');
     return input ? input.value : '';
   };
-  /**
-   * POSTs `payload` to the data-endpoint of `el` (or an ancestor). Returns null without an endpoint, else
-   * a promise of {ok, status, reason: 'response'|'origin'}; cross-origin endpoints are refused.
-   */
-  const request = (el, payload) => {
+  /** The data-endpoint of `el` (or an ancestor) and the CSRF token, read now (before `el` leaves the DOM). */
+  const endpointOf = (el) => {
     const holder = el && el.closest('[data-endpoint]');
-    if (!holder) return null;
-    const raw = holder.getAttribute('data-endpoint');
-    const url = resolveEndpoint(raw, document.baseURI, window.location.origin);
-    if (!url) {
-      console.error('[BasecoatScreens] data-endpoint must be a same-origin http(s) URL; change reverted:', raw);
-      return Promise.resolve({ ok: false, status: 0, reason: 'origin' });
-    }
-    const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-    const token = csrfToken(el);
-    if (token) headers['X-CSRF-Token'] = token;
-    return fetch(url, { method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(payload) })
-      .then((response) => ({ ok: response.ok, status: response.status, reason: 'response' }), () => ({ ok: false, status: 0, reason: 'response' }));
+    return holder ? { raw: holder.getAttribute('data-endpoint'), token: csrfToken(el) } : null;
   };
+  const browserEnv = () => ({
+    base: document.baseURI,
+    origin: window.location.origin,
+    fetch: (url, init) => window.fetch(url, init),
+    error: (message) => console.error(`[BasecoatScreens] ${message}`),
+  });
+  /**
+   * POSTs `payload` to `endpoint` (endpointOf). Returns null without an endpoint, else a promise of
+   * {ok, status, reason: 'response'|'origin'}; cross-origin endpoints are refused.
+   */
+  const request = (endpoint, payload) => endpointRequest(endpoint, payload, browserEnv());
   const failEvent = (el, name, detail, result) => dispatch(el, name, Object.assign({}, detail, { status: result.status, reason: result.reason }), false);
 
   // ---------------------------------------------------------------- counts
@@ -540,66 +639,122 @@
     focusElement(target || item);
   };
 
-  const setToggle = (item, control, name, on, quiet) => {
+  /** The filter root an item belongs to (the nearest ancestor with filter state). */
+  const filterRootOf = (item) => {
+    for (let el = item.parentElement; el; el = el.parentElement) if (filterState.has(el)) return el;
+    return null;
+  };
+  /**
+   * After the filters ran: the focus was in the item, but an active filter hid the item (Status=Unread and
+   * the row was just read): focus the next visible row (else the previous one), else the filter root.
+   */
+  const rescueFocus = (item) => {
+    const active = document.activeElement;
+    if (active && active !== document.body && !active.closest('[hidden]')) return;
+    if (!item.isConnected) return;
+    const sibling = visibleNeighbour(item);
+    const target = (sibling && focusableIn(sibling)) || sibling || filterRootOf(item) || item.parentElement;
+    if (target) focusElement(target);
+  };
+
+  /** Adapter of toggle `name` of `item` through `control` for toggleTransaction. */
+  const toggleChange = (item, control, name, on) => {
     const attr = control.getAttribute('data-toggle-attr') || 'data-state';
-    // A POST for this item is pending: ignore the change (and undo the checkbox the user just flipped).
-    if (item.hasAttribute('data-busy')) {
-      writeToggle(item, control, name, readToggle(item, name, attr));
-      return;
+    return {
+      name,
+      on,
+      isOn: () => readToggle(item, name, attr),
+      read: () => ({ value: item.getAttribute(attr), on: readToggle(item, name, attr) }),
+      write: (value) => writeToggle(item, control, name, value),
+      restore: (snapshot) => {
+        writeToggle(item, control, name, snapshot.on);
+        if (snapshot.value === null) item.removeAttribute(attr); else item.setAttribute(attr, snapshot.value);
+      },
+      confirm: () => dispatch(item, 'basecoat:toggle', { item, id: idOf(item), name, on }),
+    };
+  };
+  /** data-toggle-also="read": switching on also switches those on, through their control or as data-<name>="true". */
+  const chainedChanges = (item, control, name) => splitList(control.getAttribute('data-toggle-also')).filter((also) => also !== name).map((also) => {
+    let alsoControl = controlsFor(item, also)[0];
+    if (!alsoControl) {
+      alsoControl = document.createElement('button');
+      alsoControl.setAttribute('data-toggle', also);
+      alsoControl.setAttribute('data-toggle-attr', `data-${also}`);
     }
-    const before = item.getAttribute(attr);
-    const wasOn = readToggle(item, name, attr);
-    if (wasOn === on) {
-      writeToggle(item, control, name, on);
-      return;
-    }
-    const hadFocus = control.contains(document.activeElement);
-    writeToggle(item, control, name, on);
-    const restore = () => {
-      writeToggle(item, control, name, wasOn);
-      if (before === null) item.removeAttribute(attr); else item.setAttribute(attr, before);
+    return toggleChange(item, alsoControl, also, true);
+  });
+  const setBusy = (item, busy) => {
+    item.toggleAttribute('data-busy', busy);
+    if (busy) item.setAttribute('aria-busy', 'true'); else item.removeAttribute('aria-busy');
+  };
+
+  /**
+   * Switches toggle `name` of `item` (and its data-toggle-also chain) and POSTs it as one request
+   * {action: 'toggle', id, name, on, also}. options.quiet: no announcement; options.local: no request
+   * (data-toggle-all sends one for every item). Returns the transaction ({status, undo, ...}).
+   */
+  const setToggle = (item, control, name, on, options = {}) => {
+    const hadFocus = item.contains(document.activeElement) || control.contains(document.activeElement);
+    const detail = { item, id: idOf(item), name, on };
+    const endpoint = options.local ? null : endpointOf(item);
+    const refresh = () => {
       applyAllFilters();
       queueCounts();
     };
-    const detail = { item, id: idOf(item), name, on };
-    if (!dispatch(item, 'basecoat:toggle', detail)) {
-      restore();
-      return;
-    }
-    // data-announce-on / data-announce-off="{label} marked as read." on the control
-    const message = quiet ? null : control.getAttribute(on ? 'data-announce-on' : 'data-announce-off');
-    if (message) announce(format(message, { label: labelOf(item) }));
-    // data-toggle-also="read": switching this on also switches those on (Accept also marks as read)
-    if (on) {
-      splitList(control.getAttribute('data-toggle-also')).forEach((also) => {
-        if (also === name) return;
-        let alsoControl = controlsFor(item, also)[0];
-        if (!alsoControl) {
-          // No control of that toggle on the item: it is stored as data-<name>="true"
-          alsoControl = document.createElement('button');
-          alsoControl.setAttribute('data-toggle', also);
-          alsoControl.setAttribute('data-toggle-attr', `data-${also}`);
-        }
-        setToggle(item, alsoControl, also, true, true);
-      });
-    }
-    // After the chained toggles, which may hide the control too (Accept hides the whole answer group)
-    if (hadFocus) keepFocus(item, control, name);
-    applyAllFilters();
-    queueCounts();
-    const pending = request(item, { action: 'toggle', id: detail.id, name, on });
-    if (pending) {
-      item.setAttribute('data-busy', '');
-      item.setAttribute('aria-busy', 'true');
-      pending.then((result) => {
-        item.removeAttribute('data-busy');
-        item.removeAttribute('aria-busy');
-        if (result.ok) return;
-        restore();
+    const result = toggleTransaction({
+      busy: () => item.hasAttribute('data-busy'),
+      main: toggleChange(item, control, name, on),
+      chained: chainedChanges(item, control, name),
+      after: () => {
+        // data-announce-on / data-announce-off="{label} marked as read." on the control
+        const message = options.quiet ? null : control.getAttribute(on ? 'data-announce-on' : 'data-announce-off');
+        if (message) announce(format(message, { label: labelOf(item) }));
+        // After the chained toggles, which may hide the control too (Accept hides the whole answer group)
+        if (hadFocus) keepFocus(item, control, name);
+        refresh();
+        // ... and after the filters, which may hide the whole row (Status = Unread, then Mark as read)
+        if (hadFocus) rescueFocus(item);
+      },
+      send: (also) => request(endpoint, Object.assign({ action: 'toggle', id: detail.id, name, on }, also.length ? { also } : {})),
+      setBusy: (busy) => setBusy(item, busy),
+      fail: (failure) => {
+        refresh();
         announce(t(item, 'failed'));
-        failEvent(item, 'basecoat:toggle-error', detail, result);
-      });
-    }
+        failEvent(item, 'basecoat:toggle-error', detail, failure);
+      },
+    });
+    if (result.status === 'cancelled') refresh();
+    return result;
+  };
+
+  /**
+   * [data-toggle-all="read"]: every item of the scope on, locally, then one request
+   * {action: 'toggle-all', name, on: true, ids}; a failure reverts every item.
+   */
+  const toggleAll = (button) => {
+    const scope = $(button.getAttribute('data-toggle-scope')) || document;
+    const name = button.getAttribute('data-toggle-all');
+    const changed = [];
+    scope.querySelectorAll('[data-toggle-item]').forEach((item) => {
+      const control = controlsFor(item, name)[0] || button;
+      const result = setToggle(item, control, name, true, { quiet: true, local: true });
+      if (result.status === 'applied') changed.push({ item, result });
+    });
+    const message = button.getAttribute('data-announce-on');
+    if (message) announce(message);
+    if (!changed.length) return;
+    const ids = changed.map((entry) => idOf(entry.item));
+    const detail = { item: scope instanceof Element ? scope : button, ids, name, on: true };
+    settle(request(endpointOf(scope instanceof Element ? scope : button), { action: 'toggle-all', name, on: true, ids }), {
+      busy: (busy) => changed.forEach((entry) => setBusy(entry.item, busy)),
+      revert: (failure) => {
+        changed.slice().reverse().forEach((entry) => entry.result.undo());
+        applyAllFilters();
+        queueCounts();
+        announce(t(button, 'failed'));
+        failEvent(detail.item, 'basecoat:toggle-error', detail, failure);
+      },
+    });
   };
 
   /**
@@ -613,14 +768,25 @@
     return button.parentElement ? button.parentElement.closest('[data-toggle-item],[data-filter-item],[data-remove-target]') : null;
   };
 
-  /** Removing the row open in a master-detail pane: the pane gets the master's data-master-empty template. */
+  /**
+   * Removing the row open in a master-detail pane: the pane gets the master's data-master-empty template.
+   * Returns {show(), undo()} (undo puts the previous pane content back), or null.
+   */
   const emptyPaneFor = (item) => {
     const open = item.matches('[data-master-item][aria-current="true"]') ? item : item.querySelector('[data-master-item][aria-current="true"]');
     const master = open && open.closest('[data-master]');
     if (!master) return null;
     const pane = $(master.getAttribute('data-master'));
     const template = document.getElementById(master.getAttribute('data-master-empty') || '');
-    return pane && template instanceof HTMLTemplateElement ? () => pane.replaceChildren(template.content.cloneNode(true)) : null;
+    if (!pane || !(template instanceof HTMLTemplateElement)) return null;
+    let previous = [];
+    return {
+      show: () => {
+        previous = Array.from(pane.childNodes);
+        pane.replaceChildren(template.content.cloneNode(true));
+      },
+      undo: () => pane.replaceChildren(...previous),
+    };
   };
 
   const removeItem = (button) => {
@@ -632,37 +798,38 @@
     const parent = item.parentElement;
     const next = item.nextElementSibling;
     const label = labelOf(item);
-    const visibleSibling = (el, step) => {
-      let current = el;
-      while (current && current.hidden) current = current[step];
-      return current;
-    };
-    const focusNext = visibleSibling(next, 'nextElementSibling') || visibleSibling(item.previousElementSibling, 'previousElementSibling');
+    const focusNext = visibleNeighbour(item);
     const emptyPane = emptyPaneFor(item);
+    // Read before the item leaves the DOM: data-endpoint / data-csrf-token may be on the item itself
+    const endpoint = endpointOf(item);
     item.remove();
-    if (emptyPane) emptyPane();
+    if (emptyPane) emptyPane.show();
     const target = focusNext && focusableIn(focusNext);
+    let focused = null;
     if (target) {
-      target.focus();
+      focused = target;
     } else if (parent) {
       // Last item gone: keep the focus in the list instead of losing it to <body>.
       if (!parent.hasAttribute('tabindex')) parent.setAttribute('tabindex', '-1');
-      parent.focus();
+      focused = parent;
     }
+    if (focused) focused.focus();
     announce(t(button, 'removed', { label }));
     applyAllFilters();
     queueCounts();
-    const pending = request(parent, { action, id: detail.id });
-    if (pending) {
-      pending.then((result) => {
-        if (result.ok) return;
+    settle(request(endpoint, { action, id: detail.id }), {
+      revert: (result) => {
         parent.insertBefore(item, next && next.parentElement === parent ? next : null);
+        if (emptyPane) emptyPane.undo();
+        // Focus back on the restored row, unless the user moved on meanwhile
+        const active = document.activeElement;
+        if (!active || active === document.body || active === focused) focusElement(focusableIn(item) || item);
         announce(t(parent, 'failed'));
         applyAllFilters();
         queueCounts();
         failEvent(item, 'basecoat:remove-error', detail, result);
-      });
-    }
+      },
+    });
   };
 
   // ---------------------------------------------------------------- master-detail
@@ -727,15 +894,13 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
     scrollLog(log, made.node);
-    const pending = request(form, { action: 'send', text });
-    if (pending) {
-      pending.then((result) => {
-        if (result.ok) return;
+    settle(request(endpointOf(form), { action: 'send', id: idOf(form), text }), {
+      revert: (result) => {
         if (made.node) made.node.setAttribute('data-state', 'failed');
         announce(t(form, 'send-failed'));
         failEvent(form, 'basecoat:send-error', { text, log, message: made.node }, result);
-      });
-    }
+      },
+    });
     const replyId = form.getAttribute('data-composer-reply');
     if (replyId) {
       const timer = setTimeout(() => {
@@ -1041,17 +1206,10 @@
       }
       return;
     }
-    const toggleAll = target.closest('[data-toggle-all]');
-    if (toggleAll) {
+    const allControl = target.closest('[data-toggle-all]');
+    if (allControl) {
       event.preventDefault();
-      const scope = $(toggleAll.getAttribute('data-toggle-scope')) || document;
-      const name = toggleAll.getAttribute('data-toggle-all');
-      scope.querySelectorAll('[data-toggle-item]').forEach((item) => {
-        const control = controlsFor(item, name)[0] || toggleAll;
-        setToggle(item, control, name, true, true);
-      });
-      const message = toggleAll.getAttribute('data-announce-on');
-      if (message) announce(message);
+      toggleAll(allControl);
       return;
     }
     const toggle = target.closest('button[data-toggle],a[data-toggle]');
@@ -1165,7 +1323,10 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
   document.addEventListener('htmx:load', (event) => init(event.target));
-  document.addEventListener('htmx:afterSwap', (event) => init(event.target));
+  document.addEventListener('htmx:afterSwap', (event) => {
+    jsonCache.clear(); // swapped-out markup leaves stale data-* JSON behind
+    init(event.target);
+  });
   document.addEventListener('htmx:beforeCleanupElement', (event) => {
     if (!(event.target instanceof Element)) return;
     timers.forEach((entry) => {

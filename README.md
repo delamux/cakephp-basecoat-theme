@@ -734,6 +734,7 @@ reference of its data hooks, the tables below summarise them.
 | `data-dnd-mirror="css selector"` | item | Other elements showing the item (a List view row, an "Upcoming" entry): their bound text follows the moves |
 | `data-dnd-text="key"` | inside the item or a mirror | Text replaced after every placement change (also on revert / cancel). Grid keys: `start`, `end`, `col`, `row`, `span`; list keys: `container` (label of the new container), `container-id`, `position`, `total`, every `data-dnd-var-*`; both: `label` |
 | `data-dnd-aria="Yoga, {start}–{end}, {col}"` | item, mirror or inside | Template filled in as `aria-label` after every change |
+| `data-dnd-attr="datetime:{date}"` | item, mirror or inside | Attributes rewritten after every change (`attr:template` pairs, `;`-separated; `on*` and `style` refused), set only when every placeholder is known — e.g. a `<time datetime>` with `data-dnd-var-date="2026-11-27"` on each day container |
 | `data-dnd-sort="{start}\|{col}"` | mirror | Sort key template: the mirror gets `data-dnd-sort-key` (render it server-side too) and is moved among its siblings that have one, in natural order (the List view stays sorted) |
 | `data-dnd-i18n-<key>` | container or ancestor | Translated messages (see Translations) |
 
@@ -751,7 +752,7 @@ list items are the real nodes moved between targets). Overlapping grid items are
 | Active controls | Facet and view controls get `aria-current` (links) or `aria-pressed` (buttons) plus `data-active-class` / `data-inactive-class` and `data-active-variant` / `data-inactive-variant` (the button's `data-variant`; `""` removes it) |
 | View switch | `[data-view-switch="grid"][data-view-target="#root"]`; root `data-view`; `[data-view-panel="grid"]`; `[data-view-classes='{"grid": "...", "list": "..."}']`; links replace the URL |
 | Select-all + bulk bar | `input[data-select-all="#scope"]`, `input[data-select-item]` (value = id), `[data-bulk-bar="#scope"]` with `[data-bulk-count]`, `[data-bulk-clear]`; rows get `data-selected`; select-all only affects visible rows |
-| Toggle | `[data-toggle="done"]` (checkbox or button) in `[data-toggle-item]` (`data-id`), or anywhere with `data-toggle-target="#row"` → item `data-state="done"` (`data-toggle-attr`, `data-toggle-off`, `data-toggle-class`). `data-toggle-unset="data-unread"` (removed while on), `data-toggle-also="read answered"` (chained: also switched on, through their own control or as `data-<name>="true"`), `data-announce-on` / `data-announce-off="{label} starred."`, `data-toggle-focus="selector"` (focus target when the control hides itself; default: first control the toggle revealed, else the item). `[data-toggle-for="done"]` with `data-text-on/off`, `data-toggle-hidden="on\|off"`. `[data-toggle-all="read"][data-toggle-scope="#list"]` (+ `data-announce-on`) |
+| Toggle | `[data-toggle="done"]` (checkbox or button) in `[data-toggle-item]` (`data-id`), or anywhere with `data-toggle-target="#row"` → item `data-state="done"` (`data-toggle-attr`, `data-toggle-off`, `data-toggle-class`). `data-toggle-unset="data-unread"` (removed while on), `data-toggle-also="read answered"` (chained: also switched on, through their own control or as `data-<name>="true"`), `data-announce-on` / `data-announce-off="{label} starred."`, `data-toggle-focus="selector"` (focus target when the control hides itself; default: first control the toggle revealed, else the item). `[data-toggle-for="done"]` with `data-text-on/off`, `data-toggle-hidden="on\|off"`. `[data-toggle-all="read"][data-toggle-scope="#list"]` (+ `data-announce-on`): every row on, one POST. A row hidden by its own toggle under an active filter (Status = Unread, then Mark as read) hands focus to the next visible row, else the previous one, else the filter root |
 | Remove | `[data-remove-item="archive"]` removes `data-remove-target="#row"` or its closest `[data-toggle-item]` / `[data-filter-item]` / `[data-remove-target]`; focus goes to the next visible row; message `removed` (`data-screens-i18n-removed="{label} archived."`) |
 | Counts | `[data-count-for="css selector"]` (`data-count-visible`), `data-count-offset="3"` (e.g. unread rows on other pages), `data-count-hide-zero[=".badge"]` (hides itself or that ancestor at 0); refreshed after every interaction |
 | Master-detail | `[data-master="#pane"]` + `[data-master-item="template-id"]` (`data-label`): pane filled from the `<template>`, `aria-current`, `[data-master-clear]` removed, "opened" announced; `data-master-focus` moves focus to the pane; `data-master-empty="template-id"` is shown when the open row is removed. Pane controls with `data-toggle-target` show the row's current state |
@@ -772,9 +773,9 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
 | `basecoat:view` | view root | `{view}` |
 | `basecoat:select` | scope | `{selected: [values], count}` |
 | `basecoat:toggle` (cancelable) | item | `{item, id, name, on}` (chained toggles fire their own) |
-| `basecoat:toggle-error` | item | toggle detail + `status`, `reason` (reverted) |
+| `basecoat:toggle-error` | item (`data-toggle-all`: the scope) | toggle detail + `status`, `reason` (reverted with its chained toggles); `data-toggle-all`: `{item: scope, ids, name, on}` + `status`, `reason` (every row reverted) |
 | `basecoat:remove` (cancelable) | item | `{item, id, action}` |
-| `basecoat:remove-error` | item | remove detail + `status`, `reason` (item put back) |
+| `basecoat:remove-error` | item | remove detail + `status`, `reason` (item, reading pane and focus put back) |
 | `basecoat:open` (cancelable) | master item | `{item, id, detail}` |
 | `basecoat:send` (cancelable) | composer form | `{text, log, message}` |
 | `basecoat:send-error` | composer form | send detail + `status`, `reason` (bubble gets `data-state="failed"`) |
@@ -792,7 +793,9 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
   never follows a link item while dragging.
 - **Screens:** every control is a native link, button, checkbox, select or input, so Tab / Enter / Space
   work as usual. Enter in a filter input filters instead of submitting. A control hidden by its own toggle
-  ("+3 more", Accept, Mark as read) hands focus to what it revealed, else to its row. Removing a row moves
+  ("+3 more", Accept, Mark as read) hands focus to what it revealed, else to its row; when an active filter
+  hides the row itself (Status = Unread, Active tab) focus goes to the next visible row, else the previous
+  one, else the filter root. Removing a row moves
   focus to the next visible row (else the list). Opening a master item can move focus to the pane
   (`data-master-focus`); the stepper focuses the new step's heading, Next focuses the first invalid field.
 - **Announcements:** one shared `aria-live="polite"` region (`[data-basecoat-announcer]`) for both
@@ -820,7 +823,7 @@ element or an ancestor, or from a JSON block
 (`data-screens-i18n` for the screens script). Keys and placeholders are listed in `MESSAGES` at the top of
 each file — dnd: `instructions`, `grid-instructions`, `picked-up`, `moved`, `dropped`, `cancelled`,
 `failed`, `grid-picked-up`, `grid-moved`, `grid-dropped`, `grid-cancelled`, `resized`, `collision`,
-`slot`, `list`; screens: `results`, `step`, `removed`, `failed`, `send-failed`, `selected`, `opened`,
+`slot`, `list`, `busy` (pick-up or Shift + arrows while the item's POST is pending); screens: `results`, `step`, `removed`, `failed`, `send-failed`, `selected`, `opened`,
 `files-added`, `file-removed`, `files-cleared`. Pass them through `__()` in your template.
 
 ### Endpoints and CSRF
@@ -828,8 +831,10 @@ each file — dnd: `instructions`, `grid-instructions`, `picked-up`, `moved`, `d
 Without `data-endpoint` everything is client-only (the baked screens and the catalog previews). Add
 `data-endpoint="<?= $this->Url->build(['action' => 'move']) ?>"` to a container, item, form or an
 ancestor to also POST each change as JSON — `{action: 'move', id, from, to, index, fromIndex}` (lists),
-`{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}`,
-`{action: 'archive', id}` (the `data-remove-item` value), `{action: 'send', text}` — with `X-CSRF-Token`
+`{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}` (plus
+`also: ['answered', 'read']` when `data-toggle-also` switched chained toggles on), `{action: 'toggle-all',
+name, on: true, ids}` (`data-toggle-all`), `{action: 'archive', id}` (the `data-remove-item` value),
+`{action: 'send', id, text}` (`id`: the form's `data-id` / `id`) — with `X-CSRF-Token`
 taken from `data-csrf-token` on an ancestor, `<meta name="csrfToken">` or the page's
 `input[name=_csrfToken]` (CakePHP's `CsrfProtectionMiddleware` reads the header).
 
@@ -838,7 +843,10 @@ taken from `data-csrf-token` on an ancestor, `<meta name="csrfToken">` or the pa
 `console.error`, so the CSRF token never leaves the site. A refused endpoint (`reason: 'origin'`), a
 non-2xx answer or a network error (`reason: 'response'`) reverts the change, announces it and fires the
 matching `*-error` event. While a toggle is being saved its item has `data-busy` / `aria-busy` and ignores
-further toggles and removals. Chained toggles (`data-toggle-also`) are posted one by one. Uploads are never
+further toggles and removals. Chained toggles (`data-toggle-also`) travel in the same POST (`also`) and are
+reverted with it; `data-toggle-all` sends one POST for every row and reverts them all on failure. A failed
+removal puts the row back (and the reading pane and focus); a failed list move puts the item back next to
+its old neighbours; while a drag POST is pending the item is `data-dnd-busy` and announces `busy`. Uploads are never
 sent by the script (`basecoat:upload`). In the controller:
 `$this->request->allowMethod('post'); $data = $this->request->getData();` (JSON bodies are parsed by
 `BodyParserMiddleware`).
@@ -1003,6 +1011,10 @@ Changes in this version that can affect existing apps:
   `actionAttributes`, `actionsAttributes`, `footer`** (and a per-row `attributes` key): new, optional;
   output is unchanged without them. A `NotificationList` row given `actionsAttributes` renders its inert
   Accept / Decline inside a `<span>` (template `actionGroup`).
+- **`NotificationListHelper::item()` has a new parameter:** `item(array $notification, array $options,
+  bool $escape, int $index = 0)` (the row index passed to the `itemAttributes` / `footer` callables). A
+  subclass overriding `item()` must add `int $index = 0` to its signature (PHP reports an incompatible
+  declaration otherwise) and pass it on to `parent::item()`.
 
 - **Forms get a stacked layout by default.** `Form->create()` adds `grid gap-6 [&>.btn]:justify-self-start`
   (config `formLayout`) when the `class` option sets no layout of its own, so fields are evenly spaced

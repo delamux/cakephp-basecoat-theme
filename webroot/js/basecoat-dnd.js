@@ -42,7 +42,9 @@
  *   [data-dnd-text="key"] inside the item, and inside the elements matched by the item's
  *   data-dnd-mirror="css selector" (e.g. the row of a List view or an "Upcoming" entry), get the value of
  *   `key` as text; [data-dnd-aria="Yoga, {start}–{end}, {col}"] (the item, the mirrors, or inside them)
- *   get the filled-in template as aria-label. Keys: grid start, end, col, row, span; list container
+ *   get the filled-in template as aria-label; [data-dnd-attr="datetime:{date}"] (pairs "attr:template",
+ *   ";"-separated; on* and style refused) get those attributes, set only when every placeholder is known
+ *   (e.g. <time datetime> of a calendar entry with data-dnd-var-date="2026-11-27" on each day). Keys: grid start, end, col, row, span; list container
  *   (label of the new container), container-id, position, total and every data-dnd-var-<name> of the
  *   container; both: label. A mirror with data-dnd-sort="{start}|{col}" gets data-dnd-sort-key (also at
  *   init) and is moved among its siblings that have one to keep them in natural order (re-sorted list).
@@ -51,7 +53,8 @@
  *   up (Space only when the item is a link) -> arrows move (lists: Home/End too) -> Space/Enter drops
  *   (Enter never follows a link while dragging), Escape (or leaving the item with Tab) cancels. Grids:
  *   Shift + arrows along the resize axis change the span, also without picking the item up. Focus stays
- *   on the item. A pointer drag that only changed the span is announced with "resized".
+ *   on the item. A pointer drag that only changed the span is announced with "resized". While the item's
+ *   POST is pending (data-dnd-busy) pick-up and Shift + arrows are refused with the "busy" message.
  * POINTER: mouse, pen, and touch on a [data-dnd-handle] / [data-dnd-resize] drag after 4px; touch elsewhere
  *   after a 250ms press (so the page still scrolls). The item holds the pointer capture. Near (40px) the
  *   edge of a scrollable ancestor or of the window the page auto-scrolls. Escape or leaving the window
@@ -73,7 +76,8 @@
  *   reverted and basecoat:move-error fires with reason 'origin'): the change is POSTed as JSON
  *   (list: {action: 'move', id, from, to, index, fromIndex}; grid: {action: 'move'|'resize', id, grid,
  *   row, col, span}) with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken">, or the
- *   page's input[name=_csrfToken]). Non-2xx or network error -> revert + "failed" announcement.
+ *   page's input[name=_csrfToken]). Non-2xx or network error -> revert + "failed" announcement; a list
+ *   item goes back next to its old neighbours (other items may have moved meanwhile).
  * STATE ATTRIBUTES (style them; webroot/css/interactivity.css does): [data-dnd-dragging] on the item,
  *   [data-dnd-over] on the container under it, [data-dnd-busy] while a POST is pending,
  *   [data-dnd-collision], html[data-dnd-active].
@@ -194,7 +198,99 @@
   /** Natural order of sort keys ("7|2" before "10|1"). */
   const compareKeys = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
 
-  const pure = { clamp, insertionIndex, insertionIndex2d, format, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed, placementText, compareKeys };
+  /** Fills {placeholders}; null when one of them is unknown (an attribute is then left as it is). */
+  const fillTemplate = (template, vars) => {
+    let complete = true;
+    const text = String(template).replace(/\{([\w-]+)\}/g, (m, key) => {
+      if (vars && vars[key] !== undefined && vars[key] !== null) return String(vars[key]);
+      complete = false;
+      return m;
+    });
+    return complete ? text : null;
+  };
+
+  /** data-dnd-attr="datetime:{date}; data-day:{container-id}" -> [[attr, template]]; on* and style refused. */
+  const parseAttrBindings = (value) => String(value || '').split(';').reduce((pairs, part) => {
+    const at = part.indexOf(':');
+    if (at < 1) return pairs;
+    const name = part.slice(0, at).trim().toLowerCase();
+    if (!/^[a-z][a-z0-9-]*$/.test(name) || name.startsWith('on') || name === 'style') return pairs;
+    pairs.push([name, part.slice(at + 1).trim()]);
+    return pairs;
+  }, []);
+
+  /**
+   * Index (among `others`, the container's items without the moving one) that puts an item back next to
+   * its old neighbours: after `prev`, else before `next`, else at `fallback` (clamped). Other items may
+   * have moved while a POST was pending, so the old index alone can be stale.
+   */
+  const revertIndex = (others, prev, next, fallback) => {
+    const p = prev ? others.indexOf(prev) : -1;
+    if (p >= 0) return p + 1;
+    const n = next ? others.indexOf(next) : -1;
+    if (n >= 0) return n;
+    if (!prev) return 0;
+    return clamp(fallback, 0, others.length);
+  };
+
+  /** POSTs `payload` as JSON through `fetch` (injected); resolves {ok, status} (network error: status 0). */
+  const postJson = (fetch, url, payload, token) => {
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    if (token) headers['X-CSRF-Token'] = token;
+    return fetch(url, { method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(payload) })
+      .then((response) => ({ ok: response.ok, status: response.status }), () => ({ ok: false, status: 0 }));
+  };
+
+  /**
+   * After a drop, DOM-free: confirm() (the cancelable events) false -> revert(), 'reverted'. Without
+   * `endpoint` -> 'committed'. A cross-origin endpoint -> refused(raw), revert(), fail(0, 'origin'),
+   * 'failed' (synchronously: nothing is sent). Else busy(true), post(url) -> busy(false), and on a failed
+   * answer revert() + fail(status, 'response'). Returns {status, pending}.
+   */
+  const commitChange = ({ confirm, endpoint, base, origin, post, busy, revert, fail, refused }) => {
+    if (!confirm()) {
+      revert();
+      return { status: 'reverted', pending: null };
+    }
+    if (!endpoint) return { status: 'committed', pending: null };
+    const url = resolveEndpoint(endpoint, base, origin);
+    if (!url) {
+      refused(endpoint);
+      revert();
+      fail(0, 'origin');
+      return { status: 'failed', pending: null };
+    }
+    busy(true);
+    const pending = post(url).then((result) => {
+      busy(false);
+      if (!result.ok) {
+        revert();
+        fail(result.status, 'response');
+      }
+      return result;
+    });
+    return { status: 'committed', pending };
+  };
+
+  /** JSON.parse with a cache of at most `limit` texts (cleared when full); invalid JSON -> null + onError. */
+  const createJsonCache = (limit, onError) => {
+    const cache = new Map();
+    return {
+      parse: (text) => {
+        if (!text) return null;
+        if (cache.has(text)) return cache.get(text);
+        let value = null;
+        try { value = JSON.parse(text); } catch (e) { if (onError) onError(e); }
+        if (cache.size >= limit) cache.clear();
+        cache.set(text, value);
+        return value;
+      },
+      clear: () => cache.clear(),
+      size: () => cache.size,
+    };
+  };
+
+  const pure = { clamp, insertionIndex, insertionIndex2d, format, fillTemplate, parseAttrBindings, revertIndex, postJson, commitChange, createJsonCache, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed, placementText, compareKeys };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   // Loaded twice? Keep the first instance (delegated listeners registered once).
@@ -217,17 +313,12 @@
     collision: 'Overlaps {others}.',
     slot: 'Row {row}, column {col}',
     list: 'List',
+    busy: '{label} is still being saved.',
   };
 
-  const jsonCache = new Map();
-  const parseJson = (text) => {
-    if (!text) return null;
-    if (jsonCache.has(text)) return jsonCache.get(text);
-    let value = null;
-    try { value = JSON.parse(text); } catch (e) { console.error('[BasecoatDnd] Invalid JSON', e); }
-    jsonCache.set(text, value);
-    return value;
-  };
+  // Parsed data-* JSON, cached (bounded; cleared on htmx swaps)
+  const jsonCache = createJsonCache(200, (e) => console.error('[BasecoatDnd] Invalid JSON', e));
+  const parseJson = jsonCache.parse;
 
   const t = (context, key, vars) => {
     for (let el = context; el && el.getAttribute; el = el.parentElement) {
@@ -422,21 +513,27 @@
     const last = keyed[keyed.length - 1];
     if (last && last !== el) last.after(el);
   };
+  const BOUND = '[data-dnd-text],[data-dnd-aria],[data-dnd-attr]';
   /** Rewrites the bound texts of `item` and of its data-dnd-mirror elements (keysOnly: only the sort keys). */
   function bindItem(item, keysOnly) {
     const mirrors = mirrorsOf(item);
     const roots = [item].concat(mirrors);
-    if (!keysOnly && !roots.some((root) => root.matches('[data-dnd-text],[data-dnd-aria]') || root.querySelector('[data-dnd-text],[data-dnd-aria]'))
+    if (!keysOnly && !roots.some((root) => root.matches(BOUND) || root.querySelector(BOUND))
       && !mirrors.some((m) => m.hasAttribute('data-dnd-sort'))) return;
     const vars = bindVars(item);
     if (!vars) return;
     if (!keysOnly) {
       roots.forEach((root) => {
-        [root].concat(Array.from(root.querySelectorAll('[data-dnd-text],[data-dnd-aria]'))).forEach((el) => {
+        [root].concat(Array.from(root.querySelectorAll(BOUND))).forEach((el) => {
           const key = el.getAttribute('data-dnd-text');
           if (key && vars[key] !== undefined && el.textContent !== vars[key]) el.textContent = vars[key];
           const aria = el.getAttribute('data-dnd-aria');
           if (aria) el.setAttribute('aria-label', format(aria, vars));
+          // data-dnd-attr="datetime:{date}": attributes rewritten too (only when every placeholder is known)
+          parseAttrBindings(el.getAttribute('data-dnd-attr')).forEach(([name, template]) => {
+            const value = fillTemplate(template, vars);
+            if (value !== null && el.getAttribute(name) !== value) el.setAttribute(name, value);
+          });
         });
       });
     }
@@ -457,13 +554,7 @@
     const input = document.querySelector('input[name="_csrfToken"]');
     return input ? input.value : '';
   };
-  const post = (url, payload, el) => {
-    const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-    const token = csrfToken(el);
-    if (token) headers['X-CSRF-Token'] = token;
-    return fetch(url, { method: 'POST', credentials: 'same-origin', headers, body: JSON.stringify(payload) })
-      .then((response) => ({ ok: response.ok, status: response.status }), () => ({ ok: false, status: 0 }));
-  };
+  const post = (url, payload, el) => postJson((u, init) => window.fetch(u, init), url, payload, csrfToken(el));
 
   // ---------------------------------------------------------------- drag state
   // drag: {item, source, grid, kind: 'pointer'|'keyboard', resize, before, offset, pointerId, ...}
@@ -473,9 +564,13 @@
   let suppressPointer = null; // pointer whose drag was cancelled (Escape): swallow its click
   let scrollFrame = null;
 
+  /** Where the item is: grid placement, or list index plus its neighbours (a revert goes back next to them). */
   const snapshot = (item) => {
     const container = containerOf(item);
-    return isGrid(container) ? { container, placement: placementOf(item) } : { container, index: itemsOf(container).indexOf(item) };
+    if (isGrid(container)) return { container, placement: placementOf(item) };
+    const items = itemsOf(container);
+    const index = items.indexOf(item);
+    return { container, index, prev: items[index - 1] || null, next: items[index + 1] || null };
   };
 
   const setOver = (container) => {
@@ -522,7 +617,8 @@
       applyPlacement(item, before.container, before.placement);
       markCollisions(before.container, item);
     } else {
-      placeAt(before.container, item, before.index);
+      const others = itemsOf(before.container).filter((i) => i !== item);
+      placeAt(before.container, item, revertIndex(others, before.prev, before.next, before.index));
     }
     if (hadFocus) refocus(item);
   };
@@ -541,7 +637,6 @@
 
   const commit = (item, before) => {
     const container = containerOf(item);
-    const endpointHolder = container.closest('[data-endpoint]');
     let detail;
     let payload;
     let names;
@@ -561,31 +656,21 @@
       payload = { action: 'move', id: detail.id, from: detail.fromId, to: detail.toId, index, fromIndex: before.index };
       names = ['basecoat:move'];
     }
-    const allowed = names.every((name) => dispatch(item, name, detail));
-    if (!allowed) {
-      revert(item, before);
-      return 'reverted';
-    }
-    if (endpointHolder) {
-      const raw = endpointHolder.getAttribute('data-endpoint');
-      const fail = (status, reason) => {
-        revert(item, before);
+    const holder = container.closest('[data-endpoint]');
+    return commitChange({
+      confirm: () => names.every((name) => dispatch(item, name, detail)),
+      endpoint: holder ? holder.getAttribute('data-endpoint') : null,
+      base: document.baseURI,
+      origin: window.location.origin,
+      post: (url) => post(url, payload, container),
+      busy: (busy) => item.toggleAttribute('data-dnd-busy', busy),
+      revert: () => revert(item, before),
+      refused: (raw) => console.error('[BasecoatDnd] data-endpoint must be a same-origin http(s) URL; change reverted:', raw),
+      fail: (status, reason) => {
         announce(t(container, 'failed', { label: labelOf(item) }));
         item.dispatchEvent(new CustomEvent('basecoat:move-error', { bubbles: true, detail: Object.assign({}, detail, { status, reason }) }));
-      };
-      const url = resolveEndpoint(raw, document.baseURI, window.location.origin);
-      if (!url) {
-        console.error('[BasecoatDnd] data-endpoint must be a same-origin http(s) URL; change reverted:', raw);
-        fail(0, 'origin');
-        return 'failed';
-      }
-      item.setAttribute('data-dnd-busy', '');
-      post(url, payload, container).then((result) => {
-        item.removeAttribute('data-dnd-busy');
-        if (!result.ok) fail(result.status, 'response');
-      });
-    }
-    return 'committed';
+      },
+    }).status;
   };
 
   const drop = () => {
@@ -923,14 +1008,23 @@
       if (handled || key.startsWith('Arrow')) event.preventDefault();
       return;
     }
-    if (drag || item.hasAttribute('data-dnd-busy')) return;
+    if (drag) return;
+    const resizeKey = isGrid(container) && event.shiftKey && key.startsWith('Arrow');
+    if (item.hasAttribute('data-dnd-busy')) {
+      // A POST for this item is pending: say so instead of silently ignoring the key
+      if (pickKey || resizeKey) {
+        event.preventDefault();
+        announce(t(container, 'busy', { label: labelOf(item) }));
+      }
+      return;
+    }
     if (pickKey && !event.shiftKey) {
       event.preventDefault();
       begin(item, 'keyboard');
       return;
     }
     // Grid: Shift + arrows resize without picking up (committed at once).
-    if (isGrid(container) && event.shiftKey && key.startsWith('Arrow')) {
+    if (resizeKey) {
       const axis = gridConfig(container).axis;
       if ((axis === 'row' && (key === 'ArrowUp' || key === 'ArrowDown')) || (axis === 'col' && (key === 'ArrowLeft' || key === 'ArrowRight'))) {
         event.preventDefault();
@@ -997,7 +1091,10 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
   document.addEventListener('htmx:load', (event) => init(event.target));
-  document.addEventListener('htmx:afterSwap', (event) => init(event.target));
+  document.addEventListener('htmx:afterSwap', (event) => {
+    jsonCache.clear(); // swapped-out markup leaves stale data-* JSON behind
+    init(event.target);
+  });
   document.addEventListener('htmx:beforeCleanupElement', (event) => {
     if (drag && event.target instanceof Element && event.target.contains(drag.item)) finish();
     if (pending && event.target instanceof Element && event.target.contains(pending.item)) clearPending();

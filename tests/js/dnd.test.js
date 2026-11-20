@@ -128,3 +128,94 @@ test('compareKeys sorts numbers inside keys naturally', () => {
   assert.ok(dnd.compareKeys('2026-11-24', '2026-11-03') > 0);
   assert.equal(dnd.compareKeys('a', 'a'), 0);
 });
+
+// ---------------------------------------------------------------- commit / revert (DOM-free adapters, stubbed POST)
+const commitWith = (overrides) => {
+  const log = [];
+  const options = Object.assign({
+    confirm: () => true,
+    endpoint: '/boards/move',
+    base: 'https://app.test/boards',
+    origin: 'https://app.test',
+    post: (url) => { log.push(`post ${url}`); return Promise.resolve({ ok: true, status: 200 }); },
+    busy: (b) => log.push(`busy ${b}`),
+    revert: () => log.push('revert'),
+    fail: (status, reason) => log.push(`fail ${status} ${reason}`),
+    refused: () => log.push('refused'),
+  }, overrides);
+  return { result: dnd.commitChange(options), log };
+};
+
+test('commitChange: committed, busy while the POST is pending', async () => {
+  const { result, log } = commitWith({});
+  assert.equal(result.status, 'committed');
+  assert.deepEqual(log, ['busy true', 'post https://app.test/boards/move']);
+  await result.pending;
+  assert.deepEqual(log, ['busy true', 'post https://app.test/boards/move', 'busy false']);
+});
+
+test('commitChange: failed POST reverts and reports, cancelled event reverts, no endpoint just commits', async () => {
+  const failed = commitWith({ post: () => Promise.resolve({ ok: false, status: 500 }) });
+  await failed.result.pending;
+  assert.deepEqual(failed.log, ['busy true', 'busy false', 'revert', 'fail 500 response']);
+
+  const cancelled = commitWith({ confirm: () => false });
+  assert.equal(cancelled.result.status, 'reverted');
+  assert.deepEqual(cancelled.log, ['revert']);
+
+  const local = commitWith({ endpoint: null });
+  assert.equal(local.result.status, 'committed');
+  assert.equal(local.result.pending, null);
+  assert.deepEqual(local.log, []);
+});
+
+test('commitChange: a cross-origin endpoint is refused at once, without a request', () => {
+  const { result, log } = commitWith({ endpoint: 'https://evil.test/move' });
+  assert.equal(result.status, 'failed');
+  assert.deepEqual(log, ['refused', 'revert', 'fail 0 origin']);
+});
+
+test('postJson sends JSON with the CSRF token through the injected fetch', async () => {
+  const calls = [];
+  const fetch = (url, init) => { calls.push({ url, init }); return Promise.resolve({ ok: true, status: 201 }); };
+  assert.deepEqual(await dnd.postJson(fetch, 'https://app.test/m', { action: 'move', id: '3' }, 'tok'), { ok: true, status: 201 });
+  assert.equal(calls[0].init.headers['X-CSRF-Token'], 'tok');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { action: 'move', id: '3' });
+  assert.deepEqual(await dnd.postJson(() => Promise.reject(new Error('offline')), 'https://app.test/m', {}, ''), { ok: false, status: 0 });
+});
+
+test('revertIndex puts the item back next to its old neighbours, not at a stale index', () => {
+  const [a, b, c, d] = ['a', 'b', 'c', 'd'];
+  // Before: [a, X, b, c] (X at 1, prev a, next b). Meanwhile a was moved to the end: [b, c, a]
+  assert.equal(dnd.revertIndex([b, c, a], a, b, 1), 3, 'after its old previous neighbour');
+  // Previous neighbour gone: before the old next one
+  assert.equal(dnd.revertIndex([c, b, d], 'gone', b, 1), 1);
+  // Both gone: the old index, clamped
+  assert.equal(dnd.revertIndex([c], 'x', 'y', 5), 1);
+  assert.equal(dnd.revertIndex([], null, null, 0), 0);
+  // First item (no previous neighbour)
+  assert.equal(dnd.revertIndex([c, b], null, b, 0), 1);
+});
+
+test('parseAttrBindings reads "attr:template" pairs and refuses event handlers and style', () => {
+  assert.deepEqual(dnd.parseAttrBindings('datetime:{date}'), [['datetime', '{date}']]);
+  assert.deepEqual(dnd.parseAttrBindings('datetime:{date}T{time}; data-day:{container-id}'), [['datetime', '{date}T{time}'], ['data-day', '{container-id}']]);
+  assert.deepEqual(dnd.parseAttrBindings('onclick:alert(1); style:color:red; href:{url}; :x; bad name:1'), [['href', '{url}']]);
+  assert.deepEqual(dnd.parseAttrBindings(null), []);
+});
+
+test('fillTemplate fills every placeholder or returns null', () => {
+  assert.equal(dnd.fillTemplate('{date}', { date: '2026-11-27' }), '2026-11-27');
+  assert.equal(dnd.fillTemplate('{date}T{time}', { date: '2026-11-27' }), null, 'unknown placeholder');
+  assert.equal(dnd.fillTemplate('fixed', {}), 'fixed');
+});
+
+test('createJsonCache parses once and clears past its limit', () => {
+  const cache = dnd.createJsonCache(1, () => {});
+  const value = cache.parse('[1]');
+  assert.equal(cache.parse('[1]'), value);
+  cache.parse('[2]');
+  assert.equal(cache.size(), 1);
+  assert.equal(cache.parse('{oops'), null);
+});
