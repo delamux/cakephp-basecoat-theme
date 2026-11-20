@@ -185,11 +185,73 @@ class CatalogBuilderTest extends TestCase
         $this->assertFileExists($this->out . '/components/badge.html');
     }
 
-    public function testRefusesToClearRepositoryRoot(): void
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function unsafeOutputDirs(): array
+    {
+        return [
+            'repository root' => [''],
+            'src' => ['/src'],
+            'docs' => ['/docs'],
+            '.git' => ['/.git'],
+            'vendor' => ['/vendor'],
+            'tests' => ['/tests'],
+            'build itself' => ['/build'],
+            'build itself, trailing slash' => ['/build/'],
+            'build/. (build itself)' => ['/build/.'],
+            'build/../src' => ['/build/../src'],
+            'build/x/../../src' => ['/build/x/../../src'],
+            'outside the repository' => ['/../elsewhere'],
+            'build/../../elsewhere' => ['/build/../../elsewhere'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('unsafeOutputDirs')]
+    public function testUnsafeOutputDirIsRefused(string $suffix): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Refusing');
-        $this->build(self::BADGE, 'examples', false, 'pages', self::REPO);
+        CatalogBuilder::safeOutputDir(self::REPO . $suffix);
+    }
+
+    public function testOutputDirInsideBuildIsAccepted(): void
+    {
+        $this->assertSame(realpath(self::REPO) . '/build/gh-pages', CatalogBuilder::safeOutputDir(self::REPO . '/build/gh-pages'));
+        $this->assertSame(realpath(self::REPO) . '/build/x/y', CatalogBuilder::safeOutputDir(self::REPO . '/build/x/y/'));
+    }
+
+    public function testSymlinkOutputDirIsRefused(): void
+    {
+        $link = self::REPO . '/build/link-' . bin2hex(random_bytes(4));
+        symlink(realpath(self::REPO . '/src'), $link);
+        try {
+            CatalogBuilder::safeOutputDir($link);
+            $this->fail('Expected a RuntimeException');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Refusing', $e->getMessage());
+        } finally {
+            unlink($link);
+        }
+        $this->assertFileExists(self::REPO . '/src/View/Helper/ButtonHelper.php');
+    }
+
+    public function testRefusedBuildDeletesAndWritesNothing(): void
+    {
+        foreach (['/src', '/build/../docs', '/.git', ''] as $suffix) {
+            try {
+                $this->build(self::BADGE, 'examples', false, 'pages', self::REPO . $suffix);
+                $this->fail('Expected a RuntimeException for ' . $suffix);
+            } catch (RuntimeException $e) {
+                $this->assertStringContainsString('Refusing', $e->getMessage());
+            }
+        }
+        $this->assertFileExists(self::REPO . '/src/View/Helper/ButtonHelper.php');
+        $this->assertFileExists(self::REPO . '/docs/catalog/helpers.php');
+        $this->assertFileExists(self::REPO . '/.git/HEAD');
+        $this->assertFileDoesNotExist(self::REPO . '/index.html', 'Nothing written to the repository root');
+        $this->assertFileDoesNotExist(self::REPO . '/components/badge.html');
+        $this->assertFileDoesNotExist(self::REPO . '/src/components/badge.html');
     }
 
     public function testRefusesToClearOutsideRepository(): void
@@ -209,10 +271,18 @@ class CatalogBuilderTest extends TestCase
         }
     }
 
-    public function testRefusesParentSegmentsEscapingTheRepository(): void
+    public function testCdnAssetsHaveSubresourceIntegrity(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Refusing');
-        $this->build(self::BADGE, 'examples', false, 'pages', self::REPO . '/build/../../elsewhere');
+        $this->build();
+
+        foreach (['index.html', 'components/badge.html', 'components/index.html'] as $page) {
+            $html = (string)file_get_contents($this->out . '/' . $page);
+            preg_match_all('#<(?:script|link)\b[^>]*https://cdnjs\.cloudflare\.com/[^>]*>#', $html, $tags);
+            $this->assertCount(5, $tags[0], $page);
+            foreach ($tags[0] as $tag) {
+                $this->assertMatchesRegularExpression('#\sintegrity="sha384-[A-Za-z0-9+/]{64}"#', $tag, $tag);
+                $this->assertStringContainsString(' crossorigin="anonymous"', $tag);
+            }
+        }
     }
 }

@@ -57,10 +57,14 @@ final class CatalogBuilder
     /**
      * Builds the site.
      *
-     * @param string $outDir Output directory.
+     * The output directory must be a folder inside the repository's `build/` (see safeOutputDir());
+     * it is emptied first, so files of removed helpers do not linger.
+     *
+     * @param string $outDir Output directory, e.g. `<repo>/build/gh-pages`.
      * @param bool $strict Fail on warnings (helper without examples or helper class missing).
      * @return \BasecoatTheme\Docs\BuildReport
-     * @throws \RuntimeException When an example fails, or on any warning in strict mode.
+     * @throws \RuntimeException When the output directory is refused, an example or the home page
+     *   fails, or on any warning in strict mode. Nothing is deleted or written before the checks pass.
      */
     public function build(string $outDir, bool $strict = false): BuildReport
     {
@@ -299,16 +303,19 @@ final class CatalogBuilder
     private function catalogAssets(): string
     {
         $cdn = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/';
+        // Subresource Integrity: sha384 of the exact cdnjs files, computed with
+        // `curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`. Update with the version.
+        $sri = fn(string $hash): string => ' integrity="sha384-' . $hash . '" crossorigin="anonymous" referrerpolicy="no-referrer"';
 
         return implode("\n", [
             // No favicon: an empty icon stops the browser requesting /favicon.ico outside the site path.
             '<link rel="icon" href="data:,">',
-            '<link rel="stylesheet" href="' . $cdn . 'styles/github.min.css" data-hljs-theme="light">',
-            '<link rel="stylesheet" href="' . $cdn . 'styles/github-dark.min.css" data-hljs-theme="dark" disabled>',
+            '<link rel="stylesheet" href="' . $cdn . 'styles/github.min.css"' . $sri('eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L') . ' data-hljs-theme="light">',
+            '<link rel="stylesheet" href="' . $cdn . 'styles/github-dark.min.css"' . $sri('wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH') . ' data-hljs-theme="dark" disabled>',
             '<link rel="stylesheet" href="/assets/catalog.css">',
-            '<script src="' . $cdn . 'highlight.min.js" defer></script>',
-            '<script src="' . $cdn . 'languages/php.min.js" defer></script>',
-            '<script src="' . $cdn . 'languages/xml.min.js" defer></script>',
+            '<script src="' . $cdn . 'highlight.min.js"' . $sri('F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp') . ' defer></script>',
+            '<script src="' . $cdn . 'languages/php.min.js"' . $sri('c1RNlWYUPEU/QhgCUumvQSdSFaq+yFhv3VfGTG/OTh8oirAi/Jnp6XbnqOLePgjg') . ' defer></script>',
+            '<script src="' . $cdn . 'languages/xml.min.js"' . $sri('jgkY4GMNWfQcLLIoP1vg3FWXflDrRhcSXGBW6ONIWC2SOIv5H1Pa57sXs+aomCuZ') . ' defer></script>',
             '<script src="/assets/catalog.js" defer></script>',
         ]);
     }
@@ -473,27 +480,17 @@ final class CatalogBuilder
     }
 
     /**
-     * Empties the output directory (or creates it) and returns its normalized path.
-     *
-     * Only a directory inside the repository, and not the repository root itself, is cleared.
+     * Empties the output directory (after safeOutputDir()) and returns its resolved path.
      *
      * @param string $outDir Output directory.
      * @return string
-     * @throws \RuntimeException When the directory is outside the repository or is its root.
+     * @throws \RuntimeException When the directory is not a folder inside `build/`.
      */
     private function clearOutputDir(string $outDir): string
     {
-        $repo = realpath(self::REPO_ROOT);
-        $target = $this->resolvePath($outDir);
-        if ($repo === false || $target === null || $target === $repo || !str_starts_with($target, $repo . DIRECTORY_SEPARATOR)) {
-            throw new RuntimeException(sprintf(
-                'Refusing to clear output directory `%s`: it must be a folder inside the repository (`%s`), not its root.',
-                $outDir,
-                (string)$repo,
-            ));
-        }
-
+        $target = self::safeOutputDir($outDir);
         if (is_dir($target)) {
+            // Symlinks inside are removed, never followed (no FOLLOW_SYMLINKS).
             $files = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::CHILD_FIRST,
@@ -508,31 +505,73 @@ final class CatalogBuilder
     }
 
     /**
-     * Absolute, symlink-resolved path of a directory that may not exist yet.
+     * Validates an output directory: it must be strictly inside the repository's `build/` folder
+     * (`build/` itself is refused), after resolving `.` and `..` segments, and no part of it below
+     * `build/` may be a symbolic link. Nothing is touched on disk.
      *
-     * @param string $path Path.
-     * @return string|null `null` when it contains `.` / `..` segments below the existing part.
+     * @param string $outDir Output directory (absolute, or relative to the working directory).
+     * @return string Absolute path of the directory.
+     * @throws \RuntimeException When the directory is not allowed.
      */
-    private function resolvePath(string $path): ?string
+    public static function safeOutputDir(string $outDir): string
     {
-        $path = rtrim($path, '/');
-        $missing = [];
-        while ($path !== '' && !file_exists($path)) {
-            $missing[] = basename($path);
-            $path = dirname($path);
+        $refuse = fn(string $why): RuntimeException => new RuntimeException(sprintf(
+            'Refusing to use `%s` as catalog output directory: %s. Use a folder inside `%s`, e.g. build/gh-pages.',
+            $outDir,
+            $why,
+            self::normalize(self::REPO_ROOT . '/build'),
+        ));
+
+        $repo = realpath(self::REPO_ROOT);
+        if ($repo === false) {
+            throw $refuse('the repository root cannot be resolved');
         }
-        $base = realpath($path === '' ? '.' : $path);
-        if ($base === false) {
-            return null;
-        }
-        foreach (array_reverse($missing) as $segment) {
-            if ($segment === '.' || $segment === '..') {
-                return null;
+        $buildRoots = array_unique(array_filter([self::normalize(self::REPO_ROOT . '/build'), $repo . '/build']));
+        $target = self::normalize(str_starts_with($outDir, '/') ? $outDir : getcwd() . '/' . $outDir);
+
+        foreach ($buildRoots as $buildRoot) {
+            if (!str_starts_with($target, $buildRoot . '/')) {
+                continue;
             }
-            $base .= DIRECTORY_SEPARATOR . $segment;
+            if (is_link($buildRoot)) {
+                throw $refuse('`build/` is a symbolic link');
+            }
+            $relative = substr($target, strlen($buildRoot) + 1);
+            $path = $repo . '/build';
+            foreach (explode('/', $relative) as $segment) {
+                $path .= '/' . $segment;
+                if (is_link($path)) {
+                    throw $refuse('`' . $path . '` is a symbolic link');
+                }
+            }
+
+            return $path;
         }
 
-        return $base;
+        throw $refuse('it is not strictly inside the build folder');
+    }
+
+    /**
+     * Absolute path with `.` / `..` segments and duplicate slashes resolved lexically (no symlinks).
+     *
+     * @param string $path Absolute path.
+     * @return string
+     */
+    private static function normalize(string $path): string
+    {
+        $parts = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $segment;
+        }
+
+        return '/' . implode('/', $parts);
     }
 
     /**
