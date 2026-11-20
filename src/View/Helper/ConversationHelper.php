@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace BasecoatTheme\View\Helper;
 
+use function Cake\Core\h;
 
 /**
  * Chat conversation: optional contact header, message thread and message composer.
@@ -17,7 +18,8 @@ namespace BasecoatTheme\View\Helper;
  * ### Options
  *
  * - `contact`: `['name' => string, 'subtitle' => string, 'avatar' => string]` renders a header.
- * - `composer`: `false` to omit it, or `['url' => string|array, 'name' => 'message', 'placeholder' => string]`.
+ * - `composer`: `false` to omit it, or `['url' => string|array, 'name' => 'message', 'placeholder' => string, 'label' => string]`.
+ *   `label` is the accessible name (aria-label) of the input, default "Message".
  *   The composer is a plain POST form (`action` only when `url` is given).
  * - `headerActions`: HTML placed at the end of the header.
  *
@@ -162,6 +164,7 @@ class ConversationHelper extends AbstractComponentHelper
         $input = $this->renderTemplate('input', $this->partAttributes('input', [
             'name' => $composer['name'] ?? 'message',
             'placeholder' => $composer['placeholder'] ?? __d('basecoat_theme', 'Type a message…'),
+            'aria-label' => $composer['label'] ?? __d('basecoat_theme', 'Message'),
             'autocomplete' => 'off',
             'required' => true,
         ], 'input flex-1'));

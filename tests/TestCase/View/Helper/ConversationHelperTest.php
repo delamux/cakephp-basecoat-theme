@@ -33,14 +33,16 @@ class ConversationHelperTest extends HelperTestCase
         $this->assertStringNotContainsString('action=', $html);
         $this->assertStringContainsString('name="message"', $html);
         $this->assertStringContainsString('placeholder="Type a message…"', $html);
+        $this->assertStringContainsString('aria-label="Message"', $html);
         $this->assertStringContainsString('>Send</button>', $html);
     }
 
     public function testComposerUrlAndOptions(): void
     {
         $html = (new ConversationHelper($this->View))->render([], [
-            'composer' => ['url' => '/chat/send', 'name' => 'body', 'placeholder' => 'Write'],
+            'composer' => ['url' => '/chat/send', 'name' => 'body', 'placeholder' => 'Write', 'label' => 'Reply'],
         ]);
+        $this->assertStringContainsString('aria-label="Reply"', $html);
         $this->assertStringContainsString('action="/chat/send"', $html);
         $this->assertStringContainsString('name="body"', $html);
         $this->assertStringContainsString('placeholder="Write"', $html);
