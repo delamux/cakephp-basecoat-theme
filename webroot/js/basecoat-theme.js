@@ -8,7 +8,9 @@
  * - Progress bars ([data-progress-value]: width via CSSOM) and "Back" links ([data-history-back]).
  * - Command menu: [data-command-open] trigger, Ctrl/Cmd + dialog[data-command-hotkey], backdrop close.
  * - Date range field: preset buttons ([data-range-from]/[data-range-to]) and trigger text ([data-range-label]).
- * - Re-initializes charts, toasts and progress bars in content swapped by htmx (htmx:load).
+ * - Workflow designer ([data-workflow-designer], `workflow` bake screen): mounts
+ *   sequential-workflow-designer when the page loaded it, follows the light/dark theme.
+ * - Re-initializes charts, toasts, progress bars and workflow designers in content swapped by htmx (htmx:load).
  * Requires Basecoat JS (and Chart.js + Basecoat chart.js for charts) to be loaded first.
  */
 (() => {
@@ -156,11 +158,259 @@
       : (label.dataset.placeholder || '');
   });
 
-  const boot = () => { initCharts(); initToasts(); initProgress(); };
+  // Workflow designer: [data-workflow-designer] with a `script[data-workflow-definition]` and a
+  // `script[data-workflow-config]` JSON data block, a `[data-workflow-canvas]` placeholder, an optional
+  // `input[data-workflow-input]` (kept in sync with the definition) and a `[data-workflow-fallback]`
+  // (hidden once mounted). Needs sequential-workflow-designer (global `sequentialWorkflowDesigner`);
+  // without it nothing changes. Editors are DOM built with Basecoat classes (text via textContent).
+  const workflows = [];
+  const workflowTheme = () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  let workflowFieldId = 0;
+
+  const node = (tag, className, text) => {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  };
+
+  // Plain objects for `properties` / `branches` (PHP encodes an empty array as `[]`)
+  const asObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+  const normalizeSteps = (steps) => (Array.isArray(steps) ? steps : []).map((step) => {
+    const copy = Object.assign({}, step, { properties: asObject(step.properties) });
+    if (step.branches !== undefined) {
+      const branches = {};
+      Object.keys(asObject(step.branches)).forEach((name) => { branches[name] = normalizeSteps(step.branches[name]); });
+      copy.branches = branches;
+    }
+    return copy;
+  });
+
+  const workflowField = (labelText, control) => {
+    const field = node('div', 'field');
+    field.setAttribute('role', 'group');
+    const id = `workflow-field-${++workflowFieldId}`;
+    control.id = id;
+    const label = node('label', 'label', labelText);
+    label.htmlFor = id;
+    field.append(label, control);
+    return field;
+  };
+
+  const workflowInput = (value, readonly, onInput) => {
+    const input = node('input', 'input');
+    input.type = typeof value === 'number' ? 'number' : 'text';
+    input.value = value === undefined || value === null ? '' : String(value);
+    input.disabled = readonly;
+    input.addEventListener('input', () => onInput(input.type === 'number' ? Number(input.value) : input.value));
+    return input;
+  };
+
+  const mountWorkflow = (container) => {
+    const lib = window.sequentialWorkflowDesigner;
+    const canvas = container.querySelector('[data-workflow-canvas]');
+    const definitionBlock = container.querySelector('script[data-workflow-definition]');
+    if (!lib || !lib.Designer || !canvas || !definitionBlock) return;
+    const raw = parse(definitionBlock.textContent);
+    if (!raw) return;
+    const config = parse(container.querySelector('script[data-workflow-config]')?.textContent) || {};
+    const fallback = container.querySelector('[data-workflow-fallback]');
+    const input = container.querySelector('input[data-workflow-input]');
+    const i18n = (key, fallbackText) => (config.i18n && typeof config.i18n[key] === 'string' ? config.i18n[key] : fallbackText);
+    const fields = asObject(config.fields);
+    const state = {
+      container,
+      designer: null,
+      theme: null,
+      definition: { properties: asObject(raw.properties), sequence: normalizeSteps(raw.sequence) },
+    };
+
+    // Step list of the workflow editor: keyboard path to every step (the canvas needs a pointer)
+    const stepButtons = (steps) => {
+      const list = node('ul');
+      steps.forEach((step) => {
+        const item = node('li');
+        const button = node('button', 'btn', step.name || step.type);
+        button.type = 'button';
+        button.dataset.variant = 'ghost';
+        button.dataset.size = 'sm';
+        button.addEventListener('click', () => {
+          state.designer?.selectStepById(step.id);
+          state.designer?.moveViewportToStep(step.id);
+        });
+        item.append(button);
+        Object.keys(step.branches || {}).forEach((branch) => {
+          item.append(node('div', 'workflow-editor-branch', branch));
+          if (step.branches[branch].length) item.append(stepButtons(step.branches[branch]));
+        });
+        list.append(item);
+      });
+      return list;
+    };
+
+    const rootEditorProvider = (definition, context, readonly) => {
+      const editor = node('div', 'workflow-editor');
+      editor.append(node('h3', 'workflow-editor-title', i18n('editor.workflow', 'Workflow')));
+      const props = definition.properties;
+      editor.append(workflowField(i18n('editor.name', 'Name'), workflowInput(props.name, readonly, (value) => {
+        props.name = value;
+        context.notifyPropertiesChanged();
+      })));
+      const description = node('textarea', 'textarea');
+      description.value = props.description || '';
+      description.disabled = readonly;
+      description.addEventListener('input', () => {
+        props.description = description.value;
+        context.notifyPropertiesChanged();
+      });
+      editor.append(workflowField(i18n('editor.description', 'Description'), description));
+      const nav = node('nav');
+      nav.setAttribute('aria-label', i18n('editor.steps', 'Steps'));
+      nav.append(node('h4', 'workflow-editor-title', i18n('editor.steps', 'Steps')));
+      if (definition.sequence.length) {
+        nav.append(node('p', 'workflow-editor-hint', i18n('editor.stepsHint', 'Choose a step to edit it.')));
+        const list = stepButtons(definition.sequence);
+        list.className = 'workflow-editor-steps';
+        nav.append(list);
+      } else {
+        nav.append(node('p', 'workflow-editor-hint', i18n('editor.noSteps', 'Drag a step from the toolbox onto the canvas.')));
+      }
+      editor.append(nav);
+      return editor;
+    };
+
+    const stepEditorProvider = (step, context, definition, readonly) => {
+      const editor = node('div', 'workflow-editor');
+      const heading = node('div');
+      heading.append(node('p', 'workflow-editor-kicker', i18n('editor.step', 'Step')), node('h3', 'workflow-editor-title', step.name));
+      editor.append(heading);
+      editor.append(workflowField(i18n('editor.stepName', 'Step name'), workflowInput(step.name, readonly, (value) => {
+        step.name = value;
+        heading.lastChild.textContent = value;
+        context.notifyNameChanged();
+      })));
+      step.properties = asObject(step.properties);
+      Object.keys(step.properties).forEach((key) => {
+        const value = step.properties[key];
+        if (value !== null && typeof value === 'object') return;
+        editor.append(workflowField(typeof fields[key] === 'string' ? fields[key] : key, workflowInput(value, readonly, (next) => {
+          step.properties[key] = next;
+          context.notifyPropertiesChanged();
+        })));
+      });
+      const back = node('button', 'btn', i18n('editor.back', 'Back to workflow'));
+      back.type = 'button';
+      back.dataset.variant = 'outline';
+      back.dataset.size = 'sm';
+      back.addEventListener('click', () => state.designer?.clearSelectedStep());
+      editor.append(back);
+      return editor;
+    };
+
+    // The library renders its controls as <div>s: name them and make them reachable by keyboard.
+    const enhance = () => {
+      const search = canvas.querySelector('.sqd-toolbox-filter-input');
+      if (search) {
+        search.setAttribute('aria-label', i18n('toolbox.search', 'Search steps'));
+        search.name = 'workflow-step-search';
+        search.type = 'search';
+      }
+      canvas.querySelectorAll('.sqd-control-bar-button, .sqd-smart-editor-toggle, .sqd-toolbox-header').forEach((control) => {
+        control.setAttribute('role', 'button');
+        control.tabIndex = 0;
+        const name = control.getAttribute('title') || control.textContent.trim();
+        if (name) control.setAttribute('aria-label', name);
+      });
+    };
+
+    const create = () => {
+      state.theme = workflowTheme();
+      canvas.hidden = false;
+      try {
+        state.designer = lib.Designer.create(canvas, state.definition, {
+          theme: state.theme,
+          undoStackSize: 20,
+          toolbox: { groups: (Array.isArray(config.toolbox) ? config.toolbox : []).map((group) => ({ name: group.name, steps: normalizeSteps(group.steps) })) },
+          steps: { iconUrlProvider: () => null },
+          controlBar: true,
+          contextMenu: true,
+          // Delete / Backspace remove the selected step only when the focus is not in another control
+          keyboard: {
+            canHandleKey: () => {
+              const active = document.activeElement;
+              return !active || active === document.body || !!active.closest('.sqd-workspace');
+            },
+          },
+          editors: { rootEditorProvider, stepEditorProvider },
+          i18n,
+        });
+      } catch (e) {
+        console.error('[BasecoatTheme] Workflow designer error', e);
+        canvas.hidden = true;
+        if (fallback) fallback.hidden = false;
+        state.designer = null;
+        return;
+      }
+      if (fallback) fallback.hidden = true;
+      container.dataset.workflowMounted = 'true';
+      state.designer.onDefinitionChanged.subscribe((event) => {
+        state.definition = event.definition;
+        if (input) input.value = JSON.stringify(event.definition);
+      });
+      enhance();
+      state.designer.onIsToolboxCollapsedChanged.subscribe(enhance);
+      state.designer.onIsEditorCollapsedChanged.subscribe(enhance);
+    };
+
+    // Enter / Space on the controls made focusable by enhance()
+    canvas.addEventListener('keydown', (event) => {
+      const control = event.target instanceof Element ? event.target.closest('.sqd-designer [role="button"]') : null;
+      if (!control || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      control.click();
+    });
+
+    state.recreate = () => {
+      if (!state.designer || state.theme === workflowTheme()) return;
+      state.definition = state.designer.getDefinition();
+      state.designer.destroy();
+      state.designer = null;
+      create();
+    };
+    create();
+    if (state.designer) workflows.push(state);
+  };
+
+  const initWorkflows = (root = document) => {
+    if (!window.sequentialWorkflowDesigner) return;
+    const scope = root instanceof Element || root instanceof Document ? root : document;
+    const found = Array.from(scope.querySelectorAll('[data-workflow-designer]:not([data-workflow-mounted])'));
+    if (scope instanceof Element && scope.matches('[data-workflow-designer]:not([data-workflow-mounted])')) found.unshift(scope);
+    found.forEach((container) => {
+      if (workflows.some((s) => s.container === container)) return;
+      try { mountWorkflow(container); } catch (e) { console.error('[BasecoatTheme] Workflow designer error', e); }
+    });
+  };
+
+  // The designer has its own light / dark theme: re-create it when `.dark` changes on <html>.
+  new MutationObserver(() => {
+    for (let i = workflows.length - 1; i >= 0; i--) {
+      if (!workflows[i].container.isConnected) {
+        workflows[i].designer?.destroy();
+        workflows.splice(i, 1);
+      } else {
+        workflows[i].recreate();
+      }
+    }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+  const boot = () => { initCharts(); initToasts(); initProgress(); initWorkflows(); };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {
     boot();
+    // Deferred libraries placed after this script (e.g. the workflow designer) run before DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => initWorkflows());
   }
   window.addEventListener('load', boot);
   // htmx: content swapped in
@@ -168,7 +418,8 @@
     initCharts(event.target);
     initToasts(event.target);
     initProgress(event.target);
+    initWorkflows(event.target);
   });
 
-  Object.assign(window.BasecoatTheme, { initCharts, initToasts, initProgress, toggleTheme });
+  Object.assign(window.BasecoatTheme, { initCharts, initToasts, initProgress, initWorkflows, toggleTheme });
 })();

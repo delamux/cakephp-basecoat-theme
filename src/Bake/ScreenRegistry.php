@@ -214,6 +214,13 @@ final class ScreenRegistry
                 'path' => $dir . 'file-manager',
                 'icon' => 'folder',
             ],
+            'workflow' => [
+                'title' => 'Workflow',
+                'description' => 'Automation editor: drag-and-drop step designer with branches, a step editor and the run history.',
+                'controller' => 'Workflows',
+                'path' => $dir . 'workflow',
+                'icon' => 'workflow',
+            ],
         ];
     }
 }

@@ -29,7 +29,8 @@ use Throwable;
  * - `components/<slug>.html`: one page per helper with its examples (preview, PHP, HTML);
  * - `screens/index.html`, `screens/<slug>.html` and `screens/<slug>/preview.html`: the bake
  *   screens (see ScreenBuilder);
- * - `assets/`: catalog CSS/JS and the plugin's `basecoat-theme.js`.
+ * - `assets/`: catalog CSS/JS and the plugin's `basecoat-theme.js`;
+ * - `basecoat_theme/css/`: the plugin stylesheets (screens load them with `BasecoatTheme.<name>`).
  *
  * Every example and screen runs in a fresh View; any PHP warning, notice, deprecation or exception
  * fails the build.
@@ -43,6 +44,8 @@ final class CatalogBuilder
     private const ASSETS = __DIR__ . '/../assets/';
 
     private const PLUGIN_JS = __DIR__ . '/../../../webroot/js/basecoat-theme.js';
+
+    private const PLUGIN_CSS = __DIR__ . '/../../../webroot/css/';
 
     private const REPO_ROOT = __DIR__ . '/../../..';
 
@@ -733,7 +736,8 @@ final class CatalogBuilder
     }
 
     /**
-     * Copies the catalog assets and the plugin script to `assets/`.
+     * Copies the catalog assets and the plugin script to `assets/`, and the plugin stylesheets to
+     * `basecoat_theme/css/` (their plugin asset URL, e.g. `$this->Html->css('BasecoatTheme.workflow')`).
      *
      * @param string $outDir Output directory.
      * @return void
@@ -744,6 +748,9 @@ final class CatalogBuilder
         $files[] = self::PLUGIN_JS;
         foreach ($files as $file) {
             $this->write($outDir, 'assets/' . basename($file), (string)file_get_contents($file));
+        }
+        foreach (glob(self::PLUGIN_CSS . '*.css') ?: [] as $file) {
+            $this->write($outDir, 'basecoat_theme/css/' . basename($file), (string)file_get_contents($file));
         }
     }
 

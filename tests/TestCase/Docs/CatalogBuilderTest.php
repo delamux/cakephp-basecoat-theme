@@ -68,6 +68,8 @@ class CatalogBuilderTest extends TestCase
         $this->assertFileExists($this->out . '/assets/basecoat-theme.js');
         $this->assertFileExists($this->out . '/assets/catalog.js');
         $this->assertFileExists($this->out . '/components/index.html');
+        // Plugin stylesheets at their plugin asset URL (`BasecoatTheme.workflow` => /basecoat_theme/css/workflow.css).
+        $this->assertFileEquals(ROOT . '/webroot/css/workflow.css', $this->out . '/basecoat_theme/css/workflow.css');
     }
 
     public function testSetupIsCollapsed(): void

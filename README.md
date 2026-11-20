@@ -502,6 +502,10 @@ bin/cake bake screen users --force                     # overwrite existing file
     (`?step=`).
   - `file-manager` (`Files`): storage overview, folders with breadcrumb (`?path=`), recent files as a
     grid or list, search and type filter.
+  - `workflow` (`Workflows`): automation editor built on
+    [sequential-workflow-designer](https://github.com/nocode-js/sequential-workflow-designer) (see
+    [Workflow screen](#workflow-screen)): drag-and-drop steps with if / else branches, a step editor and
+    the run history.
 - `[<Controller>]`: controller name, default the screen's (see the list above); `team_inbox` and
   `TeamInbox` both give `TeamInboxController`.
 - `--list`: lists the screens with their description and exits.
@@ -537,6 +541,7 @@ the screen uses (all `BasecoatTheme.*`; `Form` is `BasecoatTheme.Form`):
 | `profile` | `Profile` | `Tabs`, `Card`, `MetricCard`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `onboarding` | `Onboarding` | `Card`, `ChoiceCards`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `file-manager` | `Files` | `PageHeader`, `Breadcrumb`, `TableToolbar`, `Progress`, `Avatar`, `DropdownMenu`, `Button`, `EmptyState`, `Icon` |
+| `workflow` | `Workflows` | `PageHeader`, `Table`, `Badge`, `Button`, `EmptyState` (plus `Html` for the assets) |
 
 Their strings use `__()` / `__n()` (`__d('<plugin>', …)` / `__dn('<plugin>', …)` with `--plugin`),
 like the CRUD bake templates.
@@ -564,6 +569,49 @@ Bake plugin** (`bin/cake plugin load Bake` is not needed for it). Without cakeph
 not exist. Every screen has a page in the
 [catalog](https://delamux.github.io/cakephp-basecoat-theme/screens/index.html) with a live preview and
 the exact files the command writes.
+
+### Workflow screen
+
+`bin/cake bake screen workflow` uses an external library,
+**[sequential-workflow-designer](https://github.com/nocode-js/sequential-workflow-designer)** 0.40.4
+(MIT, © N4NO.com; free edition only, no Pro features), restyled with the Basecoat tokens:
+
+- **Assets:** the template adds the library from jsDelivr, pinned
+  (`sequential-workflow-designer@0.40.4`: `css/designer.css`, `css/designer-light.css`,
+  `css/designer-dark.css`, `dist/index.umd.js`), plus `BasecoatTheme.workflow` (`webroot/css/workflow.css`,
+  served at `/basecoat_theme/css/workflow.css`), through the view `css` / `script` blocks, so the default
+  layout prints them in `<head>` (HtmlHelper adds the CSP nonce). If your layout does not fetch these
+  blocks, add `<?= $this->fetch('css') ?>` and `<?= $this->fetch('script') ?>`. Self-host the files by
+  changing `$designerCdn` in the template.
+- **Mounting:** `webroot/js/basecoat-theme.js` (`pluginJs`) mounts the designer on
+  `[data-workflow-designer]`. It reads the definition and the configuration from two
+  `<script type="application/json">` data blocks (never executed). It keeps
+  `<input type="hidden" name="definition">` up to date with the JSON of the definition and re-creates
+  the designer in its `light` / `dark` theme when `.dark` changes on `<html>`, which resets the zoom, the
+  selection and the undo history. The step editor and the workflow editor are Basecoat fields, built as
+  DOM with text set through `textContent`. `window.BasecoatTheme.initWorkflows(root)` mounts designers
+  added later (htmx content is handled).
+- **Data:** `definition` is the library's format (`properties`, `sequence`; steps with `id`,
+  `componentType` `task` or `switch` + `branches`, `type`, `name`, `properties`). `toolbox` lists the
+  step templates (groups Triggers / Actions / Logic in the sample). Labels of the step properties in the
+  editor come from the `fields` map in the template. "Save" and "Run test" are inert: the TODOs show how
+  to post the `definition` input to your own action.
+- **Without JavaScript** (or when the library fails to load or throws), the steps render as an ordered
+  list with a nested list per branch. The canvas stays `hidden`.
+- **Accessibility:** the canvas is a labelled region, but it is not keyboard-operable: adding or moving
+  steps needs a pointer (drag and drop), and steps on the canvas cannot take focus (library limitation).
+  The keyboard path is the editor panel: the workflow editor lists every step as a button that selects
+  it and opens its fields, "Back to workflow" returns, and Delete / Backspace remove the selected step
+  when the focus is not in a field or another control. `basecoat-theme.js` gives the library's toolbar,
+  toolbox header and editor toggle `role="button"`, `tabindex="0"`, a name and Enter / Space
+  activation. It also names the toolbox search field.
+- **CSP:** the library injects no `<style>` element, uses no `eval` and loads no images (the step
+  markers are CSS-coloured). It sets positions through CSSOM (`element.style`), which CSP allows. The one
+  exception is the ghost image while dragging a step: it is an `<svg>` with a `style` attribute (scale
+  transform). Under a `style-src` without `'unsafe-inline'` (or `'unsafe-hashes'`), the browser blocks
+  that attribute and logs a CSP violation on each drag. The drop still works, and the ghost is only drawn
+  unscaled and 10px off. The CDN host must be allowed in `script-src` / `style-src`
+  (`https://cdn.jsdelivr.net`), or self-host the files.
 
 ## Bake templates
 
@@ -639,6 +687,9 @@ Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CS
 - The dark-mode script and the Tailwind browser `@theme` style carry the request's nonce (`cspScriptNonce` /
   `cspStyleNonce`); HtmlHelper adds it to the scripts and stylesheets.
 - Charts, toasts and progress bars are initialized again in content swapped by htmx (`htmx:load`).
+- The `workflow` bake screen loads sequential-workflow-designer from jsDelivr; while a step is dragged the
+  library sets a `style` attribute on the drag ghost, blocked (and reported) under a strict `style-src`
+  (see [Workflow screen](#workflow-screen)).
 - Toast `action`/`cancel` buttons with an `onclick` key are inline JS: under a strict CSP use `url`, or `attributes`
   with data-* handled by your own script.
 
@@ -778,6 +829,12 @@ Changes in this version that can affect existing apps:
 - **Menu triggers use `ellipsis`** instead of `ellipsis-vertical`: the CRUD bake `index` template, the
   `users` screen, the sidebar user menu and the catalog examples. Re-bake or change the icon name if you
   want the new look; `ellipsis-vertical` is still available.
+- **New `workflow` bake screen** (sequential-workflow-designer, MIT, loaded from jsDelivr by the baked
+  template only): `basecoat-theme.js` now mounts `[data-workflow-designer]` elements when the library is
+  on the page (`window.BasecoatTheme.initWorkflows`), and watches the `class` of `<html>` to switch the
+  designer theme. Pages without the screen are unaffected. New plugin stylesheet `webroot/css/workflow.css`
+  (`BasecoatTheme.workflow`) and the `workflow` and `play` icons. The catalog build copies the plugin
+  stylesheets to `basecoat_theme/css/`.
 - **`Button` `indicatorLabel`:** `''` renders no screen reader text for the indicator.
 - **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
   text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.
@@ -788,4 +845,5 @@ Changes in this version that can affect existing apps:
 
 ## License
 
-MIT. Basecoat (MIT) and Lucide icons (ISC) belong to their authors.
+MIT. Basecoat (MIT) and Lucide icons (ISC) belong to their authors. The `workflow` bake screen loads
+sequential-workflow-designer (MIT, © N4NO.com) from jsDelivr; it is not bundled with this plugin.

@@ -1,0 +1,331 @@
+/*
+ * BasecoatTheme: sequential-workflow-designer (MIT) restyled with the Basecoat tokens.
+ * Loaded by the `workflow` bake screen after the library CSS (designer.css, designer-light.css,
+ * designer-dark.css). Both library themes (`light`, `dark`) map to the same tokens, so the designer
+ * follows the page theme (`.dark` on <html>) and the Basecoat style packs.
+ * Selectors are `:is(.sqd-theme-light, .sqd-theme-dark) …` (same specificity as the library's,
+ * later in the cascade wins).
+ */
+
+/* Canvas size: the placeholder needs a height before the designer mounts. */
+.workflow-canvas {
+  position: relative;
+  height: 34rem;
+  min-height: 0;
+}
+@media (max-width: 40rem) {
+  .workflow-canvas {
+    height: 30rem;
+  }
+}
+
+.workflow-canvas .sqd-designer,
+.workflow-canvas .sqd-drag,
+.sqd-context-menu {
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+/* Workspace and grid */
+:is(.sqd-theme-light, .sqd-theme-dark).sqd-designer {
+  background: var(--background);
+  color: var(--foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-line-grid-path {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-join {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-region {
+  stroke: var(--border);
+  stroke-width: 1.5;
+  stroke-dasharray: 4;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-region.sqd-selected {
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-dasharray: 0;
+}
+
+/* Floating panels: toolbox and control bar */
+:is(.sqd-theme-light, .sqd-theme-dark) :is(.sqd-toolbox, .sqd-control-bar) {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.workflow-canvas .sqd-toolbox {
+  width: 11rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-header-title {
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-toggle-icon .sqd-icon-path,
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-smart-editor-toggle .sqd-icon-path {
+  fill: var(--muted-foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-filter-input {
+  background: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.5rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-filter-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-group-title {
+  background: transparent;
+  color: var(--muted-foreground);
+  border-radius: 0;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0;
+  margin-bottom: 0.25rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-item {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: none;
+  margin-bottom: 0.375rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-item:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-color: var(--border);
+}
+.workflow-canvas .sqd-toolbox-item-text {
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.5rem 0.4375rem 1.75rem;
+}
+.workflow-canvas .sqd-toolbox-item-icon {
+  left: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: -0.375rem;
+}
+
+/* Step markers: one colour per kind of step (the step name is always shown next to it). */
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-toolbox-item .sqd-toolbox-item-icon.sqd-no-icon {
+  background: var(--primary);
+  border-radius: 9999px;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-task .sqd-step-task-empty-icon {
+  fill: var(--primary);
+}
+.sqd-type-trigger :is(.sqd-toolbox-item-icon.sqd-no-icon) {
+  background: var(--chart-1) !important;
+}
+.sqd-type-trigger .sqd-step-task-empty-icon {
+  fill: var(--chart-1) !important;
+}
+:is(.sqd-type-wait, .sqd-type-if) .sqd-toolbox-item-icon.sqd-no-icon {
+  background: var(--chart-3) !important;
+}
+.sqd-type-wait .sqd-step-task-empty-icon {
+  fill: var(--chart-3) !important;
+}
+
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-control-bar {
+  padding: 0.375rem 0 0.375rem 0.375rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-control-bar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  margin-right: 0.375rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-control-bar-button:hover {
+  background: var(--accent);
+  border-color: transparent;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-control-bar-button .sqd-icon-path {
+  fill: var(--foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-control-bar-button.sqd-delete .sqd-icon-path {
+  fill: var(--destructive);
+}
+
+/* Keyboard focus on the controls basecoat-theme.js makes focusable */
+.workflow-canvas [role="button"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Steps */
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-task .sqd-step-task-rect {
+  fill: var(--card);
+  stroke: var(--border);
+  stroke-width: 1;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.06));
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-task .sqd-step-task-rect.sqd-selected {
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-task .sqd-step-task-text {
+  fill: var(--card-foreground);
+  font-weight: 500;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) :is(.sqd-step-task, .sqd-step-switch > g, .sqd-step-launch-pad > g, .sqd-step-container > g) .sqd-input {
+  fill: var(--background);
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) :is(.sqd-step-task, .sqd-step-launch-pad > g) .sqd-output {
+  fill: var(--muted-foreground);
+  stroke-width: 0;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) :is(.sqd-step-switch > .sqd-label-primary, .sqd-step-container > .sqd-label) > .sqd-label-rect {
+  fill: var(--primary);
+  stroke-width: 0;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) :is(.sqd-step-switch > .sqd-label-primary, .sqd-step-container > .sqd-label) > .sqd-label-text {
+  fill: var(--primary-foreground);
+  font-weight: 500;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-switch > .sqd-label-secondary > .sqd-label-rect {
+  fill: var(--secondary);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-step-switch > .sqd-label-secondary > .sqd-label-text {
+  fill: var(--secondary-foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-root-start-stop-circle {
+  fill: var(--primary);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-root-start-stop-icon {
+  fill: var(--primary-foreground);
+}
+
+/* Drop placeholders and validation */
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-placeholder .sqd-placeholder-rect {
+  fill: var(--muted);
+  stroke: var(--muted-foreground);
+  stroke-width: 1;
+  stroke-dasharray: 3;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-placeholder.sqd-hover .sqd-placeholder-rect {
+  fill: var(--primary);
+  stroke: var(--primary);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-placeholder-icon-path {
+  fill: var(--muted-foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-placeholder.sqd-hover .sqd-placeholder-icon-path {
+  fill: var(--primary-foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-validation-error {
+  fill: var(--destructive);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-validation-error-icon-path {
+  fill: var(--background);
+}
+
+/* Context menu (appended to <body>) */
+:is(.sqd-theme-light, .sqd-theme-dark).sqd-context-menu {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+  padding: 0.25rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-context-menu-group {
+  color: var(--muted-foreground);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-context-menu-item {
+  color: var(--popover-foreground);
+  border-radius: calc(var(--radius) - 4px);
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-context-menu-item:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* Editor panel (right) and its toggle */
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-smart-editor {
+  background: var(--card);
+  color: var(--card-foreground);
+  border-left: 1px solid var(--border);
+  box-shadow: none;
+  overflow-y: auto;
+}
+.workflow-canvas.sqd-layout-desktop .sqd-smart-editor,
+.workflow-canvas .sqd-layout-desktop .sqd-smart-editor {
+  width: 18rem;
+}
+.workflow-canvas .sqd-layout-desktop .sqd-smart-editor-toggle:not(.sqd-collapsed) {
+  right: 18rem;
+}
+:is(.sqd-theme-light, .sqd-theme-dark) .sqd-smart-editor-toggle {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-top: 0;
+  border-bottom-left-radius: var(--radius);
+  box-shadow: none;
+}
+
+/* Editors built by basecoat-theme.js (Basecoat .field / .input / .label / .btn) */
+.workflow-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.workflow-editor-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.workflow-editor-kicker {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.workflow-editor-hint {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.workflow-editor-steps,
+.workflow-editor-steps ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.workflow-editor-steps ul {
+  margin: 0.125rem 0 0.25rem 0.75rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border);
+}
+.workflow-editor-branch {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem 0;
+}
+.workflow-editor-steps .btn {
+  width: 100%;
+  justify-content: flex-start;
+  font-weight: 400;
+}
+.workflow-editor .textarea {
+  min-height: 5rem;
+}
