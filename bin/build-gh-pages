@@ -1,0 +1,40 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+/**
+ * Builds the static component catalog (GitHub Pages).
+ *
+ * Usage: php bin/build-gh-pages [--out=build/gh-pages] [--strict]
+ *
+ * --strict also fails when a registry helper has no examples or its helper class is missing.
+ * Exit code 1 on any failure.
+ */
+
+use BasecoatTheme\Docs\CatalogBuilder;
+
+require dirname(__DIR__) . '/docs/catalog/bootstrap.php';
+
+$options = getopt('', ['out:', 'strict']);
+$out = (string)($options['out'] ?? 'build/gh-pages');
+if (!str_starts_with($out, '/')) {
+    $out = ROOT . '/' . $out;
+}
+$strict = isset($options['strict']);
+
+try {
+    $builder = new CatalogBuilder(
+        ROOT . '/docs/catalog/examples',
+        ROOT . '/docs/catalog/pages',
+        require ROOT . '/docs/catalog/helpers.php',
+    );
+    $report = $builder->build($out, $strict);
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Catalog build failed: ' . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
+
+foreach ($report->warnings as $warning) {
+    fwrite(STDERR, 'Warning: ' . $warning . PHP_EOL);
+}
+printf('Catalog built: %d pages in %s' . PHP_EOL, count($report->pages), $out);

@@ -7,3 +7,6 @@
 .idea/
 .vscode/
 docs/roadmap/*
+/build/
+/.claude/worktrees/
+/.superpowers/
