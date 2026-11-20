@@ -1,0 +1,199 @@
+{#
+/**
+ * BasecoatTheme bake template: `onboarding` screen (`bin/cake bake screen onboarding`).
+ * Reads the view variables of data.php (steps, workspace, invites, plans, plan, timezones, digests,
+ * preferences). Twig variables used: `namespace`, `useDomain` and `plugin` (strings use
+ * `__d('<plugin>', ...)` under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set tn = useDomain ? "__dn('" ~ plugin ~ "', " : "__n(" %}
+<?php
+/**
+ * Onboarding: five-step setup flow. The step comes from the `step` query parameter (1 to 5).
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<string, string> $steps Step key => label, in order.
+ * @var array<string, string> $workspace Sample workspace: name and slug.
+ * @var array<int, string> $invites Emails listed in the team step.
+ * @var array<string, array<string, string>> $plans Plan value => title, description, icon.
+ * @var string $plan Selected plan.
+ * @var array<string, string> $timezones Timezone value => label.
+ * @var array<string, string> $digests Digest frequency value => label.
+ * @var array<string, mixed> $preferences Defaults of the preferences step.
+ */
+$this->assign('title', {{ t|raw }}'Onboarding'));
+
+$stepKeys = array_keys($steps);
+$count = count($stepKeys);
+$current = max(1, min($count, (int)$this->getRequest()->getQuery('step', 1)));
+$currentKey = $stepKeys[$current - 1];
+$indexUrl = $this->Url->build(['action' => 'index']);
+$stepUrl = fn (int $number): string => $indexUrl . '?' . http_build_query(['step' => $number]);
+
+// Heading and description of each step
+$texts = [
+    'workspace' => [{{ t|raw }}'Name your workspace'), {{ t|raw }}'This is where your team will keep its projects. You can change it later.')],
+    'team' => [{{ t|raw }}'Invite your team'), {{ t|raw }}'Add the people you work with. You can skip this step and invite them later.')],
+    'plan' => [{{ t|raw }}'Choose a plan'), {{ t|raw }}'Pick the plan that fits your team today. You can switch at any time.')],
+    'preferences' => [{{ t|raw }}'Set your preferences'), {{ t|raw }}'Tell us how you like to work. Every option can be changed in settings.')],
+    'done' => [{{ t|raw }}'Review and finish'), {{ t|raw }}'Check the summary below, then finish to open your workspace.')],
+];
+[$heading, $description] = $texts[$currentKey] ?? [$steps[$currentKey], ''];
+
+// The invited emails always offer three fields: the listed ones plus empty rows
+$invites = array_values($invites);
+$inviteFields = max(3, count($invites));
+?>
+<div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 lg:px-6">
+    <nav aria-label="<?= h({{ t|raw }}'Progress')) ?>">
+        <ol class="flex items-center gap-2">
+            <?php foreach ($stepKeys as $index => $key) : ?>
+                <?php
+                $number = $index + 1;
+                $isCurrent = $number === $current;
+                $isDone = $number < $current;
+                ?>
+                <li class="flex items-center gap-2 <?= $number < $count ? 'flex-1' : '' ?>"<?= $isCurrent ? ' aria-current="step"' : '' ?>>
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium <?= $isCurrent ? 'border-primary bg-primary text-primary-foreground' : ($isDone ? 'border-primary text-primary' : 'text-muted-foreground') ?>">
+                        <?= $isDone ? $this->Icon->render('check', ['class' => 'size-4']) : h((string)$number) ?>
+                    </span>
+                    <span class="text-sm <?= $isCurrent ? 'font-medium' : 'text-muted-foreground max-sm:sr-only' ?>">
+                        <?= h($steps[$key]) ?>
+                        <?php if ($isDone) : ?>
+                            <span class="sr-only"><?= h({{ t|raw }}'Completed')) ?></span>
+                        <?php elseif ($isCurrent) : ?>
+                            <span class="sr-only"><?= h({{ t|raw }}'Current')) ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <?php if ($number < $count) : ?>
+                        <span class="h-px min-w-3 flex-1 <?= $isDone ? 'bg-primary' : 'bg-border' ?>" aria-hidden="true"></span>
+                    <?php endif; ?>
+                </li>
+            <?php endforeach; ?>
+        </ol>
+    </nav>
+
+    <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'Step {0} of {1}', $current, $count)) ?></p>
+
+    <?php
+    // TODO: each step only moves on to the next one (GET) and the values are not stored. Keep them
+    // between steps (session or a draft record) and save everything when the flow is finished.
+    ?>
+    <?= $this->Card->start(['title' => $heading, 'description' => $description, 'titleTag' => 'h1']) ?>
+        <?php if ($currentKey !== 'done') : ?>
+            <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'flex flex-col gap-6']) ?>
+                <?= $this->Form->hidden('step', ['value' => $current + 1, 'id' => 'onboarding-next-step']) ?>
+
+                <?php if ($currentKey === 'workspace') : ?>
+                    <?= $this->Form->control('workspace_name', [
+                        'label' => {{ t|raw }}'Workspace name'),
+                        'value' => $workspace['name'],
+                        'required' => true,
+                        'autocomplete' => 'organization',
+                    ]) ?>
+                    <?= $this->Form->control('workspace_slug', [
+                        'label' => {{ t|raw }}'Workspace URL'),
+                        'value' => $workspace['slug'],
+                        'required' => true,
+                        'pattern' => '[a-z0-9\-]+',
+                        'autocapitalize' => 'none',
+                    ]) ?>
+                    <p class="text-muted-foreground -mt-4 text-sm"><?= h({{ t|raw }}'Lowercase letters, numbers and hyphens only.')) ?></p>
+                <?php elseif ($currentKey === 'team') : ?>
+                    <?php for ($i = 1; $i <= $inviteFields; $i++) : ?>
+                        <?= $this->Form->control('invite_' . $i, [
+                            'type' => 'email',
+                            'label' => {{ t|raw }}'Teammate {0}', $i),
+                            'value' => $invites[$i - 1] ?? '',
+                            'placeholder' => {{ t|raw }}'name@example.com'),
+                            'autocomplete' => 'off',
+                        ]) ?>
+                    <?php endfor; ?>
+                <?php elseif ($currentKey === 'plan') : ?>
+                    <?= $this->ChoiceCards->render('plan', array_map(fn (array $item): array => [
+                        'title' => $item['title'],
+                        'description' => $item['description'],
+                        'icon' => $item['icon'] ?? null,
+                    ], $plans), [
+                        'legend' => {{ t|raw }}'Plan'),
+                        'value' => $plan,
+                        'required' => true,
+                        'id' => 'onboarding-plan',
+                    ]) ?>
+                <?php elseif ($currentKey === 'preferences') : ?>
+                    <?= $this->Form->control('timezone', [
+                        'type' => 'select',
+                        'label' => {{ t|raw }}'Timezone'),
+                        'options' => $timezones,
+                        'value' => $preferences['timezone'] ?? null,
+                    ]) ?>
+                    <?= $this->Form->control('digest', [
+                        'type' => 'select',
+                        'label' => {{ t|raw }}'Email digest'),
+                        'options' => $digests,
+                        'value' => $preferences['digest'] ?? null,
+                    ]) ?>
+                    <?= $this->Form->control('mentions', [
+                        'type' => 'checkbox',
+                        'role' => 'switch',
+                        'label' => {{ t|raw }}'Email me when someone mentions me'),
+                        'checked' => !empty($preferences['mentions']),
+                        'hiddenField' => false,
+                    ]) ?>
+                    <?= $this->Form->control('product_updates', [
+                        'type' => 'checkbox',
+                        'role' => 'switch',
+                        'label' => {{ t|raw }}'Send me product updates'),
+                        'checked' => !empty($preferences['product_updates']),
+                        'hiddenField' => false,
+                    ]) ?>
+                <?php endif; ?>
+
+                <div class="flex items-center justify-between gap-2">
+                    <?php if ($current > 1) : ?>
+                        <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($current - 1), ['icon' => 'arrow-left', 'variant' => 'outline']) ?>
+                    <?php else : ?>
+                        <span></span>
+                    <?php endif; ?>
+                    <?= $this->Button->submit({{ t|raw }}'Continue'), ['icon' => 'arrow-right', 'iconPosition' => 'end']) ?>
+                </div>
+            <?= $this->Form->end() ?>
+        <?php else : ?>
+            <dl class="flex flex-col gap-3 text-sm">
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Workspace')) ?></dt>
+                    <dd class="font-medium"><?= h($workspace['name']) ?></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Workspace URL')) ?></dt>
+                    <dd class="font-medium break-all"><?= h($workspace['slug']) ?></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Invitations')) ?></dt>
+                    <dd class="font-medium"><?= h({{ tn|raw }}'{0} person', '{0} people', count(array_filter($invites)), count(array_filter($invites)))) ?></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Plan')) ?></dt>
+                    <dd class="font-medium"><?= h($plans[$plan]['title'] ?? $plan) ?></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Timezone')) ?></dt>
+                    <dd class="font-medium"><?= h($timezones[$preferences['timezone'] ?? ''] ?? '') ?></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-muted-foreground"><?= h({{ t|raw }}'Email digest')) ?></dt>
+                    <dd class="font-medium"><?= h($digests[$preferences['digest'] ?? ''] ?? '') ?></dd>
+                </div>
+            </dl>
+            <div class="mt-6 flex items-center justify-between gap-2">
+                <?= $this->Button->link({{ t|raw }}'Back'), $stepUrl($current - 1), ['icon' => 'arrow-left', 'variant' => 'outline']) ?>
+                <?php
+                // TODO: "Finish" does nothing yet. Make it a POST form (Form->create + submit, with the
+                // CSRF token) to your own action that saves the workspace and redirects to your dashboard.
+                ?>
+                <?= $this->Button->render({{ t|raw }}'Finish'), ['icon' => 'check']) ?>
+            </div>
+        <?php endif; ?>
+    <?= $this->Card->end() ?>
+</div>
