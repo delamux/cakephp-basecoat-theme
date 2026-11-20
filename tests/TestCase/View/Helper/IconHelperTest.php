@@ -46,6 +46,18 @@ class IconHelperTest extends HelperTestCase
         $this->assertStringContainsString('<title>Info &amp; help</title>', $out);
     }
 
+    public function testBatchTwoIconsRenderDecorative(): void
+    {
+        $icon = new IconHelper($this->View);
+        $names = ['message-circle', 'sparkles', 'list-checks', 'sticky-note', 'star', 'archive', 'paperclip', 'smile',
+            'mic', 'phone', 'video', 'reply', 'forward', 'tag', 'layout-grid', 'image', 'flag', 'users-round'];
+        foreach ($names as $name) {
+            $out = $icon->render($name);
+            $this->assertStringStartsWith('<svg', $out, $name);
+            $this->assertStringContainsString('aria-hidden="true"', $out, $name);
+        }
+    }
+
     public function testRawMarkupPassThrough(): void
     {
         $svg = '<svg><circle/></svg>';
