@@ -1,0 +1,187 @@
+{#
+/**
+ * BasecoatTheme bake template: `calendar` screen (`bin/cake bake screen calendar`).
+ * Reads the view variables of data.php (year, month, today, categories, events).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Calendar: month grid (a table, Monday first) with event chips, a side panel with the upcoming events and a legend.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var int $year Year of the month shown.
+ * @var int $month Month shown (1-12).
+ * @var string $today The current day as `Y-m-d` (from your action: the template does not read the clock).
+ * @var array<string, string> $categories Category key => label.
+ * @var array<int, array<string, mixed>> $events Events: id, title, date (`Y-m-d`), time (`H:i` or null), category.
+ */
+use Cake\I18n\DateTime;
+
+$this->assign('title', {{ t|raw }}'Calendar'));
+
+$maxChips = 3;
+$palette = [
+    'meeting' => ['chip' => 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200', 'dot' => 'bg-blue-500'],
+    'deadline' => ['chip' => 'bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200', 'dot' => 'bg-red-500'],
+    'release' => ['chip' => 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200', 'dot' => 'bg-green-500'],
+    'team' => ['chip' => 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200', 'dot' => 'bg-amber-500'],
+];
+$neutral = ['chip' => 'bg-muted text-foreground', 'dot' => 'bg-muted-foreground'];
+
+// The grid: whole weeks (Monday first) around the month, built from `year`/`month`.
+$first = new DateTime(sprintf('%04d-%02d-01 00:00:00', $year, $month), 'UTC');
+$offset = (int)$first->format('N') - 1;
+$weeks = (int)ceil(($offset + (int)$first->format('t')) / 7);
+$start = $first->subDays($offset);
+$monthLabel = $first->i18nFormat('LLLL y');
+$prevMonth = $first->subMonths(1)->format('Y-m');
+$nextMonth = $first->addMonths(1)->format('Y-m');
+
+$byDay = [];
+foreach ($events as $event) {
+    $byDay[$event['date']][] = $event;
+}
+$sortEvents = fn (array $a, array $b): int => [(string)($a['time'] ?? ''), (string)$a['title']] <=> [(string)($b['time'] ?? ''), (string)$b['title']];
+foreach ($byDay as &$dayEvents) {
+    usort($dayEvents, $sortEvents);
+}
+unset($dayEvents);
+
+$upcoming = array_values(array_filter($events, fn (array $e): bool => $e['date'] >= $today));
+usort($upcoming, fn (array $a, array $b): int => [$a['date'], (string)($a['time'] ?? ''), (string)$a['title']] <=> [$b['date'], (string)($b['time'] ?? ''), (string)$b['title']]);
+$upcoming = array_slice($upcoming, 0, 5);
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Calendar'), [
+        'level' => 2,
+        'description' => {{ t|raw }}'Meetings, deadlines and releases at a glance.'),
+        'actions' => [
+            // TODO: point "New event" at your own add action.
+            $this->Button->link({{ t|raw }}'New event'), '#', ['icon' => 'plus']),
+        ],
+    ]) ?>
+
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+            <?= $this->Button->icon('chevron-left', {{ t|raw }}'Previous month'), ['url' => ['action' => 'index', '?' => ['month' => $prevMonth]], 'variant' => 'outline', 'data-nav' => 'prev']) ?>
+            <?= $this->Button->icon('chevron-right', {{ t|raw }}'Next month'), ['url' => ['action' => 'index', '?' => ['month' => $nextMonth]], 'variant' => 'outline', 'data-nav' => 'next']) ?>
+            <?= $this->Button->link({{ t|raw }}'Today'), ['action' => 'index'], ['variant' => 'outline', 'data-nav' => 'today']) ?>
+            <h3 class="ml-1 text-lg font-semibold" id="calendar-month"><?= h($monthLabel) ?></h3>
+        </div>
+        <?php // TODO: only the month view is rendered. Render the week and day views and link these buttons to them. ?>
+        <div class="flex items-center gap-1" role="group" aria-label="<?= h({{ t|raw }}'Calendar view')) ?>">
+            <?= $this->Button->render({{ t|raw }}'Month'), ['variant' => 'secondary', 'size' => 'sm', 'aria-pressed' => 'true', 'data-view' => 'month']) ?>
+            <?= $this->Button->render({{ t|raw }}'Week'), ['variant' => 'ghost', 'size' => 'sm', 'aria-pressed' => 'false', 'data-view' => 'week']) ?>
+            <?= $this->Button->render({{ t|raw }}'Day'), ['variant' => 'ghost', 'size' => 'sm', 'aria-pressed' => 'false', 'data-view' => 'day']) ?>
+        </div>
+    </div>
+
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div class="relative min-w-0 overflow-x-auto rounded-lg border">
+            <table class="w-full min-w-[38rem] table-fixed border-collapse text-sm" data-calendar="<?= h(sprintf('%04d-%02d', $year, $month)) ?>">
+                <caption class="sr-only"><?= h($monthLabel) ?></caption>
+                <thead>
+                    <tr>
+                        <?php for ($i = 0; $i < 7; $i++) : ?>
+                            <?php $weekday = $start->addDays($i); ?>
+                            <th scope="col" class="text-muted-foreground border-b px-2 py-2 text-left text-xs font-medium">
+                                <span aria-hidden="true"><?= h($weekday->i18nFormat('EEE')) ?></span>
+                                <span class="sr-only"><?= h($weekday->i18nFormat('EEEE')) ?></span>
+                            </th>
+                        <?php endfor; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php for ($w = 0; $w < $weeks; $w++) : ?>
+                        <tr>
+                            <?php for ($i = 0; $i < 7; $i++) : ?>
+                                <?php
+                                $day = $start->addDays($w * 7 + $i);
+                                $key = $day->format('Y-m-d');
+                                $inMonth = (int)$day->format('n') === $month;
+                                $isToday = $key === $today;
+                                $dayEvents = $byDay[$key] ?? [];
+                                $hidden = max(0, count($dayEvents) - $maxChips);
+                                ?>
+                                <td class="h-28 border-t border-l p-1 align-top first:border-l-0<?= $inMonth ? '' : ' bg-muted/40 text-muted-foreground' ?>" data-date="<?= h($key) ?>">
+                                    <div class="mb-1 flex justify-end">
+                                        <time datetime="<?= h($key) ?>" class="inline-flex min-w-6 items-center justify-center rounded-full px-1 text-xs<?= $isToday ? ' bg-primary text-primary-foreground font-semibold' : '' ?>"<?= $isToday ? ' aria-current="date"' : '' ?>>
+                                            <span aria-hidden="true"><?= h($day->format('j')) ?></span>
+                                            <span class="sr-only"><?= h($day->i18nFormat('d MMMM')) ?></span>
+                                            <?php if ($isToday) : ?><span class="sr-only">, <?= h({{ t|raw }}'Today')) ?></span><?php endif; ?>
+                                        </time>
+                                    </div>
+                                    <?php if ($dayEvents) : ?>
+                                        <ul class="flex flex-col gap-0.5">
+                                            <?php foreach (array_slice($dayEvents, 0, $maxChips) as $event) : ?>
+                                                <?php $colors = $palette[$event['category']] ?? $neutral; ?>
+                                                <li>
+                                                    <?php // TODO: link the chip to your own event view action. ?>
+                                                    <a href="#" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs <?= h($colors['chip']) ?>" data-event="<?= h((string)$event['id']) ?>" data-category="<?= h($event['category']) ?>">
+                                                        <?php if (!empty($event['time'])) : ?><span class="shrink-0 font-medium"><?= h($event['time']) ?></span><?php endif; ?>
+                                                        <span class="truncate"><?= h($event['title']) ?></span>
+                                                        <span class="sr-only">, <?= h($categories[$event['category']] ?? $event['category']) ?></span>
+                                                    </a>
+                                                </li>
+                                            <?php endforeach; ?>
+                                            <?php if ($hidden > 0) : ?>
+                                                <li>
+                                                    <?php // TODO: link "more" to a day view listing every event of the day. ?>
+                                                    <a href="#" class="text-muted-foreground hover:text-foreground block px-1.5 text-xs" data-more="<?= h($key) ?>">
+                                                        <?= h({{ t|raw }}'+{0} more', $hidden)) ?>
+                                                        <span class="sr-only"><?= h({{ t|raw }}'events on {0}', $day->i18nFormat('d MMMM'))) ?></span>
+                                                    </a>
+                                                </li>
+                                            <?php endif; ?>
+                                        </ul>
+                                    <?php endif; ?>
+                                </td>
+                            <?php endfor; ?>
+                        </tr>
+                    <?php endfor; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <aside class="flex min-w-0 flex-col gap-4" aria-label="<?= h({{ t|raw }}'Calendar details')) ?>">
+            <section class="rounded-lg border p-4" aria-labelledby="calendar-upcoming">
+                <h3 class="mb-3 text-sm font-semibold" id="calendar-upcoming"><?= h({{ t|raw }}'Upcoming')) ?></h3>
+                <?php if ($upcoming) : ?>
+                    <ul class="flex flex-col gap-3">
+                        <?php foreach ($upcoming as $event) : ?>
+                            <?php $colors = $palette[$event['category']] ?? $neutral; ?>
+                            <li class="flex items-start gap-3" data-upcoming="<?= h((string)$event['id']) ?>">
+                                <span class="mt-1.5 size-2 shrink-0 rounded-full <?= h($colors['dot']) ?>" aria-hidden="true"></span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium"><?= h($event['title']) ?></p>
+                                    <p class="text-muted-foreground text-xs">
+                                        <time datetime="<?= h($event['date']) ?>"><?= h((new DateTime($event['date'] . ' 00:00:00', 'UTC'))->i18nFormat('EEE d MMM')) ?></time><?php if (!empty($event['time'])) : ?>, <?= h($event['time']) ?><?php endif; ?>
+                                    </p>
+                                    <?= $this->Badge->render((string)($categories[$event['category']] ?? $event['category']), ['variant' => 'outline', 'class' => 'mt-1']) ?>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php else : ?>
+                    <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'No upcoming events.')) ?></p>
+                <?php endif; ?>
+            </section>
+            <?php if ($categories) : ?>
+                <section class="rounded-lg border p-4" aria-labelledby="calendar-legend">
+                    <h3 class="mb-3 text-sm font-semibold" id="calendar-legend"><?= h({{ t|raw }}'Categories')) ?></h3>
+                    <ul class="flex flex-col gap-2">
+                        <?php foreach ($categories as $key => $label) : ?>
+                            <li class="flex items-center gap-2 text-sm">
+                                <span class="size-2.5 shrink-0 rounded-full <?= h(($palette[$key] ?? $neutral)['dot']) ?>" aria-hidden="true"></span>
+                                <?= h($label) ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </section>
+            <?php endif; ?>
+        </aside>
+    </div>
+</div>
