@@ -1,0 +1,125 @@
+{#
+/**
+ * BasecoatTheme bake template: `chats` screen (`bin/cake bake screen chats`).
+ * Reads the view variables of data.php (chats, activeChat, statuses).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Chats: two-pane messenger with a conversation list and the open thread.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<int, array<string, mixed>> $chats Conversations: id, name, group, members, status, preview, time, unread.
+ * @var array<string, mixed>|null $activeChat Open conversation: id, name, group, status, subtitle, messages.
+ * @var array<string, string> $statuses Status value => label.
+ */
+$this->assign('title', {{ t|raw }}'Chats'));
+
+$statusClasses = ['online' => 'bg-green-500', 'away' => 'bg-yellow-500', 'offline' => 'bg-muted-foreground'];
+$statusLabel = fn (string $status): string => $statuses[$status] ?? $status;
+$avatar = function (array $chat, array $options = []) use ($statusLabel, $statusClasses): string {
+    $status = (string)($chat['status'] ?? 'offline');
+
+    return $this->Avatar->render((string)$chat['name'], $options + [
+        // The dot never carries the status alone: the hidden text names it.
+        'badge' => '<span class="sr-only">' . h($statusLabel($status)) . '</span>',
+        'badgeOptions' => ['class' => $statusClasses[$status] ?? 'bg-muted-foreground', 'data-status' => $status],
+    ]);
+};
+
+// Messages of the open thread with the read receipt as text next to the time
+$messages = [];
+foreach ((array)($activeChat['messages'] ?? []) as $message) {
+    $receipt = ['sent' => {{ t|raw }}'Sent'), 'delivered' => {{ t|raw }}'Delivered'), 'read' => {{ t|raw }}'Read')][$message['status'] ?? ''] ?? '';
+    $messages[] = [
+        'time' => trim((string)($message['time'] ?? '') . ($receipt !== '' && ($message['from'] ?? '') === 'me' ? ' · ' . $receipt : '')),
+    ] + $message;
+}
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <div class="grid min-h-[32rem] gap-4 lg:grid-cols-[22rem_1fr]">
+        <section class="flex flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversations')) ?>">
+            <header class="flex items-center justify-between gap-2 border-b p-4">
+                <h2 class="text-lg font-semibold"><?= h({{ t|raw }}'Chats')) ?></h2>
+                <?php // TODO: point "New chat" at your own add action. ?>
+                <?= $this->Button->icon('plus', {{ t|raw }}'New chat'), ['variant' => 'outline', 'url' => '#']) ?>
+            </header>
+            <form method="get" action="<?= h($this->Url->build(['action' => 'index'])) ?>" class="border-b p-3" role="search">
+                <input type="search" name="q" class="input w-full" value="<?= h((string)$this->getRequest()->getQuery('q', '')) ?>" placeholder="<?= h({{ t|raw }}'Search chats')) ?>" aria-label="<?= h({{ t|raw }}'Search chats')) ?>">
+            </form>
+            <?php if ($chats) : ?>
+                <ul class="flex max-h-[28rem] flex-1 flex-col overflow-y-auto p-2">
+                    <?php foreach ($chats as $chat) : ?>
+                        <?php $active = (int)$chat['id'] === (int)($activeChat['id'] ?? 0); ?>
+                        <li data-chat-id="<?= h((string)$chat['id']) ?>"<?= $active ? ' data-active="true"' : '' ?>>
+                            <?php // TODO: link each conversation to your own view action (e.g. ['action' => 'view', $chat['id']]). ?>
+                            <a href="#" class="hover:bg-accent flex items-center gap-3 rounded-lg p-2<?= $active ? ' bg-accent' : '' ?>"<?= $active ? ' aria-current="true"' : '' ?>>
+                                <?php if (!empty($chat['group'])) : ?>
+                                    <span class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full"><?= $this->Icon->render('users') ?><span class="sr-only"><?= h({{ t|raw }}'Group chat, {0} members', (int)($chat['members'] ?? 0))) ?></span></span>
+                                <?php else : ?>
+                                    <?= $avatar($chat) ?>
+                                <?php endif; ?>
+                                <span class="min-w-0 flex-1">
+                                    <span class="flex items-baseline justify-between gap-2">
+                                        <span class="truncate text-sm font-medium"><?= h($chat['name']) ?></span>
+                                        <span class="text-muted-foreground shrink-0 text-xs"><?= h($chat['time']) ?></span>
+                                    </span>
+                                    <span class="flex items-center justify-between gap-2">
+                                        <span class="text-muted-foreground truncate text-xs"><?= h($chat['preview']) ?></span>
+                                        <?php if (!empty($chat['unread'])) : ?>
+                                            <?= $this->Badge->render({{ t|raw }}'{0} unread', (int)$chat['unread']), ['data-unread' => (string)(int)$chat['unread']]) ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php else : ?>
+                <?= $this->EmptyState->render({{ t|raw }}'No chats'), [
+                    'description' => {{ t|raw }}'Start a conversation with a teammate.'),
+                    'icon' => 'message-circle',
+                ]) ?>
+            <?php endif; ?>
+        </section>
+
+        <section class="flex min-h-[32rem] flex-col rounded-xl border bg-card text-card-foreground" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
+            <?php if ($activeChat) : ?>
+                <?php
+                $state = !empty($activeChat['group']) ? {{ t|raw }}'Group chat') : $statusLabel((string)($activeChat['status'] ?? 'offline'));
+                $subtitle = trim($state . (!empty($activeChat['subtitle']) ? ' · ' . $activeChat['subtitle'] : ''), ' ·');
+                ?>
+                <?= $this->Conversation->render($messages, [
+                    'class' => 'flex-1 border-0 rounded-none',
+                    'contact' => ['name' => (string)$activeChat['name'], 'subtitle' => $subtitle],
+                    'headerActions' => '<div class="flex items-center gap-1">'
+                        // TODO: connect the call, video and more buttons to your own actions.
+                        . $this->Button->icon('phone', {{ t|raw }}'Start a call'), ['variant' => 'ghost'])
+                        . $this->Button->icon('video', {{ t|raw }}'Start a video call'), ['variant' => 'ghost'])
+                        . $this->Button->icon('ellipsis-vertical', {{ t|raw }}'More options'), ['variant' => 'ghost'])
+                        . '</div>',
+                    'composer' => false,
+                ]) ?>
+                <?php
+                // TODO: wire the composer to a POST action: use the Conversation helper's own composer
+                // (`'composer' => ['url' => ['action' => 'send', $activeChat['id']]]`) or a Form->create() here.
+                ?>
+                <div class="flex items-center gap-2 border-t p-3">
+                    <?= $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->icon('smile', {{ t|raw }}'Add an emoji'), ['variant' => 'ghost']) ?>
+                    <input type="text" class="input flex-1" name="message" placeholder="<?= h({{ t|raw }}'Type a message…')) ?>" aria-label="<?= h({{ t|raw }}'Message')) ?>" autocomplete="off">
+                    <?= $this->Button->icon('mic', {{ t|raw }}'Record a voice message'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send']) ?>
+                </div>
+            <?php else : ?>
+                <?= $this->EmptyState->render({{ t|raw }}'Select a conversation'), [
+                    'description' => {{ t|raw }}'Choose a chat from the list to read its messages.'),
+                    'icon' => 'message-circle',
+                ]) ?>
+            <?php endif; ?>
+        </section>
+    </div>
+</div>
