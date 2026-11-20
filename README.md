@@ -347,8 +347,51 @@ bin/cake bake all Articles --theme BasecoatTheme
 - `add` / `edit`: two-column form in a card, breadcrumb, Save + Cancel.
 - Deleting always asks in a `Dialog` (opened with `data-dialog-open`): no inline JS, works under a strict CSP.
 - `useDomain` (plugins) is honoured: strings use `__d('<plugin>', ...)`.
+- Secret columns (password, token, secret, salt, hash, api_key) and the entity's hidden fields are never listed.
 
-Controllers, models and tests use bake's default templates.
+Tests and entities use bake's default templates. The table and controller templates are copies of bake's
+(cakephp/bake 3.8) that add the list search below when it applies.
+
+### List search, filters and CSV export
+
+With [friendsofcake/search](https://github.com/FriendsOfCake/search) installed and loaded (`composer require
+friendsofcake/search`, `bin/cake plugin load Search`), `bake all` also generates:
+
+- **Table:** the `Search` behavior and filters guessed from the columns, a starting point to edit:
+
+  ```php
+  $this->getBehavior('Search')->searchManager()
+      ->add('q', 'BasecoatTheme.Contains', ['fields' => ['title', 'body'], 'label' => __('Search')])
+      ->add('category_id', 'BasecoatTheme.Equals', ['label' => __('Category')])
+      ->add('published', 'Search.Boolean', ['label' => __('Published')])
+      ->add('created', 'BasecoatTheme.DateRange', ['label' => __('Created')]);
+  ```
+
+- **Controller:** `find('search', search: $this->request->getQueryParams())`, a `ListFilter` with the export
+  columns and `?export=csv`.
+- **List:** a filter bar above the results (the `BasecoatTheme.list_filters` element), an *Export CSV* button
+  and a "No results" state.
+
+How it behaves:
+
+- Filters live in the query string (`?q=world&published=1&created[from]=2026-01-01`): a filtered list can be
+  bookmarked or shared, and sorting/pagination keep the filters. The bar is a plain GET form (Filter button
+  without JavaScript); with htmx it refreshes only `#list-results` while typing (400 ms) or changing a filter,
+  and updates the URL.
+- Theme filters (usable in any table with the `Search` behavior):
+  - `BasecoatTheme.Contains`: every word must appear in some field, ignoring case on any database; `%` and `_`
+    are plain characters. At most 5 words, 100 characters.
+  - `BasecoatTheme.Equals`: `field = value` only when the value fits the column type (`?category_id=abc` on an
+    integer or uuid column is ignored, never a database error); `options` restricts and shows the choices,
+    otherwise a belongsTo key shows the related records (up to 500, by display field).
+  - `BasecoatTheme.DateRange`: `field[from]` / `field[to]`, both days included; invalid dates are ignored.
+- The bar shows `Contains` (search box), `Search.Boolean` (Yes/No), `Equals` (select) and `DateRange` (two
+  dates); other filters still work from the URL. Labels come from the `label` option.
+- **CSV** (`BasecoatTheme\Listing\ListFilter::csv()`): the filtered rows in the list order, read 500 at a time
+  and streamed (UTF-8 with BOM for Excel, readable dates, Yes/No, enum labels, related display fields). Text
+  starting with `= + - @` is prefixed with `'` so spreadsheets never run it as a formula. Secret and hidden
+  columns are left out of the generated export.
+- Without the Search plugin the bake templates generate the plain list, as before.
 
 ## Content Security Policy
 

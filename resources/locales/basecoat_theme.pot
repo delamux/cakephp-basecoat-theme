@@ -35,3 +35,27 @@ msgstr ""
 
 msgid "pagination"
 msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "Clear"
+msgstr ""
+
+msgid "Filter"
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+msgid "Search…"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "to"
+msgstr ""
+
+msgid "{0} from"
+msgstr ""
