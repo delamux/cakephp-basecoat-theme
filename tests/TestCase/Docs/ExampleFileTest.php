@@ -25,6 +25,15 @@ class ExampleFileTest extends TestCase
         $this->assertSame('badge', $example->slug);
         $this->assertSame('', $example->setup);
         $this->assertSame("echo \$this->Badge->render('A');", $example->code);
+        $this->assertTrue($example->preview, 'Live preview by default');
+    }
+
+    public function testPreviewFalse(): void
+    {
+        $example = ExampleFile::fromPath(self::FIXTURES . 'codeonly/badge/01-assets.php');
+
+        $this->assertFalse($example->preview);
+        $this->assertSame('Page assets', $example->title);
     }
 
     public function testSplitsSetup(): void

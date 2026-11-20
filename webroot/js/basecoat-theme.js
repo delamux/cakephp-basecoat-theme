@@ -12,6 +12,11 @@
  * Requires Basecoat JS (and Chart.js + Basecoat chart.js for charts) to be loaded first.
  */
 (() => {
+  // Loaded twice (e.g. the script tag repeated in a page)? Keep the first instance only, so the
+  // delegated listeners below are registered once and a toggle or hotkey fires once.
+  if (window.BasecoatTheme) return;
+  window.BasecoatTheme = {};
+
   const parse = (value) => {
     if (!value) return undefined;
     try { return JSON.parse(value); } catch (e) { console.error('[BasecoatTheme] Invalid JSON', e); return undefined; }
@@ -107,6 +112,9 @@
       inputs[0].value = preset.dataset.rangeFrom || '';
       inputs[1].value = preset.dataset.rangeTo || '';
       inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+      // Closing relies on Basecoat's popover markup and state: the panel is the direct child
+      // `[data-popover]` (hidden with aria-hidden="true") and the direct child button carries
+      // aria-expanded. Keep in sync with DateRangeFieldHelper and Basecoat's popover.js.
       const panel = root.querySelector(':scope > [data-popover]');
       const trigger = root.querySelector(':scope > button');
       if (panel) panel.setAttribute('aria-hidden', 'true');
@@ -162,5 +170,5 @@
     initProgress(event.target);
   });
 
-  window.BasecoatTheme = { initCharts, initToasts, initProgress, toggleTheme };
+  Object.assign(window.BasecoatTheme, { initCharts, initToasts, initProgress, toggleTheme });
 })();

@@ -17,6 +17,8 @@ class CatalogBuilderTest extends TestCase
 {
     private const FIXTURES = __DIR__ . '/fixtures/';
 
+    private const REPO = __DIR__ . '/../../..';
+
     private const BADGE = [
         'badge' => ['alias' => 'Badge', 'title' => 'Badge', 'group' => 'Data display', 'intro' => 'Small status labels.'],
     ];
@@ -27,7 +29,7 @@ class CatalogBuilderTest extends TestCase
     {
         parent::setUp();
         $this->loadPlugins(['BasecoatTheme']);
-        $this->out = sys_get_temp_dir() . '/basecoat-catalog-test-' . bin2hex(random_bytes(4));
+        $this->out = self::REPO . '/build/catalog-test-' . bin2hex(random_bytes(4));
     }
 
     protected function tearDown(): void
@@ -46,11 +48,11 @@ class CatalogBuilderTest extends TestCase
         }
     }
 
-    private function build(array $registry = self::BADGE, string $examples = 'examples', bool $strict = false)
+    private function build(array $registry = self::BADGE, string $examples = 'examples', bool $strict = false, string $pages = 'pages', ?string $out = null)
     {
-        $builder = new CatalogBuilder(self::FIXTURES . $examples, self::FIXTURES . 'pages', $registry);
+        $builder = new CatalogBuilder(self::FIXTURES . $examples, self::FIXTURES . $pages, $registry);
 
-        return $builder->build($this->out, $strict);
+        return $builder->build($out ?? $this->out, $strict);
     }
 
     public function testBuildsHelperPageWithCodeAndOutput(): void
@@ -151,5 +153,66 @@ class CatalogBuilderTest extends TestCase
         $html = (string)file_get_contents($this->out . '/index.html');
         $this->assertMatchesRegularExpression('/<aside[^>]*class="[^"]*\bsidebar\b/', $html);
         $this->assertStringContainsString('Browse components', $html);
+    }
+
+    public function testCodeOnlyExampleHasNoLivePreview(): void
+    {
+        $this->build(self::BADGE, 'codeonly');
+
+        $html = (string)file_get_contents($this->out . '/components/badge.html');
+        $this->assertStringContainsString('Page assets', $html);
+        $this->assertStringNotContainsString('<script src="https://cdn.example.com/page-asset.js"', $html, 'Not injected live');
+        $this->assertStringContainsString('&lt;script src=&quot;https://cdn.example.com/page-asset.js&quot;', $html, 'HTML tab');
+        $this->assertStringContainsString('echo &#039;&lt;script', $html, 'PHP tab');
+        $this->assertStringNotContainsString('catalog-preview', $html);
+    }
+
+    public function testHomePageNoticeFailsBuild(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('broken-pages/index.php');
+        $this->build(self::BADGE, 'examples', false, 'broken-pages');
+    }
+
+    public function testOutputDirectoryIsClearedBeforeBuilding(): void
+    {
+        mkdir($this->out . '/components', 0777, true);
+        file_put_contents($this->out . '/components/removed-helper.html', 'stale');
+
+        $this->build();
+
+        $this->assertFileDoesNotExist($this->out . '/components/removed-helper.html');
+        $this->assertFileExists($this->out . '/components/badge.html');
+    }
+
+    public function testRefusesToClearRepositoryRoot(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Refusing');
+        $this->build(self::BADGE, 'examples', false, 'pages', self::REPO);
+    }
+
+    public function testRefusesToClearOutsideRepository(): void
+    {
+        $outside = sys_get_temp_dir() . '/basecoat-catalog-outside-' . bin2hex(random_bytes(4));
+        mkdir($outside);
+        file_put_contents($outside . '/keep.txt', 'keep');
+        try {
+            $this->build(self::BADGE, 'examples', false, 'pages', $outside);
+            $this->fail('Expected a RuntimeException');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Refusing', $e->getMessage());
+            $this->assertFileExists($outside . '/keep.txt');
+        } finally {
+            @unlink($outside . '/keep.txt');
+            @rmdir($outside);
+        }
+    }
+
+    public function testRefusesParentSegmentsEscapingTheRepository(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Refusing');
+        $this->build(self::BADGE, 'examples', false, 'pages', self::REPO . '/build/../../elsewhere');
     }
 }

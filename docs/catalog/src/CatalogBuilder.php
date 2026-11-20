@@ -13,6 +13,9 @@ use Cake\Routing\Router;
 use Cake\View\View;
 use Closure;
 use ErrorException;
+use FilesystemIterator;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 use RuntimeException;
 use Throwable;
 
@@ -36,6 +39,8 @@ final class CatalogBuilder
     private const ASSETS = __DIR__ . '/../assets/';
 
     private const PLUGIN_JS = __DIR__ . '/../../../webroot/js/basecoat-theme.js';
+
+    private const REPO_ROOT = __DIR__ . '/../../..';
 
     /**
      * @param string $examplesDir Directory with one folder of examples per helper slug.
@@ -65,7 +70,7 @@ final class CatalogBuilder
             throw new RuntimeException("Strict mode, " . count($warnings) . " problem(s):\n- " . implode("\n- ", $warnings));
         }
 
-        $outDir = rtrim($outDir, '/');
+        $outDir = $this->clearOutputDir($outDir);
         $this->copyAssets($outDir);
         $pages = [];
 
@@ -76,7 +81,7 @@ final class CatalogBuilder
             $idCounters = [];
             foreach ($helper['examples'] as $example) {
                 $preview = $this->runExample($example, $idCounters);
-                $charts = $charts || str_contains($preview, 'data-basecoat-chart');
+                $charts = $charts || ($example->preview && str_contains($preview, 'data-basecoat-chart'));
                 $blocks .= $this->renderTemplate($this->view(), 'example', [
                     'example' => $example,
                     'id' => 'example-' . $slug . '-' . $example->order,
@@ -153,21 +158,42 @@ final class CatalogBuilder
     {
         $view = $this->view();
         $this->seedIdCounters($view, $idCounters);
-        set_error_handler(function (int $severity, string $message, string $file, int $line): bool {
+        $html = $this->evaluateStrict($view, $example->path, 'Example');
+        $idCounters = $this->readIdCounters($view);
+
+        return $html;
+    }
+
+    /**
+     * Evaluates a file in a View; any PHP warning, notice or deprecation becomes an exception.
+     *
+     * Used for the examples and for the catalog home page.
+     *
+     * @param \Cake\View\View $view View.
+     * @param string $file File to evaluate.
+     * @param string $kind What the file is, for the error message (`Example`, `Page`).
+     * @return string
+     * @throws \RuntimeException When the file throws or emits any PHP error; the message names the file.
+     */
+    private function evaluateStrict(View $view, string $file, string $kind): string
+    {
+        set_error_handler(function (int $severity, string $message, string $errorFile, int $line): bool {
             if (!(error_reporting() & $severity)) {
                 return false;
             }
-            throw new ErrorException($message, 0, $severity, $file, $line);
+            throw new ErrorException($message, 0, $severity, $errorFile, $line);
         });
+        $level = ob_get_level();
         try {
-            $html = $this->evaluate($view, $example->path, []);
-            $idCounters = $this->readIdCounters($view);
-
-            return $html;
+            return $this->evaluate($view, $file, []);
         } catch (Throwable $e) {
+            while (ob_get_level() > $level) {
+                ob_end_clean();
+            }
             throw new RuntimeException(sprintf(
-                'Example `%s` failed: %s (%s:%d)',
-                $example->path,
+                '%s `%s` failed: %s (%s:%d)',
+                $kind,
+                $file,
                 $e->getMessage(),
                 $e->getFile(),
                 $e->getLine(),
@@ -236,7 +262,7 @@ final class CatalogBuilder
             'sidebarMenu' => $menu,
         ]);
         $view->append('script', $this->catalogAssets());
-        $content = $this->evaluate($view, $this->pagesDir . '/index.php', []);
+        $content = $this->evaluateStrict($view, $this->pagesDir . '/index.php', 'Page');
 
         return $this->relativize($view->renderLayout($content), 0);
     }
@@ -442,6 +468,69 @@ final class CatalogBuilder
             fn(array $m): string => $m[1] . '="' . (($prefix . $m[2]) ?: './') . '"',
             $html,
         );
+    }
+
+    /**
+     * Empties the output directory (or creates it) and returns its normalized path.
+     *
+     * Only a directory inside the repository, and not the repository root itself, is cleared.
+     *
+     * @param string $outDir Output directory.
+     * @return string
+     * @throws \RuntimeException When the directory is outside the repository or is its root.
+     */
+    private function clearOutputDir(string $outDir): string
+    {
+        $repo = realpath(self::REPO_ROOT);
+        $target = $this->resolvePath($outDir);
+        if ($repo === false || $target === null || $target === $repo || !str_starts_with($target, $repo . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException(sprintf(
+                'Refusing to clear output directory `%s`: it must be a folder inside the repository (`%s`), not its root.',
+                $outDir,
+                (string)$repo,
+            ));
+        }
+
+        if (is_dir($target)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST,
+            );
+            foreach ($files as $file) {
+                $path = $file->getPathname();
+                $file->isDir() && !$file->isLink() ? rmdir($path) : unlink($path);
+            }
+        }
+
+        return $target;
+    }
+
+    /**
+     * Absolute, symlink-resolved path of a directory that may not exist yet.
+     *
+     * @param string $path Path.
+     * @return string|null `null` when it contains `.` / `..` segments below the existing part.
+     */
+    private function resolvePath(string $path): ?string
+    {
+        $path = rtrim($path, '/');
+        $missing = [];
+        while ($path !== '' && !file_exists($path)) {
+            $missing[] = basename($path);
+            $path = dirname($path);
+        }
+        $base = realpath($path === '' ? '.' : $path);
+        if ($base === false) {
+            return null;
+        }
+        foreach (array_reverse($missing) as $segment) {
+            if ($segment === '.' || $segment === '..') {
+                return null;
+            }
+            $base .= DIRECTORY_SEPARATOR . $segment;
+        }
+
+        return $base;
     }
 
     /**

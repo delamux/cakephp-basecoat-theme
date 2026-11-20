@@ -10,6 +10,9 @@ use InvalidArgumentException;
  *
  * The file starts with a docblock holding `@title` (required) and `@description`. Code above a line
  * that is exactly `// ---` is setup (shown collapsed); the rest is the code shown in the PHP tab.
+ *
+ * `@preview false` marks a code-only example: it still runs (the HTML tab shows its output), but its
+ * output is not injected into the page, e.g. for page-level `<script>` / `<link>` tags.
  */
 final class ExampleFile
 {
@@ -23,6 +26,7 @@ final class ExampleFile
      * @param string $description One sentence description.
      * @param string $setup Setup code (above `// ---`), or ''.
      * @param string $code Displayed code.
+     * @param bool $preview Whether the output is shown as a live preview (`@preview false` turns it off).
      */
     private function __construct(
         public readonly string $path,
@@ -32,6 +36,7 @@ final class ExampleFile
         public readonly string $description,
         public readonly string $setup,
         public readonly string $code,
+        public readonly bool $preview = true,
     ) {
     }
 
@@ -82,6 +87,7 @@ final class ExampleFile
             self::tag($header, 'description'),
             trim($setup),
             trim($code),
+            strtolower(self::tag($header, 'preview')) !== 'false',
         );
     }
 
