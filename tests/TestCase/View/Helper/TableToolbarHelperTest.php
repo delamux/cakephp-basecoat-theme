@@ -139,6 +139,17 @@ class TableToolbarHelperTest extends HelperTestCase
         $this->assertStringNotContainsString('Clear', $out);
     }
 
+    public function testClearOptionIsNotRenderedAsFormAttribute(): void
+    {
+        $helper = new TableToolbarHelper($this->View);
+        foreach ([true, '/orders', ['action' => 'index']] as $clear) {
+            $out = $helper->render(['filter' => $this->controls(), 'clear' => $clear]);
+            preg_match('/<form[^>]*>/', $out, $m);
+            $this->assertNotEmpty($m);
+            $this->assertStringNotContainsString('clear=', $m[0]);
+        }
+    }
+
     public function testClearOptionForArrayControls(): void
     {
         $helper = new TableToolbarHelper($this->View);

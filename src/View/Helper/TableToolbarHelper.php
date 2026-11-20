@@ -82,7 +82,7 @@ class TableToolbarHelper extends AbstractComponentHelper
             'url' => $url,
             'valueSources' => ['query'],
             'role' => 'search',
-        ] + $this->rootAttributes([], $options, ['filter', 'actions', 'url', 'submit', 'htmx']);
+        ] + $this->rootAttributes([], $options, ['filter', 'actions', 'url', 'submit', 'htmx', 'clear']);
         $htmx = $options['htmx'] ?? false;
         if (is_array($htmx) && !empty($htmx['target'])) {
             $target = '#' . ltrim((string)$htmx['target'], '#');
