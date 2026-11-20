@@ -101,7 +101,7 @@ class FormHelper extends CoreFormHelper
     /**
      * Display / spacing utilities that mean "the caller chose the form layout".
      */
-    protected const LAYOUT_CLASS = '/^(?:[a-z0-9\[\]&>@*:_-]+:)?(?:flex|inline-flex|grid|inline-grid|block|inline-block|inline|contents|flow-root|table|hidden|space-[xy]-.+)$/';
+    protected const LAYOUT_CLASS = '/^(?:\S+:)?!?(?:flex|inline-flex|grid|inline-grid|block|inline-block|inline|contents|flow-root|table|hidden|space-[xy]-[^!]+)!?$/';
 
     /**
      * Opens a form with the Basecoat layout: fields evenly spaced and full width, buttons at their size.
@@ -167,6 +167,17 @@ class FormHelper extends CoreFormHelper
     }
 
     /**
+     * Whether the control being rendered is wrapped in a Basecoat `.field` (the `inputContainer`
+     * template in use, including one passed in the control's `templates` option, has the class).
+     *
+     * @return bool
+     */
+    protected function inFieldContainer(): bool
+    {
+        return (bool)preg_match('/class="(?:[^"]*\s)?field[\s"{]/', (string)$this->templater()->get('inputContainer'));
+    }
+
+    /**
      * Whether a class option already sets the form layout (display or `space-*` utilities).
      *
      * @param mixed $class Class string or list.
@@ -174,9 +185,9 @@ class FormHelper extends CoreFormHelper
      */
     protected function hasLayoutClass(mixed $class): bool
     {
-        $tokens = is_array($class) ? $class : preg_split('/\s+/', trim((string)$class));
-        foreach ((array)$tokens as $token) {
-            if (is_string($token) && preg_match(static::LAYOUT_CLASS, $token)) {
+        $class = is_array($class) ? implode(' ', array_filter($class, 'is_string')) : (string)$class;
+        foreach (preg_split('/\s+/', trim($class)) ?: [] as $token) {
+            if (preg_match(static::LAYOUT_CLASS, $token)) {
                 return true;
             }
         }
@@ -199,7 +210,7 @@ class FormHelper extends CoreFormHelper
             if ($name === 'button') {
                 $data = $this->buttonData($data);
             }
-            if ($this->controlDepth > 0) {
+            if ($this->controlDepth > 0 && $this->inFieldContainer()) {
                 $class = trim($class . ' ' . (string)($this->getConfig('fieldWidgetClasses.' . $name) ?? ''));
             }
             if ($class && ($data['basecoat'] ?? true) !== false) {

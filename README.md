@@ -268,16 +268,20 @@ and full width, a button placed directly in the form keeps its size), with this 
 - no `class`, or a `class` without a layout (`'class' => 'w-full max-w-md'`): the layout is added
   next to it;
 - a `class` that sets its own layout (a display utility such as `flex`, `inline-flex`, `grid`,
-  `block`, `hidden`, with or without a breakpoint like `md:grid`, or `space-x-*` / `space-y-*`): it is
-  kept as is, nothing is added (toolbars, `TableToolbar`, `list_filters`, the CRUD bake `form grid gap-5`);
+  `block`, `hidden`, also with a variant or important flag like `md:grid`, `!flex`, or
+  `space-x-*` / `space-y-*`): it is kept as is, nothing is added (toolbars, `TableToolbar`,
+  `list_filters`, the CRUD bake `form grid gap-5`). A breakpoint-only layout such as `sm:flex` also
+  counts, so below that breakpoint the form is a plain block: write `grid gap-6 sm:flex` if you want
+  both. Modifiers without a display (`flex-col`, `grid-cols-2`, `gap-4`) do not count;
 - `'layout' => false` adds nothing; `'layout' => 'grid gap-4 sm:grid-cols-2'` is added instead of
   `formLayout` (even next to a layout class). `'formLayout' => false` in the helper config turns it
   off everywhere;
 - `postButton()` forms get no layout (they stay a single inline button).
 
-Selects rendered by `control()` also get `w-full` (`fieldWidgetClasses`, default
-`['select' => 'w-full']`), so inputs, selects and textareas fill their field; a bare `select()` keeps
-Basecoat's content width. Group several buttons in a row with `<div class="flex gap-2">` (what
+Selects rendered by `control()` inside the `.field` container also get `w-full` (`fieldWidgetClasses`,
+default `['select' => 'w-full']`), so inputs, selects and textareas fill their field; a bare `select()`
+or a control whose `inputContainer` template has no `.field` (e.g. `'{{content}}'` to place it in a
+toolbar row) keeps Basecoat's content width. Group several buttons in a row with `<div class="flex gap-2">` (what
 `submit()` renders). With a compiled Tailwind build, make sure it scans the plugin's `src/` so the
 default layout classes are generated.
 

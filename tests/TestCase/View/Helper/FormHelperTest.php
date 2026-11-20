@@ -172,4 +172,42 @@ class FormHelperTest extends HelperTestCase
         $form = new FormHelper($this->View, ['fieldWidgetClasses' => ['select' => '']]);
         $this->assertStringContainsString('<select name="kind" id="kind" class="select">', $form->control('kind', ['options' => ['a' => 'A']]));
     }
+
+    public function testSelectWidthOnlyInsideTheFieldContainer(): void
+    {
+        $form = new FormHelper($this->View);
+        $bare = ['inputContainer' => '{{content}}', 'inputContainerError' => '{{content}}{{error}}'];
+        $this->assertStringContainsString(
+            '<select name="model" id="model" class="select">',
+            $form->control('model', ['options' => ['a' => 'A'], 'templates' => $bare]),
+            'Without the .field wrapper the select keeps its content width',
+        );
+        $this->assertStringContainsString(
+            'class="select w-full w-48"',
+            $form->control('kind', ['options' => ['a' => 'A'], 'class' => 'w-48']),
+        );
+
+        $form = new FormHelper($this->View, ['templates' => ['inputContainer' => '<div class="mb-4">{{content}}</div>']]);
+        $this->assertStringContainsString('class="select">', $form->control('kind', ['options' => ['a' => 'A']]));
+    }
+
+    public function testLayoutDetectionEdgeCases(): void
+    {
+        $form = new FormHelper($this->View);
+        $kept = ['hidden', 'sm:flex', '!flex', 'md:!flex', '[&>.x]:flex', 'flex!'];
+        foreach ($kept as $class) {
+            $out = $form->create(null, ['url' => '/x', 'class' => $class]);
+            $this->assertStringNotContainsString('gap-6', $out, $class);
+            $form->end();
+        }
+        $out = $form->create(null, ['url' => '/x', 'class' => ['flex gap-2']]);
+        $this->assertStringNotContainsString('gap-6', $out, 'Array entries are split on whitespace');
+        $form->end();
+
+        foreach (['flex-col', 'grid-cols-2', 'flex-1', 'gap-4', 'w-full'] as $class) {
+            $out = $form->create(null, ['url' => '/x', 'class' => $class]);
+            $this->assertStringContainsString('gap-6', $out, $class . ' is not a layout: the default is added');
+            $form->end();
+        }
+    }
 }
