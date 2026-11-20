@@ -1,0 +1,105 @@
+{#
+/**
+ * BasecoatTheme bake template: `notifications` screen (`bin/cake bake screen notifications`).
+ * Reads the view variables of data.php (notifications, unreadCount, types, total, page, perPage).
+ * Twig variables used: `namespace`. The rest is the PHP view, written literally.
+ */
+-#}
+<?php
+/**
+ * Notifications: inbox with unread highlighting, search and filters, and a paginated list.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<int, array<string, mixed>> $notifications Rows of this page: id, type, title, body, time, unread, actor.
+ * @var int $unreadCount Unread notifications in the whole inbox.
+ * @var array<string, string> $types Notification type => label.
+ * @var int $total Notifications matching the filters, all pages.
+ * @var int $page Current page.
+ * @var int $perPage Notifications per page.
+ */
+$this->assign('title', 'Notifications');
+
+// Footer: "Showing 1 to 10 of 24" and previous / next links that keep the current filters
+$request = $this->getRequest();
+$indexUrl = $this->Url->build(['action' => 'index']);
+$pageUrl = fn (int $number): string => $indexUrl . '?' . http_build_query(['page' => $number] + $request->getQueryParams());
+$filtered = array_filter(array_map(fn (string $name): string => (string)$request->getQuery($name, ''), ['q', 'status', 'type'])) !== [];
+$pageCount = max(1, (int)ceil($total / max(1, $perPage)));
+$first = $total > 0 ? ($page - 1) * $perPage + 1 : 0;
+$last = $total > 0 ? $first + count($notifications) - 1 : 0;
+
+// Title with the unread count; the count is hidden when everything is read
+$heading = h('Inbox');
+if ($unreadCount > 0) {
+    $heading .= ' ' . $this->Badge->render($unreadCount . ' unread', [
+        'variant' => 'secondary',
+        'class' => 'align-middle',
+        'data-unread-count' => (string)$unreadCount,
+    ]);
+}
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render($heading, [
+        'level' => 2,
+        'escape' => false,
+        'description' => 'Requests, mentions and updates from your Fernway workspace.',
+        'actions' => [
+            // TODO: connect "Mark all as read" to an action of your controller (POST).
+            $this->Button->render('Mark all as read', [
+                'icon' => 'check',
+                'variant' => 'outline',
+                'disabled' => $unreadCount === 0,
+            ]),
+            // TODO: link the settings button to your notification preferences page.
+            $this->Button->render('<span class="sr-only">Notification settings</span>', [
+                'icon' => 'settings-2',
+                'variant' => 'ghost',
+                'size' => 'icon',
+                'escape' => false,
+            ]),
+        ],
+    ]) ?>
+
+    <?= $this->TableToolbar->render([
+        'url' => $indexUrl,
+        'filter' => [
+            'q' => ['type' => 'search', 'label' => 'Search notifications'],
+            'status' => ['type' => 'select', 'label' => 'Status', 'options' => ['unread' => 'Unread', 'read' => 'Read']],
+            'type' => ['type' => 'select', 'label' => 'Type', 'options' => $types],
+        ],
+    ]) ?>
+
+    <section aria-label="Notifications">
+        <?php if ($notifications) : ?>
+            <?php
+            // TODO: the Accept / Decline buttons do nothing yet. Pass
+            // 'urls' => ['accept' => ['action' => 'accept', '{id}'], 'decline' => ['action' => 'decline', '{id}']]
+            // to post to your own actions (POST forms with the CSRF token; '{id}' is the notification id).
+            ?>
+            <?= $this->NotificationList->render($notifications, ['types' => $types]) ?>
+        <?php else : ?>
+            <?= $this->EmptyState->render('No notifications', [
+                'description' => $filtered ? 'Nothing matches these filters. Try a different search.' : "You're all caught up.",
+                'icon' => 'inbox',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <footer class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-muted-foreground text-sm">
+            <?= h($total > 0 ? sprintf('Showing %d to %d of %d', $first, $last, $total) : 'Showing 0 of 0') ?>
+        </p>
+        <nav class="flex items-center gap-2" aria-label="Pagination">
+            <?php if ($page > 1) : ?>
+                <?= $this->Button->link('Previous', $pageUrl($page - 1), ['variant' => 'outline', 'size' => 'sm', 'rel' => 'prev']) ?>
+            <?php else : ?>
+                <?= $this->Button->render('Previous', ['variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+            <?php endif; ?>
+            <?php if ($page < $pageCount) : ?>
+                <?= $this->Button->link('Next', $pageUrl($page + 1), ['variant' => 'outline', 'size' => 'sm', 'rel' => 'next']) ?>
+            <?php else : ?>
+                <?= $this->Button->render('Next', ['variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+            <?php endif; ?>
+        </nav>
+    </footer>
+</div>
