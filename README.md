@@ -13,10 +13,14 @@ A CakePHP 5 **theme plugin** for [Basecoat UI](https://basecoatui.com) (the shad
 Every Basecoat component has its **own View Helper**, and every helper can be parametrized with
 classes, variants, sizes, attributes and string templates.
 
+**Component catalog:** every helper with live examples, their PHP code and the rendered HTML, plus a
+demo dashboard built only with these helpers: <https://delamux.github.io/cakephp-basecoat-theme/>.
+
 - Theme: layouts (`default` dashboard with inset sidebar, `auth`, `error`), sidebar/user menu elements and flash elements.
-- 24 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart, Dialog,
-  DropdownMenu, EmptyState, Form, Icon, Kbd, Pagination, Progress, Sidebar, Skeleton, Table, Tabs,
-  Theme, Toast, Tooltip.
+- 33 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
+  ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Form, Icon,
+  Kbd, MemberList, MetricCard, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table, TableToolbar,
+  Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
 - Core helper integration: `FormHelper` (Basecoat classes on every widget), `PaginatorHelper`
   templates, `FlashHelper` elements, `HtmlHelper`/`UrlHelper` for every URL and asset.
 - Zero build step by default (Basecoat CSS + Tailwind v4 browser build from jsDelivr), or plug in your own compiled CSS.
@@ -298,6 +302,41 @@ echo $this->Chart->render($rows, [
 ```
 Chart.js and the Basecoat chart adapter are loaded by the layout only when a chart was rendered.
 
+### Dashboard components
+```php
+// Page title with description and actions
+echo $this->PageHeader->render('Overview', [
+    'description' => 'How your workspace is doing this month.',
+    'actions' => [$this->DateRangeField->render('period'), $this->Button->render('Download report', ['icon' => 'download'])],
+]);
+
+// KPI card: change vs. previous period, optional sparkline (`chart`) or link (`url`)
+echo $this->MetricCard->render('Active users', '12,486', ['change' => '+8.2%', 'trend' => 'up', 'description' => 'vs. October', 'icon' => 'users']);
+
+// From/to dates in a popover with presets; inputs are `period[from]` / `period[to]` (DateRange list filter)
+echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['2026-11-01', '2026-11-30']]]);
+
+// Filter bar above a table: a ListFilter (or its controls() array) plus actions
+echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
+
+// Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it)
+echo $this->CommandMenu->trigger('command');
+echo $this->CommandMenu->render(['Pages' => [['label' => 'Orders', 'url' => ['controller' => 'Orders'], 'icon' => 'list']]], ['id' => 'command']);
+
+// Workspace / team dropdown (e.g. in the `sidebarActions` view var)
+echo $this->WorkspaceSwitcher->render([['name' => 'Acme', 'plan' => 'Pro plan', 'url' => '/w/acme']], ['addUrl' => '/workspaces/add']);
+
+// Radio group as selectable cards
+echo $this->ChoiceCards->render('plan', ['starter' => ['title' => 'Starter', 'description' => '3 projects', 'icon' => 'circle']], ['legend' => 'Plan', 'value' => 'starter']);
+
+// Chat thread with a composer (plain POST form, CSRF token included)
+echo $this->Conversation->render($messages, ['contact' => ['name' => 'Marta Vidal'], 'composer' => ['url' => ['action' => 'reply', $ticket->id]]]);
+
+// Team members with a role select (or badges with `readonly`)
+echo $this->MemberList->render($members, ['roles' => ['owner' => 'Owner', 'member' => 'Member']]);
+```
+Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
+
 ### Other components
 ```php
 echo $this->Avatar->render('Jane Doe', ['src' => $user->avatar, 'size' => 'lg']);
@@ -431,6 +470,17 @@ area chart, tabs with a data table and row menus) only with these helpers:
 
 ```php
 <?= $this->element('BasecoatTheme.examples/dashboard') ?>
+```
+
+## Component catalog
+
+The catalog (<https://delamux.github.io/cakephp-basecoat-theme/>) is a static site generated from
+`docs/catalog/examples/<helper>/*.php` with the real helpers, and deployed to GitHub Pages on every push
+to `main`. Build it locally with:
+
+```bash
+composer docs              # build/gh-pages
+composer docs -- --strict  # also fail when a helper has no examples
 ```
 
 ## Translations
