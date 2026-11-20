@@ -221,4 +221,31 @@ class TableToolbarHelperTest extends HelperTestCase
         $this->assertStringContainsString('&lt;em&gt;Go&lt;/em&gt;', $out);
         $this->assertStringNotContainsString('escape=', $out);
     }
+
+    public function testControlAttributesGoOnTheInput(): void
+    {
+        $out = (new TableToolbarHelper($this->View))->render(['filter' => [
+            'q' => ['type' => 'search', 'label' => 'Search', 'attributes' => ['data-filter-input' => '#rows']],
+            'status' => ['type' => 'select', 'label' => 'Status', 'options' => ['a' => 'A'], 'attributes' => ['data-filter-facet' => '#rows', 'data-filter-key' => 'status']],
+            'name' => ['type' => 'text', 'label' => 'Name', 'attributes' => ['data-x' => '"quoted"', 'class' => 'extra']],
+        ]]);
+
+        $this->assertMatchesRegularExpression('/<input[^>]*type="search"[^>]*data-filter-input="#rows"|<input[^>]*data-filter-input="#rows"[^>]*type="search"/', $out);
+        $this->assertMatchesRegularExpression('/<select[^>]*data-filter-facet="#rows"[^>]*>/', $out);
+        $this->assertStringContainsString('data-filter-key="status"', $out);
+        $this->assertStringContainsString('data-x="&quot;quoted&quot;"', $out);
+        $this->assertMatchesRegularExpression('/<input[^>]*name="name"[^>]*class="[^"]*extra/', $out);
+        $this->assertStringNotContainsString('attributes=', $out);
+    }
+
+    public function testControlAttributesCannotReplaceTheName(): void
+    {
+        $out = (new TableToolbarHelper($this->View))->render(['filter' => [
+            'q' => ['type' => 'search', 'label' => 'Search', 'attributes' => ['name' => 'other', 'type' => 'text']],
+        ]]);
+
+        $this->assertStringContainsString('name="q"', $out);
+        $this->assertStringContainsString('type="search"', $out);
+        $this->assertStringNotContainsString('name="other"', $out);
+    }
 }
