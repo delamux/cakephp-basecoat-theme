@@ -355,6 +355,8 @@ echo $this->ChoiceCards->render('plan', ['starter' => ['title' => 'Starter', 'de
 
 // Chat thread with a composer (plain POST form, CSRF token included)
 echo $this->Conversation->render($messages, ['contact' => ['name' => 'Marta Vidal'], 'composer' => ['url' => ['action' => 'reply', $ticket->id]]]);
+// One-to-one chat: each message `author` becomes sr-only text ("You", "Marta Vidal")
+echo $this->Conversation->render($messages, ['hideAuthors' => true, 'composer' => false]);
 
 // Team members with a role select (or badges with `readonly`)
 echo $this->MemberList->render($members, ['roles' => ['owner' => 'Owner', 'member' => 'Member']]);
@@ -446,11 +448,23 @@ bin/cake bake screen users Members --plugin Admin      # into plugins/Admin (nam
 bin/cake bake screen users --force                     # overwrite existing files without asking
 ```
 
-- `<screen>`: a slug from `--list`. Built-in screens:
-  - `users`: user list with search, filters and a paginated table (row menu, bulk-select checkboxes).
-  - `notifications`: notification inbox with unread markers, search and filters, and Accept / Decline
-    for access requests (`NotificationList`).
-- `[<Controller>]`: controller name, default the screen's (`Users`, `Notifications`); `team_inbox` and
+- `<screen>`: a slug from `--list`. Built-in screens (default controller in brackets):
+  - `users` (`Users`): user list with search, filters and a paginated table (row menu, bulk-select
+    checkboxes).
+  - `notifications` (`Notifications`): notification inbox with unread markers, search and filters, and
+    Accept / Decline for access requests (`NotificationList`).
+  - `chats` (`Chats`): two-pane messenger, conversation list with unread counts and statuses, message
+    thread (`Conversation`) and a composer.
+  - `ai-chat` (`Assistant`): assistant chat with prompt suggestions, answers with code blocks and a
+    composer with a model picker.
+  - `mail` (`Mail`): three-pane mailbox: folders and labels, message list with search and
+    All / Unread tabs, reading pane with a reply box.
+  - `todo` (`Tasks`): tasks grouped by due date with filter tabs, search, priorities, tags and assignees.
+  - `kanban` (`Board`): kanban columns with cards (assignees, progress, due date) and the same cards as a
+    table in a List tab.
+  - `notes` (`Notes`): notes workspace with labels, search, a grid / list toggle and text, checklist and
+    image notes.
+- `[<Controller>]`: controller name, default the screen's (see the list above); `team_inbox` and
   `TeamInbox` both give `TeamInboxController`.
 - `--list`: lists the screens with their description and exits.
 - `--force` (`-f`): overwrite files without prompting (otherwise bake asks before replacing a file).
@@ -468,15 +482,28 @@ Generated files (paths relative to the app, or to the plugin with `--plugin`):
 The generated templates use the Basecoat helpers (`$this->PageHeader`, `$this->TableToolbar`,
 `$this->NotificationList`…), so load them in your `AppView` with `loadBasecoatHelpers()` (see
 [Loading the helpers](#loading-the-helpers)). If your app loads helpers one by one instead, add the ones
-the screen uses: `users` needs `PageHeader`, `TableToolbar`, `Table`, `Avatar`, `Badge`, `DropdownMenu`,
-`Button` and `Form` (`BasecoatTheme.Form`); `notifications` needs `PageHeader`, `TableToolbar`, `Badge`,
-`Button`, `EmptyState` and `NotificationList`. Their strings use `__()` (`__d('<plugin>', …)` with
-`--plugin`), like the CRUD bake templates.
+the screen uses (all `BasecoatTheme.*`; `Form` is `BasecoatTheme.Form`):
+
+| Screen | Helpers |
+| --- | --- |
+| `users` | `PageHeader`, `TableToolbar`, `Table`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `Form` |
+| `notifications` | `PageHeader`, `TableToolbar`, `Badge`, `Button`, `EmptyState`, `NotificationList` |
+| `chats` | `Conversation`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `ai-chat` | `Card`, `Avatar`, `Button`, `Form`, `Icon` |
+| `mail` | `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `todo` | `PageHeader`, `TableToolbar`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `kanban` | `PageHeader`, `Tabs`, `Table`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Icon` |
+| `notes` | `PageHeader`, `Button`, `EmptyState`, `Form`, `Icon` |
+
+Their strings use `__()` / `__n()` (`__d('<plugin>', …)` / `__dn('<plugin>', …)` with `--plugin`),
+like the CRUD bake templates.
 
 The generated code does not set the theme: set `BasecoatTheme` once in your `AppController` (see
 [Use it as a theme](#use-it-as-a-theme)). Links to actions that are not generated (view, edit, invite,
 settings…) are `#` with a `// TODO`; the search and filter forms send GET requests to `index`; Accept /
-Decline do nothing until you pass `urls` (POST forms with the CSRF token).
+Decline do nothing until you pass `urls` (POST forms with the CSRF token). Buttons that would change
+data (send, reply, archive, toggle a task, add a card…) are inert, with a `// TODO` showing how to wire
+them to a POST action.
 
 **Replacing the sample data:** keep the variable names and shapes from the template docblock and set
 them from your models, e.g. in `UsersController::index()`:
@@ -702,9 +729,9 @@ Changes in this version that can affect existing apps:
 - **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
   text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.
 - **New:** the `NotificationList` helper (in `BasecoatHelpers::MAP`, loaded by `loadBasecoatHelpers()`;
-  apps that load helpers one by one add `BasecoatTheme.NotificationList`), the `app-window` and `save`
-  icons, and the [`bin/cake bake screen`](#screens-bake) command (registered when cakephp/bake is
-  installed).
+  apps that load helpers one by one add `BasecoatTheme.NotificationList`), the `Conversation`
+  `hideAuthors` option, the `app-window`, `save`, `shield-alert` and `file-pen` icons, and the
+  [`bin/cake bake screen`](#screens-bake) command (registered when cakephp/bake is installed).
 
 ## License
 
