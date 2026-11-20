@@ -26,4 +26,4 @@ jobs:
         run: vendor/bin/phpunit
       - name: Build catalog
         if: matrix.php == '8.3'
-        run: composer docs
+        run: composer docs -- --strict

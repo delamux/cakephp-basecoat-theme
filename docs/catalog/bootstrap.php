@@ -27,6 +27,7 @@ require ROOT . '/vendor/autoload.php';
 require CORE_PATH . 'config/bootstrap.php';
 require CAKE . 'functions.php';
 
+error_reporting(E_ALL);
 Configure::write('debug', true);
 Configure::write('App', [
     'namespace' => 'TestApp',

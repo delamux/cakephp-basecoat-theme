@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
       - name: Build catalog
-        run: composer docs
+        run: composer docs -- --strict
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
