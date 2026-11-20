@@ -1006,7 +1006,10 @@ Changes in this version that can affect existing apps:
   Decline POST URLs move to a `$urls` variable at the top of the template, and its badge counts unread
   rows of other pages through `data-count-offset`; the `onboarding` review lists the invited emails
   instead of a count; `bookings` List rows carry `data-dnd-sort` keys; `mail` rows get `id="mail-row-N"`
-  and the reading pane gets working Star / Archive / Delete buttons.
+  and the reading pane gets working Star / Archive / Delete buttons, and its Unread tab keeps the open
+  message listed; the `calendar` day cells carry `data-dnd-var-date` so the Upcoming `<time datetime>`
+  follows a move (`data-dnd-attr`); the `chats` composer input has no `name` until you wire it (the
+  no-JS GET no longer puts the message in the URL).
 - **`TableToolbar` control `attributes`** and **`NotificationList` `itemAttributes`, `dotAttributes`,
   `actionAttributes`, `actionsAttributes`, `footer`** (and a per-row `attributes` key): new, optional;
   output is unchanged without them. A `NotificationList` row given `actionsAttributes` renders its inert
