@@ -89,12 +89,18 @@ $visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
                         <?php foreach ($tasks as $task) : ?>
                             <?php $done = !empty($task['done']); $priority = (string)($task['priority'] ?? 'medium'); ?>
                             <li class="flex flex-wrap items-center gap-x-3 gap-y-2 p-3" data-task="<?= h((string)$task['id']) ?>" data-done="<?= $done ? 'true' : 'false' ?>">
-                                <?php // Title on its own row on phones; the details wrap below it, aligned with the title. ?>
-                                <div class="flex min-w-0 basis-full items-center gap-3 sm:basis-0 sm:flex-1">
+                                <?php // Phones: title and menu on the first row, the details below, aligned with the title. ?>
+                                <div class="flex min-w-0 flex-1 items-center gap-3">
                                     <input type="checkbox" class="input" name="done[]" value="<?= h((string)$task['id']) ?>" id="task-<?= h((string)$task['id']) ?>"<?= $done ? ' checked' : '' ?>>
                                     <label for="task-<?= h((string)$task['id']) ?>" class="min-w-0 flex-1 text-sm font-medium<?= $done ? ' text-muted-foreground line-through' : '' ?>"><?= h($task['title']) ?><?php if ($done) : ?><span class="sr-only"><?= h({{ t|raw }}'Completed')) ?></span><?php endif; ?></label>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-2 pl-7 sm:pl-0">
+                                <?= $this->DropdownMenu->render('', [
+                                    // TODO: link these items to your own edit and delete actions.
+                                    ['label' => {{ t|raw }}'Edit task'), 'url' => '#'],
+                                    '-',
+                                    ['label' => {{ t|raw }}'Delete task'), 'url' => '#', 'variant' => 'destructive'],
+                                ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $task['title'])], 'align' => 'end', 'class' => 'sm:order-last']) ?>
+                                <div class="order-last flex basis-full flex-wrap items-center gap-2 pl-7 sm:order-none sm:basis-auto sm:pl-0">
                                     <?= $this->Badge->render('<span class="sr-only">' . h({{ t|raw }}'Priority:')) . ' </span>' . h($priorityLabels[$priority] ?? $priority), [
                                         'variant' => $priorityVariants[$priority] ?? 'secondary',
                                         'data-priority' => $priority,
@@ -114,12 +120,6 @@ $visible = array_filter($groups, fn (array $tasks): bool => $tasks !== []);
                                             <span class="sr-only"><?= h({{ t|raw }}'Assigned to {0}', $task['assignee']['name'])) ?></span>
                                         </span>
                                     <?php endif; ?>
-                                    <?= $this->DropdownMenu->render('', [
-                                        // TODO: link these items to your own edit and delete actions.
-                                        ['label' => {{ t|raw }}'Edit task'), 'url' => '#'],
-                                        '-',
-                                        ['label' => {{ t|raw }}'Delete task'), 'url' => '#', 'variant' => 'destructive'],
-                                    ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $task['title'])], 'align' => 'end']) ?>
                                 </div>
                             </li>
                         <?php endforeach; ?>

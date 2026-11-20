@@ -162,9 +162,11 @@ class TodoScreenTest extends TestCase
     {
         $html = $this->render();
 
-        // Title on its own row on phones, the meta (priority, tags, due, assignee, menu) wraps below it.
-        $this->assertSame(9, substr_count($html, '<div class="flex min-w-0 basis-full items-center gap-3 sm:basis-0 sm:flex-1">'));
-        $this->assertSame(9, substr_count($html, '<div class="flex flex-wrap items-center gap-2 pl-7 sm:pl-0">'));
+        // Phones: title + menu on the first row, the meta (priority, tags, due, assignee) wraps below it;
+        // from `sm` up the menu moves to the end of the row.
+        $this->assertSame(9, substr_count($html, '<div class="flex min-w-0 flex-1 items-center gap-3">'));
+        $this->assertSame(9, substr_count($html, '<div class="order-last flex basis-full flex-wrap items-center gap-2 pl-7 sm:order-none sm:basis-auto sm:pl-0">'));
+        $this->assertSame(9, preg_match_all('/<div [^>]*class="dropdown-menu[^"]*sm:order-last/', $html));
         $this->assertSame(9, substr_count($html, '<input type="checkbox" class="input"'));
     }
 
