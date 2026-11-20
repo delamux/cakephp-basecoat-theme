@@ -260,7 +260,33 @@ echo $this->Form->button('Delete', ['variant' => 'destructive']);
 echo $this->Form->submit('Save');
 echo $this->Form->end();
 ```
+**Form layout.** Basecoat 1.1 styles each `.field` (label, control, help text, error) but has no
+form-level class: the space between fields is up to the form. `create()` therefore adds a stacked
+layout, the `formLayout` config (default `grid gap-6 [&>.btn]:justify-self-start`: fields 24px apart
+and full width, a button placed directly in the form keeps its size), with this rule:
+
+- no `class`, or a `class` without a layout (`'class' => 'w-full max-w-md'`): the layout is added
+  next to it;
+- a `class` that sets its own layout (a display utility such as `flex`, `inline-flex`, `grid`,
+  `block`, `hidden`, also with a variant or important flag like `md:grid`, `!flex`, or
+  `space-x-*` / `space-y-*`): it is kept as is, nothing is added (toolbars, `TableToolbar`,
+  `list_filters`, the CRUD bake `form grid gap-5`). A breakpoint-only layout such as `sm:flex` also
+  counts, so below that breakpoint the form is a plain block: write `grid gap-6 sm:flex` if you want
+  both. Modifiers without a display (`flex-col`, `grid-cols-2`, `gap-4`) do not count;
+- `'layout' => false` adds nothing; `'layout' => 'grid gap-4 sm:grid-cols-2'` is added instead of
+  `formLayout` (even next to a layout class). `'formLayout' => false` in the helper config turns it
+  off everywhere;
+- `postButton()` forms get no layout (they stay a single inline button).
+
+Selects rendered by `control()` inside the `.field` container also get `w-full` (`fieldWidgetClasses`,
+default `['select' => 'w-full']`), so inputs, selects and textareas fill their field; a bare `select()`
+or a control whose `inputContainer` template has no `.field` (e.g. `'{{content}}'` to place it in a
+toolbar row) keeps Basecoat's content width. Group several buttons in a row with `<div class="flex gap-2">` (what
+`submit()` renders). With a compiled Tailwind build, make sure it scans the plugin's `src/` so the
+default layout classes are generated.
+
 Config: `widgetClasses` (class per widget), `button` (default `variant`/`size`), `skipClassWidgets`,
+`formLayout`, `fieldWidgetClasses`,
 `nestedCheckboxAndRadio` (`false` by default: Basecoat styles a label that wraps its input as a
 bordered "choice card", so single checkboxes/radios render input and label as siblings).
 Pass `'basecoat' => false` to a control to skip the class. The control type goes in `data-type` on the
@@ -717,6 +743,16 @@ gets filters and an *Export CSV* link: see
 ## Upgrade notes
 
 Changes in this version that can affect existing apps:
+
+- **Forms get a stacked layout by default.** `Form->create()` adds `grid gap-6 [&>.btn]:justify-self-start`
+  (config `formLayout`) when the `class` option sets no layout of its own, so fields are evenly spaced
+  and full width instead of touching each other. Forms whose `class` already has `flex`, `grid`,
+  `inline-flex`, `space-y-*`… are unchanged. To keep the old output pass `'layout' => false` to
+  `create()`, or set `'formLayout' => false` on the helper. A form placed in a flex row (an inline GET
+  search box without a class) now becomes a grid: give it its own layout class or `'layout' => false`.
+  `postButton()` forms are not affected.
+- **Selects in a `.field` are full width.** `control()` renders selects with `select w-full`
+  (`fieldWidgetClasses`); set `'fieldWidgetClasses' => ['select' => '']` for the content width.
 
 - **Icon-only controls are named with visually hidden text instead of `aria-label`.** `Button->icon()`,
   `Sidebar->toggle()`, `Theme->toggle()` and the dialog close button (`Dialog` `closeButton`) now render

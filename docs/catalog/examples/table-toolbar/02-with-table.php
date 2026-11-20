@@ -38,7 +38,7 @@ foreach ($orders as $order) {
     ];
 }
 // ---
-echo '<div class="grid gap-4">';
+echo '<div class="grid w-full grid-cols-1 gap-4">';
 echo $this->TableToolbar->render([
     'filter' => $controls,
     'actions' => $this->Button->link('New order', '/orders/add', ['variant' => 'primary']),

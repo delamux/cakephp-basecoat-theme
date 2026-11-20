@@ -9,7 +9,7 @@ $context = [
     'errors' => ['name' => ['This name is already taken.']],
 ];
 // ---
-echo $this->Form->create($context, ['url' => '/projects/edit/1']);
+echo $this->Form->create($context, ['url' => '/projects/edit/1', 'class' => 'w-full max-w-md']);
 echo $this->Form->control('name', ['label' => 'Project name']);
 echo $this->Form->control('visibility', [
     'type' => 'radio',
