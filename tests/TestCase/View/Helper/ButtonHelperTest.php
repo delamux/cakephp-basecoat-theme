@@ -97,6 +97,7 @@ class ButtonHelperTest extends HelperTestCase
             $button->icon('x', 'Tom & Ana', ['escape' => true]),
             'The label is escaped once; an `escape` option never escapes the hidden span',
         );
+        $this->assertStringContainsString('aria-label="Close panel"', $button->icon('x', 'Close', ['aria-label' => 'Close panel']), 'An explicit aria-label is kept');
     }
 
     public function testIndicatorDot(): void

@@ -460,6 +460,14 @@ Generated files (paths relative to the app, or to the plugin with `--plugin`):
   `$this->set()` once per view variable with the sample data.
 - `templates/<Controller>/index.php`: the page. Its docblock lists every view variable and its shape.
 
+The generated templates use the Basecoat helpers (`$this->PageHeader`, `$this->TableToolbar`,
+`$this->NotificationList`…), so load them in your `AppView` with `loadBasecoatHelpers()` (see
+[Loading the helpers](#loading-the-helpers)). If your app loads helpers one by one instead, add the ones
+the screen uses: `users` needs `PageHeader`, `TableToolbar`, `Table`, `Avatar`, `Badge`, `DropdownMenu`,
+`Button` and `Form` (`BasecoatTheme.Form`); `notifications` needs `PageHeader`, `TableToolbar`, `Badge`,
+`Button`, `EmptyState` and `NotificationList`. Their strings use `__()` (`__d('<plugin>', …)` with
+`--plugin`), like the CRUD bake templates.
+
 The generated code does not set the theme: set `BasecoatTheme` once in your `AppController` (see
 [Use it as a theme](#use-it-as-a-theme)). Links to actions that are not generated (view, edit, invite,
 settings…) are `#` with a `// TODO`; the search and filter forms send GET requests to `index`; Accept /
@@ -656,6 +664,34 @@ Or set the theme once for every bake (e.g. in `config/bootstrap.php`):
 `Configure::write('Bake.theme', 'BasecoatTheme');`. With friendsofcake/search installed the list also
 gets filters and an *Export CSV* link: see
 [List search, filters and CSV export](#list-search-filters-and-csv-export).
+
+## Upgrade notes
+
+Changes in this version that can affect existing apps:
+
+- **Icon-only controls are named with visually hidden text instead of `aria-label`.** `Button->icon()`,
+  `Sidebar->toggle()`, `Theme->toggle()` and the dialog close button (`Dialog` `closeButton`) now render
+  the label inside the control as `<span class="sr-only">…</span>` (icon `aria-hidden`) and no longer
+  add `aria-label`. An explicit `aria-label` option passed to `Button->icon()`, `Sidebar->toggle()` or
+  `Theme->toggle()` is still rendered and wins as the accessible name. Tests or CSS that looked for
+  `aria-label` on these controls need updating. `Button->icon()` uses the new `iconLabel` template
+  (`<span class="sr-only">{{label}}</span>`); with an `indicator`, its text joins the same span
+  ("Notifications, 3 new").
+- **`Theme.templates.toggleContent`:** the default is now
+  `<span class="hidden dark:inline">{{sun}}</span><span class="dark:hidden">{{moon}}</span><span class="sr-only">{{label}}</span>`.
+  If you override this template, add the `{{label}}` placeholder (in an `sr-only` element), otherwise
+  the toggle has no accessible name.
+- **`DropdownMenu` `trigger.label`:** new option that names an icon-only trigger with visually hidden
+  text (escaped), e.g. `'trigger' => ['icon' => 'ellipsis-vertical', 'label' => 'Actions for ' . $name]`.
+  It replaces passing `aria-label` in `trigger`. The CRUD bake `index` template now uses it
+  (`'Actions for {0}'` with the record's display field).
+- **`Button` `indicatorLabel`:** `''` renders no screen reader text for the indicator.
+- **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
+  text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.
+- **New:** the `NotificationList` helper (in `BasecoatHelpers::MAP`, loaded by `loadBasecoatHelpers()`;
+  apps that load helpers one by one add `BasecoatTheme.NotificationList`), the `app-window` and `save`
+  icons, and the [`bin/cake bake screen`](#screens-bake) command (registered when cakephp/bake is
+  installed).
 
 ## License
 
