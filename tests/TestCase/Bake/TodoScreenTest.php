@@ -127,7 +127,7 @@ class TodoScreenTest extends TestCase
         foreach (array_merge(...array_values($data['groups'])) as $task) {
             $id = 'task-' . $task['id'];
             $this->assertMatchesRegularExpression('/<input type="checkbox"[^>]*id="' . $id . '"[^>]*>/', $html);
-            $this->assertMatchesRegularExpression('/<label for="' . $id . '"[^>]*>' . preg_quote(htmlspecialchars($task['title'], ENT_QUOTES), '/') . '<\/label>/', $html);
+            $this->assertMatchesRegularExpression('/<label for="' . $id . '"[^>]*>' . preg_quote(htmlspecialchars($task['title'], ENT_QUOTES), '/') . '(<span class="sr-only">Completed<\/span>)?<\/label>/', $html);
         }
         $this->assertSame(9, substr_count($html, 'type="checkbox"'));
     }
@@ -139,6 +139,8 @@ class TodoScreenTest extends TestCase
         $this->assertSame(2, substr_count($html, 'data-done="true"'));
         $this->assertSame(2, substr_count($html, ' checked'));
         $this->assertSame(2, substr_count($html, '<span class="sr-only">Completed</span>'));
+        // Inside the label: the checkbox is announced as "<title> Completed".
+        $this->assertSame(2, preg_match_all('/<label for="task-\d+"[^>]*>[^<]*<span class="sr-only">Completed<\/span><\/label>/', $html));
         preg_match_all('/<li [^>]*data-done="(true|false)"[^>]*>.*?<\/li>/s', $html, $rows, PREG_SET_ORDER);
         $this->assertCount(9, $rows);
         foreach ($rows as [$row, $done]) {
@@ -152,8 +154,27 @@ class TodoScreenTest extends TestCase
         $html = $this->render();
 
         foreach (['high' => 'High', 'medium' => 'Medium', 'low' => 'Low'] as $key => $label) {
-            $this->assertMatchesRegularExpression('/<span[^>]*data-priority="' . $key . '"[^>]*>' . $label . '<\/span>/', $html);
+            $this->assertMatchesRegularExpression('/<span[^>]*data-priority="' . $key . '"[^>]*><span class="sr-only">Priority: <\/span>' . $label . '<\/span>/', $html);
         }
+    }
+
+    public function testRowsStackOnPhones(): void
+    {
+        $html = $this->render();
+
+        // Title on its own row on phones, the meta (priority, tags, due, assignee, menu) wraps below it.
+        $this->assertSame(9, substr_count($html, '<div class="flex min-w-0 basis-full items-center gap-3 sm:basis-0 sm:flex-1">'));
+        $this->assertSame(9, substr_count($html, '<div class="flex flex-wrap items-center gap-2 pl-7 sm:pl-0">'));
+        $this->assertSame(9, substr_count($html, '<input type="checkbox" class="input"'));
+    }
+
+    public function testPageHeadingLevelAndDecorativeAvatars(): void
+    {
+        $html = $this->render();
+
+        $this->assertMatchesRegularExpression('/<h2[^>]*>Tasks<\/h2>/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<h1/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<span>[A-Z]{1,2}<\/span>/', $html, 'Assignee initials are hidden: the name is read once');
     }
 
     public function testGroupsHaveHeadings(): void
