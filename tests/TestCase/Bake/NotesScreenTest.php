@@ -230,7 +230,11 @@ class NotesScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Note options<\/span>\s*<\/button>/s', $html);
+        // One distinct name per note menu.
+        foreach (ScreenRegistry::data('notes')['notes'] as $note) {
+            $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">' . preg_quote(h('Options for ' . $note['title']), '/') . '<\/span>\s*<\/button>/s', $html);
+        }
+        $this->assertStringNotContainsString('Note options', $html);
         $this->assertMatchesRegularExpression('/<svg[^>]*aria-hidden="true"/', $html);
     }
 
@@ -248,6 +252,24 @@ class NotesScreenTest extends TestCase
         $html = $this->render($this->data(['notes' => [], 'total' => 0]), ['q' => 'zzz']);
 
         $this->assertStringContainsString('Nothing matches your search.', $html);
+        $this->assertStringContainsString('No notes found', $html);
+        $this->assertStringNotContainsString('No notes yet', $html);
+    }
+
+    public function testSidebarIsAHorizontalStripOnPhones(): void
+    {
+        $html = $this->render();
+
+        $this->assertSame(2, substr_count($html, '<ul class="flex gap-1 overflow-x-auto text-sm lg:flex-col lg:overflow-visible">'));
+        $this->assertStringContainsString('<aside class="flex min-w-0 flex-col gap-4"', $html);
+    }
+
+    public function testImageNotesAreFlushWithTheCardTop(): void
+    {
+        $html = $this->render();
+
+        $this->assertMatchesRegularExpression('/<article [^>]*data-note-type="image" class="card pt-0 /', $html);
+        $this->assertDoesNotMatchRegularExpression('/<article [^>]*data-note-type="(text|checklist)" class="card pt-0/', $html);
     }
 
     public function testRendersWithoutLabelsAndUnknownLabelIds(): void
