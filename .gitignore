@@ -10,3 +10,7 @@ docs/roadmap/*
 /build/
 /.claude/worktrees/
 /.superpowers/
+# Catalog output belongs in build/; never commit a stray build at the root
+/index.html
+/assets/
+/components/
