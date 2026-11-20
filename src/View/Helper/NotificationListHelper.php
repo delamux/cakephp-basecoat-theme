@@ -202,7 +202,11 @@ class NotificationListHelper extends AbstractComponentHelper
     {
         $actor = (array)($notification['actor'] ?? []);
         if (($actor['name'] ?? '') !== '') {
-            return $this->Avatar->render((string)$actor['name'], !empty($actor['avatar']) ? ['src' => $actor['avatar']] : []);
+            $name = (string)$actor['name'];
+            // Decorative when the title already names the actor ("Noor Haddad asked for access…").
+            $decorative = str_contains((string)($notification['title'] ?? ''), $name);
+
+            return $this->Avatar->render($name, ['decorative' => $decorative] + (!empty($actor['avatar']) ? ['src' => $actor['avatar']] : []));
         }
 
         $icons = (array)($options['icons'] ?? []) + (array)$this->getConfig('icons');

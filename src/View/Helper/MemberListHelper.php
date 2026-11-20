@@ -82,7 +82,8 @@ class MemberListHelper extends AbstractComponentHelper
             $role = $roles ? $this->role($member, $roles, $field . '[' . ($member['id'] ?? $index) . ']', $readonly) : '';
 
             $items .= $this->renderTemplate('item', $this->partAttributes('item', [], 'flex items-center gap-3 py-3'), [
-                'avatar' => $this->Avatar->render($name, !empty($member['avatar']) ? ['src' => $member['avatar']] : []),
+                // Decorative: the name is printed next to it.
+                'avatar' => $this->Avatar->render($name, ['decorative' => true] + (!empty($member['avatar']) ? ['src' => $member['avatar']] : [])),
                 'name' => $this->text($name, $escape),
                 'email' => $email,
                 'role' => $role,

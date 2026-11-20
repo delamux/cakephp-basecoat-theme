@@ -137,6 +137,48 @@ final class ScreenRegistry
                 'path' => $dir . 'notifications',
                 'icon' => 'bell',
             ],
+            'chats' => [
+                'title' => 'Chats',
+                'description' => 'Two-pane messenger: conversation list with unread counts and a message thread with a composer.',
+                'controller' => 'Chats',
+                'path' => $dir . 'chats',
+                'icon' => 'message-circle',
+            ],
+            'ai-chat' => [
+                'title' => 'AI chat',
+                'description' => 'Assistant chat with prompt suggestions, formatted answers and a composer with a model picker.',
+                'controller' => 'Assistant',
+                'path' => $dir . 'ai-chat',
+                'icon' => 'sparkles',
+            ],
+            'mail' => [
+                'title' => 'Mail',
+                'description' => 'Three-pane mailbox: folders and labels, message list with search, and a reading pane.',
+                'controller' => 'Mail',
+                'path' => $dir . 'mail',
+                'icon' => 'mail',
+            ],
+            'todo' => [
+                'title' => 'Tasks',
+                'description' => 'Task list grouped by due date with filters, priorities, assignees and tags.',
+                'controller' => 'Tasks',
+                'path' => $dir . 'todo',
+                'icon' => 'list-checks',
+            ],
+            'kanban' => [
+                'title' => 'Board',
+                'description' => 'Kanban board with columns, cards with assignees, progress and due dates, and a list view.',
+                'controller' => 'Board',
+                'path' => $dir . 'kanban',
+                'icon' => 'columns-2',
+            ],
+            'notes' => [
+                'title' => 'Notes',
+                'description' => 'Notes workspace with labels, search and a grid of text, checklist and image notes.',
+                'controller' => 'Notes',
+                'path' => $dir . 'notes',
+                'icon' => 'sticky-note',
+            ],
         ];
     }
 }

@@ -57,7 +57,7 @@ foreach ($users as $user) {
                 ['label' => {{ t|raw }}'Edit user'), 'url' => '#'],
                 '-',
                 ['label' => {{ t|raw }}'Suspend'), 'url' => '#', 'variant' => 'destructive'],
-            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $user['name'])], 'align' => 'end']),
+            ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $user['name'])], 'align' => 'end']),
         ],
     ];
 }

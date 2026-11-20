@@ -1,0 +1,117 @@
+{#
+/**
+ * BasecoatTheme bake template: `ai-chat` screen (`bin/cake bake screen ai-chat`).
+ * Reads the view variables of data.php (assistant, suggestions, messages, models, model).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Assistant chat: hero with prompt suggestions, a message thread (answers may hold a code block)
+ * and a composer with a model picker.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array{name: string, tagline: string} $assistant Assistant name and a short description.
+ * @var array<int, string> $suggestions Prompt suggestions shown in the hero.
+ * @var array<int, array<string, mixed>> $messages Thread: id, from (user|assistant), author, time, paragraphs (plain text), code (language, content).
+ * @var array<string, string> $models Model value => label.
+ * @var string $model Selected model value.
+ */
+$this->assign('title', {{ t|raw }}'Assistant'));
+?>
+<div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 lg:px-6">
+    <section class="flex flex-col items-center gap-4 pt-4 text-center" aria-labelledby="ai-chat-title">
+        <span class="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
+            <?= $this->Icon->render('sparkles', ['class' => 'size-6']) ?>
+        </span>
+        <div class="flex flex-col gap-1">
+            <h2 id="ai-chat-title" class="text-2xl font-semibold tracking-tight">
+                <?= h({{ t|raw }}'Chat with {0}', $assistant['name'])) ?>
+            </h2>
+            <p class="text-muted-foreground mx-auto max-w-prose text-sm"><?= h($assistant['tagline']) ?></p>
+        </div>
+        <?php if ($suggestions) : ?>
+            <?php
+            // TODO: the suggestions do nothing yet. Send the text of the button as the message
+            // (for example a POST form per suggestion to your own action).
+            ?>
+            <ul class="flex flex-wrap justify-center gap-2" aria-label="<?= h({{ t|raw }}'Suggested prompts')) ?>">
+                <?php foreach ($suggestions as $suggestion) : ?>
+                    <li>
+                        <?= $this->Button->render((string)$suggestion, ['variant' => 'outline', 'size' => 'sm', 'data-suggestion' => true]) ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
+    <div class="flex flex-col gap-4" role="log" aria-live="polite" aria-label="<?= h({{ t|raw }}'Conversation')) ?>">
+        <?php foreach ($messages as $message) : ?>
+            <?php
+            $mine = ($message['from'] ?? 'assistant') === 'user';
+            $author = (string)($message['author'] ?? ($mine ? {{ t|raw }}'You') : $assistant['name']));
+            ?>
+            <article class="flex gap-3<?= $mine ? ' flex-row-reverse' : '' ?>" data-message-from="<?= h($mine ? 'user' : 'assistant') ?>">
+                <?php // Decorative: the author is printed in the bubble. ?>
+                <?= $this->Avatar->render($author, ['size' => 'sm', 'decorative' => true]) ?>
+                <div class="flex min-w-0 max-w-[85%] flex-col gap-2 rounded-lg px-3 py-2 text-sm <?= $mine ? 'bg-primary text-primary-foreground' : 'bg-muted' ?>">
+                    <p class="text-xs font-medium opacity-70">
+                        <?= h($author) ?>
+                        <?php if (!empty($message['time'])) : ?>
+                            <span class="font-normal"> · <?= h((string)$message['time']) ?></span>
+                        <?php endif; ?>
+                    </p>
+                    <?php foreach ((array)($message['paragraphs'] ?? []) as $paragraph) : ?>
+                        <p class="leading-relaxed"><?= h((string)$paragraph) ?></p>
+                    <?php endforeach; ?>
+                    <?php if (!empty($message['code']['content'])) : ?>
+                        <div class="bg-background text-foreground relative rounded-md border">
+                            <div class="flex items-center justify-between gap-2 border-b px-3 py-1">
+                                <span class="text-muted-foreground text-xs"><?= h((string)($message['code']['language'] ?? '')) ?></span>
+                                <?php // TODO: wire "Copy code" (clipboard) in your own script; it is inert here. ?>
+                                <?= $this->Button->icon('copy', {{ t|raw }}'Copy code'), ['variant' => 'ghost', 'size' => 'sm']) ?>
+                            </div>
+                            <pre class="overflow-x-auto p-3 text-xs"><code class="language-<?= h((string)($message['code']['language'] ?? 'text')) ?>"><?= h((string)$message['code']['content']) ?></code></pre>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+
+    <?php
+    // TODO: the composer is inert. Wrap it in `$this->Form->create(null, ['url' => ['action' => 'send']])`
+    // (POST with the CSRF token) and `$this->Form->end()`, make "Send" a submit button, then read
+    // `message` and `model` in that action and call your assistant service.
+    ?>
+    <div class="sticky bottom-4" data-composer>
+        <?= $this->Card->render(
+            $this->Form->control('message', [
+                'type' => 'textarea',
+                'id' => 'ai-chat-message',
+                'rows' => 3,
+                'required' => true,
+                'label' => ['text' => {{ t|raw }}'Message'), 'class' => 'sr-only'],
+                'placeholder' => {{ t|raw }}'Ask {0} anything…', $assistant['name']),
+                'templates' => ['inputContainer' => '{{ '{{content}}' }}', 'inputContainerError' => '{{ '{{content}}{{error}}' }}'],
+            ])
+            . '<div class="mt-3 flex items-center justify-between gap-2">'
+            . '<div class="flex items-center gap-2">'
+            // TODO: connect the attach button to your upload handling.
+            . $this->Button->icon('paperclip', {{ t|raw }}'Attach a file'), ['variant' => 'ghost'])
+            . $this->Form->control('model', [
+                'type' => 'select',
+                'id' => 'ai-chat-model',
+                'options' => $models,
+                'value' => $model,
+                'label' => ['text' => {{ t|raw }}'Model'), 'class' => 'sr-only'],
+                'templates' => ['inputContainer' => '{{ '{{content}}' }}', 'inputContainerError' => '{{ '{{content}}{{error}}' }}'],
+            ])
+            . '</div>'
+            . $this->Button->render({{ t|raw }}'Send'), ['icon' => 'send'])
+            . '</div>',
+        ) ?>
+    </div>
+</div>

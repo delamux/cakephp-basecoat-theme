@@ -35,6 +35,21 @@ class ScreenRegistryTest extends TestCase
         $this->assertNotSame('', $all['notifications']['description']);
     }
 
+    public function testBatchTwoBuiltIns(): void
+    {
+        $expected = ['chats' => ['Chats', 'message-circle'], 'ai-chat' => ['Assistant', 'sparkles'], 'mail' => ['Mail', 'mail'],
+            'todo' => ['Tasks', 'list-checks'], 'kanban' => ['Board', 'columns-2'], 'notes' => ['Notes', 'sticky-note']];
+        $all = ScreenRegistry::all();
+        $this->assertSame(['users', 'notifications', ...array_keys($expected)], array_keys($all));
+        foreach ($expected as $slug => [$controller, $icon]) {
+            $this->assertSame($controller, $all[$slug]['controller'], $slug);
+            $this->assertSame($icon, $all[$slug]['icon'], $slug);
+            $this->assertSame(ROOT . '/templates/bake/Screen/' . $slug, $all[$slug]['path'], $slug);
+            $this->assertNotSame('', $all[$slug]['title']);
+            $this->assertNotSame('', $all[$slug]['description']);
+        }
+    }
+
     public function testOptionalIcon(): void
     {
         $this->assertSame('users', ScreenRegistry::get('users')['icon']);

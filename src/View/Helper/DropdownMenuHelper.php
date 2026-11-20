@@ -14,7 +14,7 @@ use function Cake\Core\h;
  *     ['label' => 'Make a copy', 'shortcut' => '⌘C'],
  *     '-',
  *     ['label' => 'Delete', 'variant' => 'destructive'],
- * ], ['trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical'], 'align' => 'end']);
+ * ], ['trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis'], 'align' => 'end']);
  * ```
  *
  * Item types: `item` (default), `separator` (or the string `-`), `group`
@@ -76,7 +76,7 @@ class DropdownMenuHelper extends AbstractComponentHelper
      * - `trigger`: Trigger button options: `variant`, `size`, `class`, `icon`,
      *   `iconPosition`, `label` and any attribute. Merged with config `trigger`. `label` is the
      *   accessible name of an icon-only trigger, rendered as visually hidden text inside the
-     *   button (always escaped), e.g. `['icon' => 'ellipsis-vertical', 'label' => 'Actions']`.
+     *   button (always escaped), e.g. `['icon' => 'ellipsis', 'label' => 'Actions']`.
      * - `side`: `top`, `bottom`, `left`, `right` (`data-side`).
      * - `align`: `start`, `center`, `end` (`data-align`).
      * - `popoverOptions`, `menuOptions`: Attributes of the parts.

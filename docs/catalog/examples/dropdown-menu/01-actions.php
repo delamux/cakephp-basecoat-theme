@@ -11,5 +11,5 @@ echo $this->DropdownMenu->render('', [
 ], [
     'id' => 'project-actions',
     'align' => 'end',
-    'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'label' => 'Actions'],
+    'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis', 'label' => 'Actions'],
 ]);

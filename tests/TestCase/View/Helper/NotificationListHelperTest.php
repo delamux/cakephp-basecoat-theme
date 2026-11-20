@@ -187,4 +187,14 @@ class NotificationListHelperTest extends HelperTestCase
         $this->assertStringContainsString('<b>Hi</b>', $html);
         $this->assertStringNotContainsString('escape=', $html);
     }
+
+    public function testActorAvatarIsHiddenOnlyWhenTheTitleNamesTheActor(): void
+    {
+        $html = (new NotificationListHelper($this->View))->render([
+            ['id' => 1, 'type' => 'message', 'title' => 'Kofi Mensah replied in Onboarding', 'actor' => ['name' => 'Kofi Mensah']],
+            ['id' => 2, 'type' => 'message', 'title' => 'New reply in Onboarding', 'actor' => ['name' => 'Ines Duarte']],
+        ]);
+        $this->assertStringContainsString('<span aria-hidden="true">KM</span>', $html);
+        $this->assertStringContainsString('<span>ID</span>', $html, 'The avatar is the only place naming the actor');
+    }
 }

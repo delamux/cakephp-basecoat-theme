@@ -1,0 +1,216 @@
+{#
+/**
+ * BasecoatTheme bake template: `notes` screen (`bin/cake bake screen notes`).
+ * Reads the view variables of data.php (notes, labels, total, archivedCount).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Notes: workspace with a label sidebar, search, a grid / list toggle and note cards.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<int, array<string, mixed>> $notes Notes: id, type (text, checklist, image), title, body, items, image, labels (label ids), updated.
+ * @var array<int, array<string, mixed>> $labels Labels: id, name, color (red, orange, green, blue, purple), count.
+ * @var int $total Notes in the workspace.
+ * @var int $archivedCount Archived notes.
+ */
+$this->assign('title', {{ t|raw }}'Notes'));
+
+$request = $this->getRequest();
+$indexUrl = $this->Url->build(['action' => 'index']);
+$search = $request->getQuery('q');
+$search = is_string($search) ? $search : '';
+// The layout comes from the query string (?view=grid|list); anything else is the grid
+$view = $request->getQuery('view') === 'list' ? 'list' : 'grid';
+
+// Colour of the label dot. The dot is decoration: the label name always sits next to it.
+$dotClasses = [
+    'red' => 'bg-red-500',
+    'orange' => 'bg-orange-500',
+    'green' => 'bg-green-500',
+    'blue' => 'bg-blue-500',
+    'purple' => 'bg-purple-500',
+];
+$dot = fn (array $label, string $where): string => '<span data-label-dot="' . h($where) . '" aria-hidden="true" class="inline-block size-2 shrink-0 rounded-full '
+    . h($dotClasses[$label['color'] ?? ''] ?? 'bg-muted-foreground') . '"></span>';
+$labelsById = [];
+foreach ($labels as $label) {
+    $labelsById[$label['id']] = $label;
+}
+
+// Illustrations drawn inline (no external images). Meaningful ones are named, the rest hidden.
+$art = [
+    'hills' => '<rect width="320" height="160" fill="currentColor" class="text-amber-100 dark:text-amber-950"/>'
+        . '<circle cx="250" cy="44" r="20" fill="currentColor" class="text-amber-400"/>'
+        . '<path d="M0 120 Q70 60 150 110 T320 90 V160 H0Z" fill="currentColor" class="text-emerald-300 dark:text-emerald-800"/>'
+        . '<path d="M0 140 Q90 100 180 135 T320 125 V160 H0Z" fill="currentColor" class="text-emerald-500 dark:text-emerald-600"/>',
+    'waves' => '<rect width="320" height="160" fill="currentColor" class="text-sky-100 dark:text-sky-950"/>'
+        . '<path d="M0 70 Q40 40 80 70 T160 70 T240 70 T320 70 V160 H0Z" fill="currentColor" class="text-sky-300 dark:text-sky-800"/>'
+        . '<path d="M0 100 Q40 70 80 100 T160 100 T240 100 T320 100 V160 H0Z" fill="currentColor" class="text-sky-500 dark:text-sky-600"/>'
+        . '<path d="M0 130 Q40 100 80 130 T160 130 T240 130 T320 130 V160 H0Z" fill="currentColor" class="text-blue-700 dark:text-blue-500"/>',
+];
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Notes'), [
+        'level' => 2,
+        'description' => {{ t|raw }}'Jot things down, keep checklists and pin ideas for later.'),
+    ]) ?>
+
+    <div class="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <aside class="flex min-w-0 flex-col gap-4" aria-label="<?= h({{ t|raw }}'Notes sidebar')) ?>">
+            <?php // TODO: connect "New note" to the add action of your controller. ?>
+            <?= $this->Button->render({{ t|raw }}'New note'), ['icon' => 'plus', 'class' => 'w-full']) ?>
+
+            <?php // Horizontal strips on phones (the notes stay near the top), a column from `lg` up. ?>
+            <nav aria-label="<?= h({{ t|raw }}'Notes navigation')) ?>">
+                <ul class="flex gap-1 overflow-x-auto text-sm lg:flex-col lg:overflow-visible">
+                    <li class="shrink-0">
+                        <?php // TODO: link to the index action of your controller. ?>
+                        <a href="#" aria-current="page" class="bg-accent text-accent-foreground flex items-center gap-2 rounded-md px-3 py-2 font-medium whitespace-nowrap">
+                            <?= $this->Icon->render('sticky-note') ?>
+                            <span class="flex-1"><?= h({{ t|raw }}'Notes')) ?></span>
+                            <span class="text-muted-foreground"><?= h((string)$total) ?></span>
+                        </a>
+                    </li>
+                    <li class="shrink-0">
+                        <?php // TODO: link to your archived notes. ?>
+                        <a href="#" class="hover:bg-accent flex items-center gap-2 rounded-md px-3 py-2 whitespace-nowrap">
+                            <?= $this->Icon->render('archive') ?>
+                            <span class="flex-1"><?= h({{ t|raw }}'Archive')) ?></span>
+                            <span class="text-muted-foreground"><?= h((string)$archivedCount) ?></span>
+                        </a>
+                    </li>
+                    <li class="shrink-0">
+                        <?php // TODO: link to the page where labels are edited. ?>
+                        <a href="#" class="hover:bg-accent flex items-center gap-2 rounded-md px-3 py-2 whitespace-nowrap">
+                            <?= $this->Icon->render('pencil') ?>
+                            <span><?= h({{ t|raw }}'Edit labels')) ?></span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <?php if ($labels) : ?>
+                <section aria-labelledby="notes-labels-title">
+                    <h3 id="notes-labels-title" class="text-muted-foreground mb-2 px-3 text-xs font-medium uppercase"><?= h({{ t|raw }}'Labels')) ?></h3>
+                    <ul class="flex gap-1 overflow-x-auto text-sm lg:flex-col lg:overflow-visible">
+                        <?php foreach ($labels as $label) : ?>
+                            <li class="shrink-0">
+                                <?php // TODO: link to the notes with this label (e.g. ['action' => 'index', '?' => ['label' => $label['id']]]). ?>
+                                <a href="#" class="hover:bg-accent flex items-center gap-2 rounded-md px-3 py-2 whitespace-nowrap">
+                                    <?= $dot($label, 'sidebar') ?>
+                                    <span><?= h($label['name']) ?></span>
+                                    <span class="text-muted-foreground ml-auto"><?= h((string)($label['count'] ?? 0)) ?></span>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </section>
+            <?php endif; ?>
+        </aside>
+
+        <div class="flex min-w-0 flex-col gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+                <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'class' => 'flex min-w-0 flex-1 items-center gap-2']) ?>
+                    <label for="notes-search" class="sr-only"><?= h({{ t|raw }}'Search notes')) ?></label>
+                    <input type="search" id="notes-search" name="q" value="<?= h($search) ?>" class="input w-full sm:max-w-sm" placeholder="<?= h({{ t|raw }}'Search notes')) ?>">
+                    <input type="hidden" name="view" value="<?= h($view) ?>">
+                    <?= $this->Button->icon('search', {{ t|raw }}'Search'), ['type' => 'submit', 'variant' => 'outline']) ?>
+                <?= $this->Form->end() ?>
+
+                <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index']]) ?>
+                    <?php if ($search !== '') : ?>
+                        <input type="hidden" name="q" value="<?= h($search) ?>">
+                    <?php endif; ?>
+                    <div role="group" aria-label="<?= h({{ t|raw }}'Layout')) ?>" class="inline-flex items-center gap-1">
+                        <?php foreach (['grid' => ['layout-grid', {{ t|raw }}'Grid view')], 'list' => ['list', {{ t|raw }}'List view')]] as $mode => [$icon, $name]) : ?>
+                            <?= $this->Button->icon($icon, $name, [
+                                'type' => 'submit',
+                                'name' => 'view',
+                                'value' => $mode,
+                                'variant' => $view === $mode ? 'secondary' : 'ghost',
+                                'aria-pressed' => $view === $mode ? 'true' : 'false',
+                            ]) ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?= $this->Form->end() ?>
+            </div>
+
+            <?php if ($notes) : ?>
+                <?php
+                // TODO: the checkboxes only render the state. To toggle a checklist item, wrap the list in a
+                // POST form (postButton / Form->create) that posts to your own action.
+                ?>
+                <section aria-label="<?= h({{ t|raw }}'Notes')) ?>" data-view="<?= h($view) ?>" class="<?= $view === 'grid' ? 'gap-4 sm:columns-2 xl:columns-3' : 'mx-auto flex w-full max-w-3xl flex-col gap-4' ?>">
+                    <?php foreach ($notes as $note) : ?>
+                        <?php
+                        $titleId = 'note-' . $note['id'] . '-title';
+                        $hasImage = ($note['type'] ?? '') === 'image' && isset($art[$note['image']['art'] ?? '']);
+                        ?>
+                        <?php // An image sits flush with the top of the card (`pt-0`). ?>
+                        <article aria-labelledby="<?= h($titleId) ?>" data-note-type="<?= h($note['type']) ?>" class="card <?= $hasImage ? 'pt-0 ' : '' ?><?= $view === 'grid' ? 'mb-4 break-inside-avoid' : '' ?> overflow-hidden">
+                            <?php if ($hasImage) : ?>
+                                <?php $alt = (string)($note['image']['alt'] ?? ''); ?>
+                                <figure class="m-0">
+                                    <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" class="block h-40 w-full"
+                                        <?= $alt !== '' ? 'role="img" aria-label="' . h($alt) . '"' : 'aria-hidden="true"' ?>>
+                                        <?= $art[$note['image']['art']] ?>
+                                    </svg>
+                                </figure>
+                            <?php endif; ?>
+                            <header>
+                                <div class="flex items-start justify-between gap-2">
+                                    <h3 id="<?= h($titleId) ?>"><?= h($note['title']) ?></h3>
+                                    <?php // TODO: open a menu with pin, archive and delete for this note. ?>
+                                    <?= $this->Button->icon('ellipsis', {{ t|raw }}'Options for {0}', $note['title']), ['variant' => 'ghost', 'size' => 'icon']) ?>
+                                </div>
+                            </header>
+                            <?php if (!empty($note['body']) || !empty($note['items'])) : ?>
+                                <section class="flex flex-col gap-2 text-sm">
+                                    <?php if (!empty($note['body'])) : ?>
+                                        <p class="text-muted-foreground whitespace-pre-line"><?= h($note['body']) ?></p>
+                                    <?php endif; ?>
+                                    <?php if (!empty($note['items'])) : ?>
+                                        <ul class="flex flex-col gap-2">
+                                            <?php foreach ($note['items'] as $index => $item) : ?>
+                                                <?php $itemId = 'note-' . $note['id'] . '-item-' . $index; ?>
+                                                <li class="flex items-center gap-2">
+                                                    <input type="checkbox" class="input" id="<?= h($itemId) ?>"<?= !empty($item['done']) ? ' checked' : '' ?>>
+                                                    <label for="<?= h($itemId) ?>"<?= !empty($item['done']) ? ' class="text-muted-foreground line-through"' : '' ?>>
+                                                        <?= h($item['label']) ?>
+                                                        <?php if (!empty($item['done'])) : ?>
+                                                            <span class="sr-only"><?= h({{ t|raw }}'completed')) ?></span>
+                                                        <?php endif; ?>
+                                                    </label>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php endif; ?>
+                                </section>
+                            <?php endif; ?>
+                            <footer class="flex flex-wrap items-center gap-2">
+                                <?php foreach ($note['labels'] ?? [] as $labelId) : ?>
+                                    <?php if (isset($labelsById[$labelId])) : ?>
+                                        <span data-note-label class="badge-outline inline-flex items-center gap-1.5">
+                                            <?= $dot($labelsById[$labelId], 'note') ?>
+                                            <?= h($labelsById[$labelId]['name']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                <span class="text-muted-foreground ml-auto text-xs"><?= h($note['updated'] ?? '') ?></span>
+                            </footer>
+                        </article>
+                    <?php endforeach; ?>
+                </section>
+            <?php else : ?>
+                <?= $this->EmptyState->render($search !== '' ? {{ t|raw }}'No notes found') : {{ t|raw }}'No notes yet'), [
+                    'description' => $search !== '' ? {{ t|raw }}'Nothing matches your search.') : {{ t|raw }}'Create your first note to get started.'),
+                    'icon' => 'sticky-note',
+                ]) ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>

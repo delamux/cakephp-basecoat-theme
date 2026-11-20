@@ -41,7 +41,7 @@ $rowMenu = fn(int $i, string $customer): string => $this->DropdownMenu->render('
 ], [
     'id' => 'row-menu-' . $i,
     'align' => 'end',
-    'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis-vertical', 'class' => 'btn text-muted-foreground', 'label' => 'Actions for ' . $customer],
+    'trigger' => ['variant' => 'ghost', 'size' => 'icon-sm', 'icon' => 'ellipsis', 'class' => 'btn text-muted-foreground', 'label' => 'Actions for ' . $customer],
     'popoverOptions' => ['class' => 'min-w-32'],
 ]);
 $tableRows = [];

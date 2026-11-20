@@ -61,4 +61,11 @@ class MemberListHelperTest extends HelperTestCase
         $this->assertStringContainsString('<b>Kofi</b>', $html);
         $this->assertStringNotContainsString('escape=', $html);
     }
+
+    public function testAvatarInitialsAreHiddenNextToTheName(): void
+    {
+        $html = (new MemberListHelper($this->View))->render([['name' => 'Noor Haddad']]);
+        $this->assertStringContainsString('<span aria-hidden="true">NH</span>', $html);
+        $this->assertStringContainsString('Noor Haddad', $html);
+    }
 }

@@ -105,4 +105,22 @@ class ConversationHelperTest extends HelperTestCase
         $this->assertStringContainsString('<u>s</u>', $html);
         $this->assertStringNotContainsString('escape=', $html);
     }
+
+    public function testHeaderAvatarInitialsAreHiddenNextToTheName(): void
+    {
+        $html = (new ConversationHelper($this->View))->render([], ['contact' => ['name' => 'Kofi Mensah'], 'composer' => false]);
+        $this->assertStringContainsString('<span aria-hidden="true">KM</span>', $html);
+        $this->assertStringContainsString('>Kofi Mensah</p>', $html);
+    }
+
+    public function testHiddenAuthorsNameTheSenderForScreenReadersOnly(): void
+    {
+        $html = (new ConversationHelper($this->View))->render([
+            ['text' => 'Hi', 'from' => 'me', 'author' => 'You'],
+            ['text' => 'Hello', 'from' => 'them', 'author' => '<b>Kofi</b>'],
+        ], ['hideAuthors' => true, 'composer' => false]);
+        $this->assertStringContainsString('<span class="sr-only">You</span><p>Hi</p>', $html);
+        $this->assertStringContainsString('<span class="sr-only">&lt;b&gt;Kofi&lt;/b&gt;</span><p>Hello</p>', $html);
+        $this->assertStringNotContainsString('hideAuthors', $html);
+    }
 }

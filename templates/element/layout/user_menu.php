@@ -10,6 +10,8 @@ $email = (string)($user['email'] ?? '');
 $avatar = $this->Avatar->render($name, array_filter([
     'src' => $user['avatar'] ?? null,
     'class' => 'rounded-lg',
+    // The name is printed next to the avatar.
+    'decorative' => true,
 ]));
 $identity = sprintf(
     '<span class="grid flex-1 text-left text-sm leading-tight"><span class="truncate font-medium">%s</span><span class="truncate text-xs text-muted-foreground">%s</span></span>',
@@ -23,7 +25,7 @@ array_unshift(
     '-',
 );
 
-echo $this->DropdownMenu->render($avatar . $identity . $this->Icon->render('ellipsis-vertical', ['class' => 'ml-auto']), $menu, [
+echo $this->DropdownMenu->render($avatar . $identity . $this->Icon->render('ellipsis', ['class' => 'ml-auto']), $menu, [
     'id' => 'user-menu',
     'class' => 'w-full',
     'escape' => false,

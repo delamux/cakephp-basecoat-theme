@@ -69,7 +69,7 @@ foreach ($orders as $order) {
             ['label' => 'Send receipt', 'url' => '#orders'],
             '-',
             ['label' => 'Refund', 'variant' => 'destructive'],
-        ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Actions for ' . $order['id']], 'align' => 'end'])],
+        ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Actions for ' . $order['id']], 'align' => 'end'])],
     ];
 }
 ?>

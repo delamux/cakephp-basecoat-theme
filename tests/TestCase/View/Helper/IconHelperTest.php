@@ -46,6 +46,32 @@ class IconHelperTest extends HelperTestCase
         $this->assertStringContainsString('<title>Info &amp; help</title>', $out);
     }
 
+    public function testBatchTwoIconsRenderDecorative(): void
+    {
+        $icon = new IconHelper($this->View);
+        $names = ['message-circle', 'sparkles', 'list-checks', 'sticky-note', 'star', 'archive', 'paperclip', 'smile',
+            'mic', 'phone', 'video', 'reply', 'forward', 'tag', 'layout-grid', 'image', 'flag', 'users-round'];
+        foreach ($names as $name) {
+            $out = $icon->render($name);
+            $this->assertStringStartsWith('<svg', $out, $name);
+            $this->assertStringContainsString('aria-hidden="true"', $out, $name);
+        }
+    }
+
+    public function testMailFolderIcons(): void
+    {
+        $icon = new IconHelper($this->View);
+        // Lucide 0.468.0 markup: Spam (shield-alert) and Drafts (file-pen) in the mail screen.
+        $this->assertStringContainsString(
+            '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
+            $icon->render('shield-alert'),
+        );
+        $this->assertStringContainsString(
+            '<path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M13.378 15.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg>',
+            $icon->render('file-pen'),
+        );
+    }
+
     public function testRawMarkupPassThrough(): void
     {
         $svg = '<svg><circle/></svg>';
