@@ -121,7 +121,7 @@ $art = [
                     <?= $this->Button->icon('search', {{ t|raw }}'Search'), ['type' => 'submit', 'variant' => 'outline']) ?>
                 <?= $this->Form->end() ?>
 
-                <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index']]) ?>
+                <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'layout' => false]) ?>
                     <?php if ($search !== '') : ?>
                         <input type="hidden" name="q" value="<?= h($search) ?>">
                     <?php endif; ?>

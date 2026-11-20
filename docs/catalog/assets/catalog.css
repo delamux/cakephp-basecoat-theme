@@ -11,8 +11,11 @@
   background: var(--background);
 }
 
-.catalog-preview > * {
-  max-width: 100%;
+/* Layered so an example's own max-w-* utility (form, member list) wins over this cap. */
+@layer components {
+  .catalog-preview > * {
+    max-width: 100%;
+  }
 }
 
 .catalog-code {

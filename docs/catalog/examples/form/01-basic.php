@@ -1,9 +1,9 @@
 <?php
 /**
  * @title Basic form
- * @description Core FormHelper API with Basecoat markup: fields, select, textarea and a submit button.
+ * @description Core FormHelper API with Basecoat markup: fields, select, textarea and a submit button, stacked by the default form layout.
  */
-echo $this->Form->create(null, ['url' => '/contact']);
+echo $this->Form->create(null, ['url' => '/contact', 'class' => 'w-full max-w-md']);
 echo $this->Form->control('full_name', ['label' => 'Full name', 'placeholder' => 'Noor Haddad']);
 echo $this->Form->control('email', ['type' => 'email', 'label' => 'Email']);
 echo $this->Form->control('topic', ['label' => 'Topic', 'options' => ['sales' => 'Sales', 'support' => 'Support', 'other' => 'Other']]);
