@@ -57,3 +57,31 @@ test('resolveEndpoint refuses cross-origin and non-http endpoints', () => {
   assert.equal(screens.resolveEndpoint('data:text/plain,x', 'http://localhost:8765/', origin), null);
   assert.equal(screens.resolveEndpoint('http://[bad', 'http://localhost:8765/', origin), null, 'invalid URL');
 });
+
+test('matchesFacets: every key must match (AND)', () => {
+  const tokens = screens.tokensOf('unread', 'access');
+  assert.equal(screens.matchesFacets(tokens, {}), true);
+  assert.equal(screens.matchesFacets(tokens, { status: 'unread', type: 'access' }), true);
+  assert.equal(screens.matchesFacets(tokens, { status: 'unread', type: 'task' }), false);
+  assert.equal(screens.matchesFacets(tokens, { status: '', type: '!task' }), true);
+});
+
+test('countValue adds the offset and never goes below zero', () => {
+  assert.equal(screens.countValue(3, '2'), 5);
+  assert.equal(screens.countValue(3, null), 3);
+  assert.equal(screens.countValue(1, '-4'), 0);
+  assert.equal(screens.countValue(2, 'x'), 2);
+});
+
+test('formatSize', () => {
+  assert.equal(screens.formatSize(0), '0 B');
+  assert.equal(screens.formatSize(1536), '1.5 KB');
+  assert.equal(screens.formatSize(15 * 1024 * 1024), '15 MB');
+  assert.equal(screens.formatSize(-3), '0 B');
+});
+
+test('joinValues keeps non-empty values, falls back to the empty text', () => {
+  assert.equal(screens.joinValues(['Fernway', '', ' Ops '], '—'), 'Fernway, Ops');
+  assert.equal(screens.joinValues([], 'Not set'), 'Not set');
+  assert.equal(screens.joinValues(['  '], ''), '');
+});

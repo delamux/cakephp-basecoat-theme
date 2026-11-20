@@ -76,3 +76,9 @@ html[data-dnd-active] * {
     transition: box-shadow 120ms ease, opacity 120ms ease;
   }
 }
+
+/* data-dnd-touch="press": a swipe on the handle scrolls the page; a 250ms press starts the drag. */
+[data-dnd-touch="press"] [data-dnd-handle],
+[data-dnd-handle][data-dnd-touch="press"] {
+  touch-action: auto;
+}

@@ -10,13 +10,18 @@
  * LIST MODE (sortable lists, kanban columns, day cells)
  *   [data-dnd-container]          drop target; its [data-dnd-item] descendants are the sortable items
  *     data-dnd-group="name"       containers sharing a group accept each other's items
- *     data-dnd-axis="y|x"         list direction (default y): arrows along it reorder, the other arrows
- *                                 move to the previous/next container of the group (document order)
+ *     data-dnd-axis="y|x|both"    list direction (default y): arrows along it reorder, the other arrows
+ *                                 move to the previous/next container of the group (document order).
+ *                                 "both": a wrapping grid or CSS columns; the pointer drops next to the
+ *                                 nearest item (x and y), every arrow walks the reading order
+ *     data-dnd-var-<name>="…"     extra values for bound text (see BOUND TEXT), e.g. data-dnd-var-date
  *     data-dnd-id / data-id / id  id sent in events and POSTs (first present wins; data-id is the
  *                                 name basecoat-screens.js uses);  data-dnd-label: name announced
  *   [data-dnd-item]               draggable (put it on the element that must move, e.g. the <li>)
  *     data-dnd-id / data-id / id, data-dnd-label (default: its text)
  *     [data-dnd-handle]           optional descendant: only the handle starts a drag and takes focus
+ *   data-dnd-touch="press" (container, item or handle): touch on the handle needs the 250ms press too, so a
+ *                                 swipe on it still scrolls the page (e.g. calendar chips that are links)
  *
  * GRID MODE (bookings, schedules: items placed in a CSS grid by classes)
  *   [data-dnd-grid]               grid container (data-dnd-id, data-dnd-label as above)
@@ -30,11 +35,23 @@
  *   [data-dnd-item] data-dnd-row data-dnd-col data-dnd-span   current placement (0-based, span >= 1)
  *     [data-dnd-resize]           optional descendant handle: drag to change the span
  *   Overlapping items are allowed: they get [data-dnd-collision] and the overlap is announced.
+ *     data-dnd-row-text='["06:00", "06:30", …]'  text of each row boundary (rows + 1 entries) and
+ *     data-dnd-col-text='["Room A", …]'          text of each column, for BOUND TEXT and {start}/{end}
+ *
+ * BOUND TEXT (both modes, optional): after every placement change (also on revert and cancel)
+ *   [data-dnd-text="key"] inside the item, and inside the elements matched by the item's
+ *   data-dnd-mirror="css selector" (e.g. the row of a List view or an "Upcoming" entry), get the value of
+ *   `key` as text; [data-dnd-aria="Yoga, {start}–{end}, {col}"] (the item, the mirrors, or inside them)
+ *   get the filled-in template as aria-label. Keys: grid start, end, col, row, span; list container
+ *   (label of the new container), container-id, position, total and every data-dnd-var-<name> of the
+ *   container; both: label. A mirror with data-dnd-sort="{start}|{col}" gets data-dnd-sort-key (also at
+ *   init) and is moved among its siblings that have one to keep them in natural order (re-sorted list).
  *
  * KEYBOARD: focus an item (or its handle; items get tabindex="0" when needed) -> Space or Enter picks it
  *   up (Space only when the item is a link) -> arrows move (lists: Home/End too) -> Space/Enter drops
- *   (Enter never follows a link while dragging), Escape (or leaving the item with Tab) cancels. Grids: Shift + arrows along the resize axis change
- *   the span, also without picking the item up. Focus stays on the item.
+ *   (Enter never follows a link while dragging), Escape (or leaving the item with Tab) cancels. Grids:
+ *   Shift + arrows along the resize axis change the span, also without picking the item up. Focus stays
+ *   on the item. A pointer drag that only changed the span is announced with "resized".
  * POINTER: mouse, pen, and touch on a [data-dnd-handle] / [data-dnd-resize] drag after 4px; touch elsewhere
  *   after a 250ms press (so the page still scrolls). The item holds the pointer capture. Near (40px) the
  *   edge of a scrollable ancestor or of the window the page auto-scrolls. Escape or leaving the window
@@ -42,7 +59,8 @@
  * ANNOUNCER: one shared [data-basecoat-announcer] aria-live="polite" region (created when missing).
  *   Messages are translatable: data-dnd-i18n-<key>="…" on the container or any ancestor, or a JSON block
  *   <script type="application/json" data-dnd-i18n>{"<key>": "…"}</script>. Keys and placeholders: see
- *   MESSAGES below ({label}, {container}, {position}, {total}, {slot}, {row}, {col}, {span}, {others}).
+ *   MESSAGES below ({label}, {container}, {position}, {total}, {slot}, {row}, {col}, {span}, {start},
+ *   {end}, {others}).
  *
  * EVENTS (bubbling, cancelable, dispatched on the item after a drop; preventDefault() reverts):
  *   basecoat:move   list: {mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}
@@ -139,7 +157,44 @@
     return 0;
   };
 
-  const pure = { clamp, insertionIndex, format, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed };
+  /** Texts of a grid placement from the row boundary texts and column texts (1-based numbers otherwise). */
+  const placementText = (rowText, colText, p) => {
+    const pick = (list, i, fallback) => (Array.isArray(list) && list[i] !== undefined && list[i] !== null ? String(list[i]) : String(fallback));
+    return {
+      start: pick(rowText, p.row, p.row + 1),
+      end: pick(rowText, p.row + p.span, p.row + p.span + 1),
+      col: pick(colText, p.col, p.col + 1),
+      row: String(p.row + 1),
+      span: String(p.span),
+    };
+  };
+
+  /**
+   * Insertion index in a 2D layout (wrapping grid, CSS columns, or a plain list) for the point (x, y),
+   * given the boxes {left, top, width, height} of the other items in document order: next to the
+   * nearest box, before or after it along the flow there (horizontal when a neighbour shares its row).
+   */
+  const insertionIndex2d = (boxes, x, y) => {
+    if (!boxes.length) return 0;
+    const centre = (b) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
+    const gap = (b) => Math.hypot(Math.max(b.left - x, 0, x - (b.left + b.width)), Math.max(b.top - y, 0, y - (b.top + b.height)));
+    let best = 0;
+    boxes.forEach((b, i) => {
+      const d = gap(b);
+      const bestD = gap(boxes[best]);
+      if (d < bestD || (d === bestD && Math.hypot(centre(b).x - x, centre(b).y - y) < Math.hypot(centre(boxes[best]).x - x, centre(boxes[best]).y - y))) best = i;
+    });
+    const b = boxes[best];
+    const sameRow = (o) => o && Math.min(b.top + b.height, o.top + o.height) - Math.max(b.top, o.top) > Math.min(b.height, o.height) / 2;
+    const horizontal = sameRow(boxes[best - 1]) || sameRow(boxes[best + 1]);
+    const c = centre(b);
+    return best + ((horizontal ? x > c.x : y > c.y) ? 1 : 0);
+  };
+
+  /** Natural order of sort keys ("7|2" before "10|1"). */
+  const compareKeys = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true });
+
+  const pure = { clamp, insertionIndex, insertionIndex2d, format, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed, placementText, compareKeys };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   // Loaded twice? Keep the first instance (delegated listeners registered once).
@@ -262,6 +317,7 @@
     if (ref) ref.parentElement.insertBefore(item, ref);
     else if (others.length) others[others.length - 1].after(item);
     else container.appendChild(item);
+    bindItem(item);
   };
 
   const listPosition = (item) => {
@@ -303,6 +359,7 @@
     item.setAttribute('data-dnd-row', String(p.row));
     item.setAttribute('data-dnd-col', String(p.col));
     item.setAttribute('data-dnd-span', String(p.span));
+    bindItem(item);
     return p;
   };
   const slotLabel = (grid, p) => {
@@ -326,9 +383,70 @@
   };
   const gridVars = (item, grid) => {
     const p = placementOf(item);
-    return { label: labelOf(item), slot: slotLabel(grid, p), row: p.row + 1, col: p.col + 1, span: p.span };
+    const text = gridText(grid, p);
+    return { label: labelOf(item), slot: slotLabel(grid, p), row: p.row + 1, col: p.col + 1, span: p.span, start: text.start, end: text.end };
   };
   const collisionText = (grid, hits) => (hits.length ? ` ${t(grid, 'collision', { others: hits.map(labelOf).join(', ') })}` : '');
+
+  // ---- bound text: [data-dnd-text], [data-dnd-aria] and [data-dnd-sort] of the item and its mirrors
+  const gridText = (grid, p) => placementText(parseJson(grid.getAttribute('data-dnd-row-text')), parseJson(grid.getAttribute('data-dnd-col-text')), p);
+  /** Variables of the item's placement: grid {start, end, col, row, span}; list {container, container-id, position, total, data-dnd-var-*}. */
+  const bindVars = (item) => {
+    const container = containerOf(item);
+    if (!container) return null;
+    const vars = { label: labelOf(item) };
+    if (isGrid(container)) return Object.assign(vars, gridText(container, placementOf(item)));
+    const items = itemsOf(container);
+    Object.assign(vars, { container: containerLabel(container), 'container-id': idOf(container) || '', position: String(items.indexOf(item) + 1), total: String(items.length) });
+    Array.from(container.attributes).forEach((attr) => {
+      if (attr.name.startsWith('data-dnd-var-')) vars[attr.name.slice('data-dnd-var-'.length)] = attr.value;
+    });
+    return vars;
+  };
+  const mirrorsOf = (item) => {
+    const selector = item.getAttribute('data-dnd-mirror');
+    if (!selector) return [];
+    try { return Array.from(document.querySelectorAll(selector)).filter((el) => el !== item); } catch (e) { return []; }
+  };
+  /** Moves a mirror among its keyed siblings to the place of its data-dnd-sort-key (natural order). */
+  const sortMirror = (el) => {
+    const parent = el.parentElement;
+    if (!parent) return;
+    const key = el.getAttribute('data-dnd-sort-key');
+    const next = Array.from(parent.children).find((other) => other !== el && other.hasAttribute('data-dnd-sort-key') && compareKeys(other.getAttribute('data-dnd-sort-key'), key) > 0);
+    if (next) {
+      if (el.nextElementSibling !== next) parent.insertBefore(el, next);
+      return;
+    }
+    const keyed = Array.from(parent.children).filter((other) => other.hasAttribute('data-dnd-sort-key'));
+    const last = keyed[keyed.length - 1];
+    if (last && last !== el) last.after(el);
+  };
+  /** Rewrites the bound texts of `item` and of its data-dnd-mirror elements (keysOnly: only the sort keys). */
+  function bindItem(item, keysOnly) {
+    const mirrors = mirrorsOf(item);
+    const roots = [item].concat(mirrors);
+    if (!keysOnly && !roots.some((root) => root.matches('[data-dnd-text],[data-dnd-aria]') || root.querySelector('[data-dnd-text],[data-dnd-aria]'))
+      && !mirrors.some((m) => m.hasAttribute('data-dnd-sort'))) return;
+    const vars = bindVars(item);
+    if (!vars) return;
+    if (!keysOnly) {
+      roots.forEach((root) => {
+        [root].concat(Array.from(root.querySelectorAll('[data-dnd-text],[data-dnd-aria]'))).forEach((el) => {
+          const key = el.getAttribute('data-dnd-text');
+          if (key && vars[key] !== undefined && el.textContent !== vars[key]) el.textContent = vars[key];
+          const aria = el.getAttribute('data-dnd-aria');
+          if (aria) el.setAttribute('aria-label', format(aria, vars));
+        });
+      });
+    }
+    mirrors.forEach((mirror) => {
+      const sort = mirror.getAttribute('data-dnd-sort');
+      if (!sort) return;
+      mirror.setAttribute('data-dnd-sort-key', format(sort, vars));
+      if (!keysOnly) sortMirror(mirror);
+    });
+  }
 
   // ---------------------------------------------------------------- endpoint
   const csrfToken = (el) => {
@@ -482,7 +600,9 @@
       else announce(t(container, 'cancelled', listVars(item)));
     } else if (isGrid(container)) {
       const hits = markCollisions(container, item);
-      announce(t(container, 'grid-dropped', gridVars(item, container)) + collisionText(container, hits));
+      const now = placementOf(item);
+      const onlyResized = now.row === before.placement.row && now.col === before.placement.col && now.span !== before.placement.span;
+      announce(t(container, onlyResized ? 'resized' : 'grid-dropped', gridVars(item, container)) + collisionText(container, hits));
     } else {
       announce(t(container, 'dropped', listVars(item)));
     }
@@ -552,13 +672,19 @@
     const container = listTargetAt(x, y);
     if (!container) return;
     setOver(container);
-    const vertical = container.getAttribute('data-dnd-axis') !== 'x';
+    const axis = container.getAttribute('data-dnd-axis');
+    const vertical = axis !== 'x';
     const others = itemsOf(container).filter((i) => i !== item);
-    const mids = others.map((other) => {
-      const r = other.getBoundingClientRect();
-      return vertical ? r.top + r.height / 2 : r.left + r.width / 2;
-    });
-    const index = insertionIndex(mids, vertical ? y : x);
+    let index;
+    if (axis === 'both') {
+      index = insertionIndex2d(others.map((other) => other.getBoundingClientRect()), x, y);
+    } else {
+      const mids = others.map((other) => {
+        const r = other.getBoundingClientRect();
+        return vertical ? r.top + r.height / 2 : r.left + r.width / 2;
+      });
+      index = insertionIndex(mids, vertical ? y : x);
+    }
     const current = itemsOf(container).indexOf(item);
     if (containerOf(item) !== container || current !== index) {
       placeAt(container, item, index);
@@ -638,8 +764,10 @@
       const interactive = event.target.closest(INTERACTIVE);
       if (!handle && interactive && interactive !== item && item.contains(interactive)) return;
     }
-    // Mouse, pen and touch on a handle start after 4px; touch elsewhere needs a 250ms press (page scroll).
-    const immediate = event.pointerType !== 'touch' || !!resizeHandle || !!handle;
+    // Mouse, pen and touch on a handle start after 4px; touch elsewhere (or under data-dnd-touch="press")
+    // needs a 250ms press, so the page still scrolls.
+    const pressOnly = !!event.target.closest('[data-dnd-touch="press"]');
+    const immediate = event.pointerType !== 'touch' || !!resizeHandle || (!!handle && !pressOnly);
     pending = { item, pointerId: event.pointerId, pointerType: event.pointerType, x: event.clientX, y: event.clientY, resize: !!resizeHandle, immediate, timer: null };
     if (!immediate) {
       pending.timer = setTimeout(() => { if (pending && pending.item === item) startPointerDrag(); }, 250);
@@ -722,9 +850,11 @@
   const keyboardListMove = (key) => {
     const { item } = drag;
     const container = containerOf(item);
-    const vertical = container.getAttribute('data-dnd-axis') !== 'x';
-    const along = vertical ? { ArrowUp: -1, ArrowDown: 1 } : { ArrowLeft: -1, ArrowRight: 1 };
-    const across = vertical ? { ArrowLeft: -1, ArrowRight: 1 } : { ArrowUp: -1, ArrowDown: 1 };
+    const axis = container.getAttribute('data-dnd-axis');
+    const vertical = axis !== 'x';
+    // 2D (axis "both"): every arrow walks the reading order; no other container.
+    const along = axis === 'both' ? { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 } : vertical ? { ArrowUp: -1, ArrowDown: 1 } : { ArrowLeft: -1, ArrowRight: 1 };
+    const across = axis === 'both' ? {} : vertical ? { ArrowLeft: -1, ArrowRight: 1 } : { ArrowUp: -1, ArrowDown: 1 };
     const items = itemsOf(container);
     const index = items.indexOf(item);
     if (key === 'Home' || key === 'End' || along[key]) {
@@ -854,6 +984,7 @@
         if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '0');
         const described = (target.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
         if (!described.includes(help)) target.setAttribute('aria-describedby', described.concat(help).join(' '));
+        bindItem(item, true); // sort keys of the mirrors (texts are rendered by the server)
       });
       if (grid) markCollisions(container, null);
     });

@@ -93,3 +93,37 @@ test('edgeSpeed scrolls only near the edges, faster closer to them', () => {
   assert.equal(dnd.edgeSpeed(900, 0, 400, 40, 15), 15);
   assert.equal(dnd.edgeSpeed(10, 0, 0), 0, 'empty box');
 });
+
+test('placementText reads the boundary and column texts, numbers otherwise', () => {
+  const rows = ['06:00', '06:30', '07:00', '07:30'];
+  const cols = ['Main floor', 'Rig'];
+  assert.deepEqual(dnd.placementText(rows, cols, { row: 1, col: 1, span: 2 }), { start: '06:30', end: '07:30', col: 'Rig', row: '2', span: '2' });
+  assert.deepEqual(dnd.placementText(null, undefined, { row: 0, col: 2, span: 1 }), { start: '1', end: '2', col: '3', row: '1', span: '1' });
+});
+
+test('insertionIndex2d: vertical lists, wrapping grids and CSS columns', () => {
+  const box = (left, top, width = 100, height = 50) => ({ left, top, width, height });
+  // Vertical list: compare with y of the nearest item
+  const list = [box(0, 0), box(0, 60), box(0, 120)];
+  assert.equal(dnd.insertionIndex2d(list, 50, 10), 0);
+  assert.equal(dnd.insertionIndex2d(list, 50, 40), 1);
+  assert.equal(dnd.insertionIndex2d(list, 50, 400), 3);
+  assert.equal(dnd.insertionIndex2d([], 5, 5), 0);
+  // Grid of 3 per row: same row neighbours -> compare x
+  const grid = [box(0, 0), box(110, 0), box(220, 0), box(0, 60), box(110, 60)];
+  assert.equal(dnd.insertionIndex2d(grid, 120, 20), 1, 'left half of the 2nd card');
+  assert.equal(dnd.insertionIndex2d(grid, 200, 20), 2, 'right half of the 2nd card');
+  assert.equal(dnd.insertionIndex2d(grid, 300, 20), 3, 'right half of the last card of the row');
+  assert.equal(dnd.insertionIndex2d(grid, 10, 70), 3, 'left half of the first card of row 2');
+  // CSS columns (column-major): 0,1 in the first column, 2,3 in the second
+  const columns = [box(0, 0), box(0, 60), box(110, 0), box(110, 60)];
+  assert.equal(dnd.insertionIndex2d(columns, 150, 70), 3, 'top half of the last card');
+  assert.equal(dnd.insertionIndex2d(columns, 150, 100), 4);
+  assert.equal(dnd.insertionIndex2d(columns, 40, 100), 2, 'below the first column');
+});
+
+test('compareKeys sorts numbers inside keys naturally', () => {
+  assert.ok(dnd.compareKeys('7|2', '10|1') < 0);
+  assert.ok(dnd.compareKeys('2026-11-24', '2026-11-03') > 0);
+  assert.equal(dnd.compareKeys('a', 'a'), 0);
+});
