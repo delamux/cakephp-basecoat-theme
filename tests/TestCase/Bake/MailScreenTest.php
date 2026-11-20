@@ -124,8 +124,12 @@ class MailScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertStringContainsString('aria-label="Folders"', $html);
+        $this->assertStringContainsString('<aside class="flex min-w-0 flex-col gap-4 md:row-span-2 lg:row-span-1" aria-label="Mailbox">', $html);
+        $this->assertSame(1, substr_count($html, 'aria-label="Folders"'));
         $this->assertStringContainsString('aria-label="Messages"', $html);
+        // Heading outline: one h2 per pane, the subject of the open message below it.
+        $this->assertStringContainsString('<h2 class="sr-only">Messages</h2>', $html);
+        $this->assertStringContainsString('<h2 class="sr-only">Reading pane</h2>', $html);
         $this->assertStringContainsString('aria-label="Reading pane"', $html);
         $this->assertMatchesRegularExpression('/class="[^"]*\bgrid\b[^"]*\blg:grid-cols-/', $html, 'Stacks on small screens, three columns on large ones');
     }
@@ -142,13 +146,34 @@ class MailScreenTest extends TestCase
         $this->assertStringContainsString('<span class="sr-only">4 unread</span>', $html);
         $this->assertStringContainsString('<span class="sr-only">3 messages</span>', $html);
         $this->assertStringContainsString('Compose', $html);
+        // Real button styles (class="btn" + data-variant), the current folder visibly highlighted.
+        $this->assertStringNotContainsString('btn-ghost', $html);
+        $this->assertStringNotContainsString('btn-secondary', $html);
+        $this->assertMatchesRegularExpression('/<a href="#" class="btn [^"]*bg-accent[^"]*" data-variant="ghost" aria-current="page" data-active="true">/', $html);
+        $this->assertSame(1, substr_count($html, 'bg-accent text-accent-foreground'));
+    }
+
+    public function testFolderIconsHaveOneMeaning(): void
+    {
+        $folders = array_column(ScreenRegistry::data('mail')['folders'], 'icon', 'key');
+
+        $this->assertSame('file-pen', $folders['drafts'], 'file-text means "View" elsewhere');
+        $this->assertSame('shield-alert', $folders['spam'], 'circle-alert is the alert icon');
+    }
+
+    public function testFoldersAndLabelsAreAHorizontalStripOnPhones(): void
+    {
+        $html = $this->render();
+
+        $this->assertMatchesRegularExpression('/<nav class="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible" aria-label="Folders">/', $html);
+        $this->assertMatchesRegularExpression('/<nav class="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible" aria-labelledby="mail-labels-title">/', $html);
     }
 
     public function testLabelsInNavAndOnMessages(): void
     {
         $html = $this->render();
 
-        $this->assertStringContainsString('aria-label="Labels"', $html);
+        $this->assertStringContainsString('aria-labelledby="mail-labels-title"', $html);
         $this->assertGreaterThanOrEqual(2, substr_count($html, 'data-label="billing"'));
         $this->assertMatchesRegularExpression('/<span[^>]*data-label="planning"[^>]*>Planning<\/span>/', $html);
     }
@@ -206,8 +231,9 @@ class MailScreenTest extends TestCase
         $this->assertStringContainsString('action="/mail"', $html);
         $this->assertStringContainsString('name="q"', $html);
         $this->assertStringContainsString('value="invoice"', $html);
-        $this->assertMatchesRegularExpression('/<a [^>]*href="\/mail\?filter=unread"[^>]*aria-current="true"[^>]*>\s*Unread/s', $html);
-        $this->assertMatchesRegularExpression('/<a [^>]*href="\/mail\?filter=all"[^>]*>\s*All/s', $html);
+        // The tabs keep the search term.
+        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=unread&amp;q=invoice" aria-current="true" class="btn" data-variant="secondary"[^>]*>\s*Unread/s', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/mail\?filter=all&amp;q=invoice" class="btn" data-variant="ghost"[^>]*>\s*All/s', $html);
     }
 
     public function testRendersWithEmptyData(): void
@@ -303,5 +329,13 @@ class MailScreenTest extends TestCase
             . (string)file_get_contents(ROOT . '/templates/bake/Screen/mail/template.twig');
 
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe|4242/', $source);
+    }
+
+    public function testSenderAvatarIsDecorative(): void
+    {
+        $html = $this->render();
+
+        $this->assertStringContainsString('<span aria-hidden="true">KM</span>', $html);
+        $this->assertDoesNotMatchRegularExpression('/<span>[A-Z]{1,2}<\/span>/', $html);
     }
 }
