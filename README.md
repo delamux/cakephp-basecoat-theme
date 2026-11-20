@@ -678,6 +678,117 @@ How it behaves:
   columns are left out of the generated export.
 - Without the Search plugin the bake templates generate the plain list, as before.
 
+## Interactivity
+
+Two optional scripts make screens interactive in place: **`webroot/js/basecoat-dnd.js`** (drag and drop:
+sortable lists, kanban columns, 2D slot grids) and **`webroot/js/basecoat-screens.js`** (filter, view
+switch, select-all + bulk bar, toggles and counts, master-detail, composer, stepper). Vanilla JS, no
+dependencies, no build step; each file's header is the full reference of its data hooks.
+
+- **Progressive enhancement:** markup works without JS (links, GET forms, POST forms); the scripts read
+  `data-*` hooks, prevent the default and update the DOM in place.
+- **Loading:** per template, through the view blocks (HtmlHelper adds the CSP nonce):
+
+  ```php
+  $this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => true, 'defer' => true]);
+  $this->Html->script('BasecoatTheme.basecoat-screens', ['block' => true, 'defer' => true]);
+  $this->Html->css('BasecoatTheme.interactivity', ['block' => true]); // drag states, optional
+  ```
+
+  Both auto-initialize on `DOMContentLoaded` and on htmx `htmx:load` / `htmx:afterSwap`, are idempotent
+  (loaded twice = one instance) and drop state of content removed by htmx (`htmx:beforeCleanupElement`).
+  Content added by other means: `window.BasecoatDnd.init(root)` / `window.BasecoatScreens.init(root)`.
+
+### Drag and drop hooks (`basecoat-dnd.js`)
+
+| Hook | Where | Meaning |
+| --- | --- | --- |
+| `data-dnd-container` | list / column | Drop target. `data-dnd-group="x"`: move between containers of the group. `data-dnd-axis="y\|x"` (default `y`). `data-dnd-id`, `data-dnd-label` |
+| `data-dnd-item` | element that moves | Draggable. `data-dnd-id` (or `id`), `data-dnd-label` (announced; default: its text) |
+| `data-dnd-handle` | inside an item | Only the handle starts a drag and takes focus |
+| `data-dnd-grid` | CSS grid | 2D mode. `data-dnd-classes='{"row": [...], "col": [...], "span": {"1": "row-span-1", ...}}'` (class per 0-based index / span), `data-dnd-rows`, `data-dnd-cols`, `data-dnd-resize-axis="row\|col"`, `data-dnd-span-max` |
+| `data-dnd-slot` + `data-dnd-row` / `data-dnd-col` | empty grid cells | Pointer drop targets; `data-dnd-label` names the slot ("Monday 09:00, Room A") |
+| `data-dnd-row` / `data-dnd-col` / `data-dnd-span` | grid item | Current placement (0-based) |
+| `data-dnd-resize` | inside a grid item | Drag handle that changes the span |
+
+Grid items move by swapping their placement classes (no inline styles, nothing floats under the pointer;
+list items are the real nodes moved between targets). Overlapping grid items are allowed: they get
+`data-dnd-collision` and the overlap is announced. State attributes for styling: `data-dnd-dragging`
+(item), `data-dnd-over` (target container), `data-dnd-busy` (POST pending), `html[data-dnd-active]`.
+
+### Screen behaviour hooks (`basecoat-screens.js`)
+
+| Behaviour | Hooks |
+| --- | --- |
+| Filter | `input[data-filter-input="#root"]`; facets `[data-filter-facet="#root"][data-filter-value="done\|!done\|[css]"]` (or a `<select>`); `[data-filter-item]` (`data-filter-text`, tokens from `data-state` + `data-filter-tags`), `[data-filter-group]`, `[data-filter-empty]`. Case and accent insensitive; hidden with `hidden` |
+| View switch | `[data-view-switch="grid"][data-view-target="#root"]`; root `data-view`; `[data-view-panel="grid"]`; `[data-view-classes='{"grid": "...", "list": "..."}']` |
+| Select-all + bulk bar | `input[data-select-all="#scope"]`, `input[data-select-item]` (value = id), `[data-bulk-bar="#scope"]` with `[data-bulk-count]`, `[data-bulk-clear]`; rows get `data-selected` |
+| Toggle | `[data-toggle="done"]` (checkbox or button) in `[data-toggle-item]` (`data-id`) → item `data-state="done"` (`data-toggle-attr`, `data-toggle-off`, `data-toggle-class`); `[data-toggle-for="done"]` with `data-text-on/off`, `data-toggle-hidden="on\|off"`; `[data-toggle-all="read"][data-toggle-scope="#list"]` |
+| Remove | `[data-remove-item="archive"]` removes its item |
+| Counts | `[data-count-for="css selector"]` (`data-count-visible`), refreshed after every interaction |
+| Master-detail | `[data-master="#pane"]` + `[data-master-item="template-id"]`: pane filled from the `<template>`, `aria-current`, `[data-master-clear]` removed (`data-master-focus` moves focus) |
+| Composer | `form[data-composer="#log"][data-composer-template="tpl"]` (`[data-composer-text]`, `[data-composer-time]` in the template), `data-composer-reply="tpl"` (canned answer), `[data-composer-fill="text"]` suggestions; Enter sends, Shift+Enter new line |
+| Stepper | `[data-stepper]` with `[data-step]` panels, `[data-step-next]`, `[data-step-prev]`, `[data-step-go="n"]`, `[data-step-finish]`, `[data-step-indicator]`, `[data-step-current]`, `[data-step-total]`, `[data-step-progress]`; Next validates the panel's required fields first |
+
+### Events
+
+Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `preventDefault()`:
+
+| Event | On | `detail` |
+| --- | --- | --- |
+| `basecoat:move` (cancelable) | item | list: `{mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}`; grid: `{mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}` |
+| `basecoat:resize` (cancelable) | grid item | same as a grid move |
+| `basecoat:move-error` | item | move detail + `status` (POST failed, change reverted) |
+| `basecoat:filter` | filter root | `{query, facet, visible, total}` |
+| `basecoat:view` | view root | `{view}` |
+| `basecoat:select` | scope | `{selected: [values], count}` |
+| `basecoat:toggle` (cancelable) | item | `{item, id, name, on}` |
+| `basecoat:remove` (cancelable) | item | `{item, id, action}` |
+| `basecoat:open` (cancelable) | master item | `{item, id, detail}` |
+| `basecoat:send` (cancelable) | composer form | `{text, log, message}` |
+| `basecoat:step` (cancelable) | stepper | `{from, to, total}` |
+
+### Keyboard model
+
+Focus an item (or its handle; items without one get `tabindex="0"` and an `aria-describedby` hint) →
+**Space** or **Enter** picks it up (Space only when the item is a link) → **arrows** move it (lists:
+along the axis reorder, across it go to the previous / next container of the group; **Home** / **End**)
+→ **Space** / **Enter** drops, **Escape** (or Tab away) cancels. Grids: arrows move by one slot;
+**Shift + arrows** along the resize axis change the span, also without picking up. Focus stays on the
+moved item. Pointer: mouse / pen drag after 4px; touch after a 250ms press (the page still scrolls;
+handles with `touch-action: none` in `interactivity.css` drag at once). Every step is announced in one
+shared `aria-live="polite"` region (`[data-basecoat-announcer]`). `prefers-reduced-motion` turns off
+smooth scrolling, transitions and the composer reply delay.
+
+**Translations:** messages come from `data-dnd-i18n-<key>` / `data-screens-i18n-<key>` attributes on the
+element or an ancestor, or from a JSON block
+`<script type="application/json" data-dnd-i18n>{"dropped": "Soltado {label}…"}</script>`
+(`data-screens-i18n` for the screens script). Keys and placeholders are listed in `MESSAGES` at the top of
+each file (`picked-up`, `moved`, `dropped`, `cancelled`, `failed`, `grid-*`, `resized`, `collision`,
+`slot`, `instructions`; `results`, `step`, `removed`, `failed`, `send-failed`, `selected`). Pass them through
+`__()` in your template.
+
+### Endpoints and CSRF
+
+Without `data-endpoint` everything is client-only (the baked screens and the catalog previews). Add
+`data-endpoint="<?= $this->Url->build(['action' => 'move']) ?>"` to a container, item, form or an
+ancestor to also POST each change as JSON — `{action: 'move', id, from, to, index, fromIndex}` (lists),
+`{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}`,
+`{action: 'archive', id}`, `{action: 'send', text}` — with `X-CSRF-Token` taken from `data-csrf-token` on
+an ancestor, `<meta name="csrfToken">` or the page's `input[name=_csrfToken]` (CakePHP's
+`CsrfProtectionMiddleware` reads the header). A non-2xx answer or a network error reverts the change and
+announces it. In the controller: `$this->request->allowMethod('post'); $data = $this->request->getData();`
+(JSON bodies are parsed by `BodyParserMiddleware`).
+
+### CSP
+
+Both scripts are files (no inline code, no `eval`, no `innerHTML`: text through `textContent`, markup
+cloned from `<template>`) and set no `style` attribute: drag feedback is attributes styled by
+`interactivity.css`, grid moves swap classes, visibility uses `hidden`. They work under
+`script-src 'self'` / `style-src 'self'` plus the nonce for your other inline blocks. Classes listed in
+`data-dnd-classes` / `data-view-classes` must exist in your CSS (with the Tailwind browser build they are
+generated on the fly; with a compiled build make sure your templates are scanned).
+
 ## Content Security Policy
 
 Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CSP (CakePHP `CspMiddleware`):
@@ -693,6 +804,8 @@ Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CS
 - The `workflow` bake screen loads sequential-workflow-designer from jsDelivr; while a step is dragged the
   library sets a `style` attribute on the drag ghost, blocked (and reported) under a strict `style-src`
   (see [Workflow screen](#workflow-screen)).
+- The interactivity scripts (`basecoat-dnd.js`, `basecoat-screens.js`) need no inline script or style
+  attribute (see [CSP](#csp) under Interactivity).
 - Toast `action`/`cancel` buttons with an `onclick` key are inline JS: under a strict CSP use `url`, or `attributes`
   with data-* handled by your own script.
 
@@ -748,6 +861,16 @@ vendor/bin/phpunit tests/TestCase/Bake          # one folder
 Arguments after `--` go to PHPUnit. The bake screen tests write only to a temporary folder under `TMP`,
 never into the test app.
 
+### JS unit tests: `composer test-js`
+
+```bash
+composer test-js                                # = node --test "tests/js/*.test.js" (Node 22+)
+```
+
+Dependency-free `node:test` tests for the pure helpers of `basecoat-dnd.js` and `basecoat-screens.js`
+(index math, class maps, collisions, filtering, step states). The scripts export them with
+`module.exports` when loaded by Node and do nothing else outside a browser.
+
 ### Catalog: `composer docs` / `php bin/build-gh-pages`
 
 ```bash
@@ -797,6 +920,11 @@ gets filters and an *Export CSV* link: see
 ## Upgrade notes
 
 Changes in this version that can affect existing apps:
+
+- **New optional scripts and stylesheet.** `webroot/js/basecoat-dnd.js`, `webroot/js/basecoat-screens.js`
+  and `webroot/css/interactivity.css` (see [Interactivity](#interactivity)); nothing loads them unless a
+  template asks. The catalog build now copies every `webroot/js/*.js` to `assets/` and to
+  `basecoat_theme/js/` (their plugin asset URL).
 
 - **Forms get a stacked layout by default.** `Form->create()` adds `grid gap-6 [&>.btn]:justify-self-start`
   (config `formLayout`) when the `class` option sets no layout of its own, so fields are evenly spaced

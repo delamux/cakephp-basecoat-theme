@@ -27,7 +27,8 @@
     },
     "scripts": {
         "docs": "php bin/build-gh-pages",
-        "test": "phpunit --colors=always"
+        "test": "phpunit --colors=always",
+        "test-js": "node --test \"tests/js/*.test.js\""
     },
     "config": {
         "sort-packages": true
