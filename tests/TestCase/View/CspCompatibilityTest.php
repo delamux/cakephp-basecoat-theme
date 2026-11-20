@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace BasecoatTheme\Test\TestCase\View;
 
 use BasecoatTheme\Test\TestCase\View\Helper\HelperTestCase;
+use BasecoatTheme\View\BasecoatHelpers;
 use BasecoatTheme\View\Helper\DialogHelper;
 use BasecoatTheme\View\Helper\ProgressHelper;
 use BasecoatTheme\View\Helper\SidebarHelper;
@@ -97,5 +98,40 @@ class CspCompatibilityTest extends HelperTestCase
 
         $this->assertStringStartsWith('<script>', $script);
         $this->assertStringNotContainsString('nonce', $script);
+    }
+
+    public function testCommandMenuAndDateRangeUseDataAttributes(): void
+    {
+        $this->loadBasecoatHelpers();
+        $command = $this->View->CommandMenu->trigger('cmd')
+            . $this->View->CommandMenu->render(['Go' => [['label' => 'Home', 'url' => '/']]], ['id' => 'cmd']);
+        $range = $this->View->DateRangeField->render('created', ['presets' => ['This month' => ['2026-11-01', '2026-11-30']]]);
+
+        $this->assertNoInlineJs($command);
+        $this->assertStringContainsString('data-command-open="cmd"', $command);
+        $this->assertStringContainsString('data-command-hotkey="k"', $command);
+        $this->assertNoInlineJs($range);
+        $this->assertStringContainsString('data-range-from="2026-11-01"', $range);
+    }
+
+    public function testDashboardHelpersHaveNoInlineJs(): void
+    {
+        $this->loadBasecoatHelpers();
+        $html = $this->View->ChoiceCards->render('plan', ['a' => ['title' => 'A', 'icon' => 'wallet']])
+            . $this->View->Conversation->render([['text' => 'Hi', 'from' => 'them']])
+            . $this->View->MemberList->render([['name' => 'Ana', 'email' => 'ana@example.com', 'role' => 'owner']], ['roles' => ['owner' => 'Owner']])
+            . $this->View->MetricCard->render('Users', '12', ['change' => '+1', 'trend' => 'up'])
+            . $this->View->PageHeader->render('Overview')
+            . $this->View->TableToolbar->render(['filter' => ['q' => ['type' => 'search', 'label' => 'Search']]])
+            . $this->View->WorkspaceSwitcher->render([['name' => 'Fernway', 'url' => '#']]);
+
+        $this->assertNoInlineJs($html);
+    }
+
+    private function loadBasecoatHelpers(): void
+    {
+        foreach (BasecoatHelpers::MAP as $alias => $className) {
+            $this->View->loadHelper($alias, ['className' => $className]);
+        }
     }
 }

@@ -2,6 +2,7 @@
 msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgid "Back"
 msgstr ""
@@ -57,5 +58,61 @@ msgstr ""
 msgid "to"
 msgstr ""
 
+msgid "{0} to"
+msgstr ""
+
 msgid "{0} from"
 msgstr ""
+
+msgid "Add workspace"
+msgstr ""
+
+msgid "Command menu"
+msgstr ""
+
+msgid "Date range"
+msgstr ""
+
+msgid "Decrease"
+msgstr ""
+
+msgid "Increase"
+msgstr ""
+
+msgid "Message"
+msgstr ""
+
+msgid "New"
+msgstr ""
+
+msgid "No change"
+msgstr ""
+
+msgid "No members yet."
+msgstr ""
+
+msgid "No results found."
+msgstr ""
+
+msgid "Pick a date range"
+msgstr ""
+
+msgid "Role for {0}"
+msgstr ""
+
+msgid "Send"
+msgstr ""
+
+msgid "Type a command or search…"
+msgstr ""
+
+msgid "Type a message…"
+msgstr ""
+
+msgid "Workspaces"
+msgstr ""
+
+msgid "{0} new"
+msgid_plural "{0} new"
+msgstr[0] ""
+msgstr[1] ""

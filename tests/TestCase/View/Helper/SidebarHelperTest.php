@@ -16,11 +16,11 @@ class SidebarHelperTest extends HelperTestCase
             ['type' => 'group', 'label' => 'Documents', 'items' => [
                 ['label' => 'Reports', 'url' => '/reports'],
             ]],
-        ], ['header' => '<a href="/">Acme</a>', 'footer' => 'F']));
+        ], ['header' => '<a href="/">Fernway</a>', 'footer' => 'F']));
 
         $this->assertSame(
             '<aside id="sidebar" data-side="left" aria-hidden="false" class="sidebar"><nav aria-label="Sidebar navigation">'
-            . '<header><a href="/">Acme</a></header><section class="scrollbar-sm">'
+            . '<header><a href="/">Fernway</a></header><section class="scrollbar-sm">'
             . '<div role="group"><ul>'
             . '<li><a href="/articles" aria-current="page"><span>Articles</span></a></li>'
             . '<li><a href="/team"><span>Team</span></a></li>'

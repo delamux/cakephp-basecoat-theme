@@ -9,15 +9,15 @@ use function Cake\I18n\__d;
  * Basecoat Dialog (native `<dialog class="dialog">`).
  *
  * ```
- * echo $this->Dialog->render('edit-profile', $this->element('profile_form'), [
- *     'title' => 'Edit profile',
- *     'description' => 'Make changes to your profile here.',
- *     'trigger' => 'Edit profile',
+ * echo $this->Dialog->render('digest-settings', $this->element('digest_form'), [
+ *     'title' => 'Weekly digest',
+ *     'description' => 'Choose who receives the summary email.',
+ *     'trigger' => 'Digest settings',
  *     'footer' => $this->Button->render('Save changes', ['type' => 'submit']),
  * ]);
  *
  * // Separate trigger anywhere in the page
- * echo $this->Dialog->trigger('edit-profile', 'Open', ['variant' => 'outline']);
+ * echo $this->Dialog->trigger('digest-settings', 'Open', ['variant' => 'outline']);
  * ```
  *
  * @property \BasecoatTheme\View\Helper\ButtonHelper $Button

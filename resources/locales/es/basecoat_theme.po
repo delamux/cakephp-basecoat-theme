@@ -3,6 +3,7 @@ msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: es\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgid "Back"
 msgstr "Volver"
@@ -58,5 +59,61 @@ msgstr "Sí"
 msgid "to"
 msgstr "hasta"
 
+msgid "{0} to"
+msgstr "{0} hasta"
+
 msgid "{0} from"
 msgstr "{0} desde"
+
+msgid "Add workspace"
+msgstr "Añadir espacio de trabajo"
+
+msgid "Command menu"
+msgstr "Menú de comandos"
+
+msgid "Date range"
+msgstr "Rango de fechas"
+
+msgid "Decrease"
+msgstr "Disminución"
+
+msgid "Increase"
+msgstr "Aumento"
+
+msgid "Message"
+msgstr "Mensaje"
+
+msgid "New"
+msgstr "Nuevo"
+
+msgid "No change"
+msgstr "Sin cambios"
+
+msgid "No members yet."
+msgstr "Aún no hay miembros."
+
+msgid "No results found."
+msgstr "No se encontraron resultados."
+
+msgid "Pick a date range"
+msgstr "Elige un rango de fechas"
+
+msgid "Role for {0}"
+msgstr "Rol de {0}"
+
+msgid "Send"
+msgstr "Enviar"
+
+msgid "Type a command or search…"
+msgstr "Escribe un comando o busca…"
+
+msgid "Type a message…"
+msgstr "Escribe un mensaje…"
+
+msgid "Workspaces"
+msgstr "Espacios de trabajo"
+
+msgid "{0} new"
+msgid_plural "{0} new"
+msgstr[0] "{0} nuevo"
+msgstr[1] "{0} nuevos"

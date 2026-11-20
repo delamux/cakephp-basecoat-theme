@@ -10,18 +10,18 @@ class AvatarHelperTest extends HelperTestCase
     public function testInitialsFallback(): void
     {
         $avatar = new AvatarHelper($this->View);
-        $this->assertSame('<span class="avatar"><span>JD</span></span>', $avatar->render('Jane van Doe'));
-        $this->assertSame('SH', $avatar->initials('shadcn hello'));
+        $this->assertSame('<span class="avatar"><span>ID</span></span>', $avatar->render('Ines van Duarte'));
+        $this->assertSame('QS', $avatar->initials('quillon studio'));
     }
 
     public function testImageSizeAndBadge(): void
     {
         $avatar = new AvatarHelper($this->View);
         $this->assertSame(
-            '<span class="avatar rounded-lg" data-size="lg"><img src="https://github.com/shadcn.png" alt="shadcn"><span>CN</span><span class="avatar-badge"></span></span>',
-            $avatar->render('shadcn', [
-                'src' => 'https://github.com/shadcn.png',
-                'initials' => 'CN',
+            '<span class="avatar rounded-lg" data-size="lg"><img src="https://cdn.example.com/avatars/kofi.png" alt="Kofi Mensah"><span>KM</span><span class="avatar-badge"></span></span>',
+            $avatar->render('Kofi Mensah', [
+                'src' => 'https://cdn.example.com/avatars/kofi.png',
+                'initials' => 'KM',
                 'size' => 'lg',
                 'class' => 'rounded-lg',
                 'badge' => true,

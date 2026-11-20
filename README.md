@@ -13,10 +13,14 @@ A CakePHP 5 **theme plugin** for [Basecoat UI](https://basecoatui.com) (the shad
 Every Basecoat component has its **own View Helper**, and every helper can be parametrized with
 classes, variants, sizes, attributes and string templates.
 
+**Component catalog:** every helper with live examples, their PHP code and the rendered HTML, plus a
+demo dashboard built only with these helpers: <https://delamux.github.io/cakephp-basecoat-theme/>.
+
 - Theme: layouts (`default` dashboard with inset sidebar, `auth`, `error`), sidebar/user menu elements and flash elements.
-- 24 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart, Dialog,
-  DropdownMenu, EmptyState, Form, Icon, Kbd, Pagination, Progress, Sidebar, Skeleton, Table, Tabs,
-  Theme, Toast, Tooltip.
+- 33 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
+  ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Form, Icon,
+  Kbd, MemberList, MetricCard, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table, TableToolbar,
+  Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
 - Core helper integration: `FormHelper` (Basecoat classes on every widget), `PaginatorHelper`
   templates, `FlashHelper` elements, `HtmlHelper`/`UrlHelper` for every URL and asset.
 - Zero build step by default (Basecoat CSS + Tailwind v4 browser build from jsDelivr), or plug in your own compiled CSS.
@@ -62,7 +66,7 @@ Use the auth layout for login pages: `$this->viewBuilder()->setLayout('auth');`
 | Source (view var / `Configure`) | Purpose |
 | --- | --- |
 | `title` view var or `title` block | `<title>` and header heading |
-| `brand` / `BasecoatTheme.brand` | `['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle']` |
+| `brand` / `BasecoatTheme.brand` | `['name' => 'Fernway', 'url' => '/', 'icon' => 'circle']` |
 | `sidebarMenu` / `BasecoatTheme.sidebar` | Menu for `SidebarHelper::render()` |
 | `sidebarActions` / `BasecoatTheme.sidebarActions` | HTML under the brand (e.g. "Quick create") |
 | `sidebarUser` | `['name', 'email', 'avatar', 'menu' => [...DropdownMenu items]]` |
@@ -74,7 +78,7 @@ Blocks: `sidebar` (replace the whole sidebar), `header_actions`, `breadcrumb`, `
 ```php
 // config/app_local.php (or bootstrap)
 'BasecoatTheme' => [
-    'brand' => ['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle'],
+    'brand' => ['name' => 'Fernway', 'url' => '/', 'icon' => 'circle'],
     'sidebar' => [
         ['label' => 'Dashboard', 'url' => ['controller' => 'Dashboard', 'action' => 'index'], 'icon' => 'layout-dashboard'],
         ['type' => 'group', 'label' => 'Documents', 'items' => [
@@ -167,6 +171,18 @@ Sizes: `xs`, `sm`, `default`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`.
 `collapse`: `sm`, `md`, `lg`, `xl` or `true` (= `sm`); ignored on buttons without icon. Classes per
 breakpoint are configurable with `collapseClasses`.
 
+Notification indicator:
+```php
+echo $this->Button->icon('bell', 'Notifications', ['indicator' => true]);             // dot, "New" for screen readers
+echo $this->Button->icon('bell', 'Notifications', ['indicator' => $unread]);          // count badge, "3 new"
+echo $this->Button->render('Inbox', ['indicator' => '9+', 'indicatorLabel' => 'Unread messages']);
+```
+`indicator`: `true` shows a dot, a number or string shows a count badge (the button gets `relative`).
+`indicatorLabel` replaces the screen reader text (default "New" / "{0} new", pluralized); on
+`icon()` buttons it is appended to the `aria-label` ("Notifications, 3 new"). `false`, `null`, `''`,
+`0` and `'0'` render no indicator at all, so you can pass an unread count directly. Classes:
+`classes.indicatorDot`, `classes.indicatorCount`.
+
 ### Badge
 ```php
 echo $this->Badge->render('New');
@@ -176,17 +192,17 @@ echo $this->Badge->render('Docs', ['url' => '/docs', 'variant' => 'link']);
 
 ### Alert
 ```php
-echo $this->Alert->render('Heads up!', 'You can add components with the CLI.', ['icon' => 'info']);
-echo $this->Alert->render('Unable to process payment', ['Check your card', 'Verify the address'], ['variant' => 'destructive']);
+echo $this->Alert->render('Export scheduled', 'Your workspace data will be ready in a few minutes.', ['icon' => 'info']);
+echo $this->Alert->render('Sync failed', ['Renew the connector token', 'Check the warehouse permissions'], ['variant' => 'destructive']);
 echo $this->Alert->success('Saved');   // also error(), warning(), info() — configurable via `types`
 ```
 
 ### Card
 ```php
 echo $this->Card->render($this->element('stats'), [
-    'title' => 'Total Revenue',
-    'description' => 'Last 6 months',
-    'action' => $this->Badge->render('+12%', ['variant' => 'outline']),
+    'title' => 'Quarterly bookings',
+    'description' => 'Q3 2026, all plans',
+    'action' => $this->Badge->render('+9.4%', ['variant' => 'outline']),
     'footer' => $this->Button->render('Details'),
 ]);
 
@@ -204,7 +220,7 @@ echo $this->Table->render(
         'amount' => ['label' => 'Amount', 'class' => 'text-right'],
     ],
     $rows,                                                         // arrays keyed by column, `_row` = <tr> attributes
-    ['caption' => 'Invoices', 'empty' => 'No results.', 'escape' => false, 'footer' => ['Total', '', '$250']],
+    ['caption' => 'Invoices', 'empty' => 'No results.', 'escape' => false, 'footer' => ['Total', '', '$5,936.00']],
 );
 ```
 Sortable headers show a sort indicator (`chevrons-up-down`, `arrow-up`, `arrow-down`) and the active
@@ -245,7 +261,7 @@ the field gets `data-invalid="true"`. Template-only alternative for the core hel
 
 ### Tabs
 ```php
-echo $this->Tabs->render(['Account' => $this->element('account'), 'Password' => $this->element('password')]);
+echo $this->Tabs->render(['Usage' => $this->element('usage'), 'Exports' => $this->element('exports')]);
 echo $this->Tabs->render([
     ['tab' => 'Outline', 'id' => 'outline', 'panel' => $table],
     ['tab' => 'Past ' . $this->Badge->render('3'), 'id' => 'past', 'panel' => '...', 'escape' => false],
@@ -274,36 +290,72 @@ The current page gets `aria-current="page"` automatically (`currentMatch`: `exac
 
 ### Dialog
 ```php
-echo $this->Dialog->render('edit-profile', $this->element('profile_form'), [
-    'title' => 'Edit profile',
-    'description' => 'Make changes to your profile here.',
-    'trigger' => 'Edit profile',
+echo $this->Dialog->render('digest-settings', $this->element('digest_form'), [
+    'title' => 'Weekly digest',
+    'description' => 'Choose who receives the summary email.',
+    'trigger' => 'Digest settings',
     'footer' => $this->Dialog->close('Cancel') . $this->Button->submit('Save'),
 ]);
-echo $this->Dialog->trigger('edit-profile', 'Open');
+echo $this->Dialog->trigger('digest-settings', 'Open');
 ```
 
 ### Toast
 ```php
 echo $this->Toast->toaster();   // already in the default layout
-echo $this->Toast->render('Event created', ['category' => 'info', 'description' => 'Sunday at 9:00', 'action' => ['label' => 'Undo', 'url' => '/undo']]);
+echo $this->Toast->render('Report exported', ['category' => 'info', 'description' => 'Churn forecast, November', 'action' => ['label' => 'Undo', 'url' => '/undo']]);
 ```
 
 ### Chart
 ```php
 echo $this->Chart->render($rows, [
-    'desktop' => ['label' => 'Desktop', 'color' => 'var(--chart-1)'],
-    'mobile' => ['label' => 'Mobile', 'color' => 'var(--chart-2)'],
+    'web' => ['label' => 'Dashboard signups', 'color' => 'var(--chart-1)'],
+    'api' => ['label' => 'API signups', 'color' => 'var(--chart-2)'],
 ], ['type' => 'bar', 'labelKey' => 'month', 'class' => 'h-[250px] w-full', 'chartOptions' => [...]]);
 ```
 Chart.js and the Basecoat chart adapter are loaded by the layout only when a chart was rendered.
 
+### Dashboard components
+```php
+// Page title with description and actions
+echo $this->PageHeader->render('Overview', [
+    'description' => 'How your workspace is doing this month.',
+    'actions' => [$this->DateRangeField->render('period'), $this->Button->render('Download report', ['icon' => 'download'])],
+]);
+
+// KPI card: change vs. previous period, optional sparkline (`chart`) or link (`url`)
+echo $this->MetricCard->render('Active users', '12,486', ['change' => '+8.2%', 'trend' => 'up', 'description' => 'vs. October', 'icon' => 'users']);
+
+// From/to dates in a popover with presets; inputs are `period[from]` / `period[to]` (DateRange list filter)
+echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['2026-11-01', '2026-11-30']]]);
+
+// Filter bar above a table: a ListFilter (or its controls() array) plus actions
+echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
+
+// Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it; `hotkey` changes the key,
+// pass the same value to trigger() so the hint and aria-keyshortcuts match)
+echo $this->CommandMenu->trigger('command');
+echo $this->CommandMenu->render(['Pages' => [['label' => 'Orders', 'url' => ['controller' => 'Orders'], 'icon' => 'list']]], ['id' => 'command']);
+
+// Workspace / team dropdown (e.g. in the `sidebarActions` view var)
+echo $this->WorkspaceSwitcher->render([['name' => 'Fernway', 'plan' => 'Growth plan', 'url' => '/w/fernway']], ['addUrl' => '/workspaces/add']);
+
+// Radio group as selectable cards
+echo $this->ChoiceCards->render('plan', ['starter' => ['title' => 'Starter', 'description' => '3 projects', 'icon' => 'circle']], ['legend' => 'Plan', 'value' => 'starter']);
+
+// Chat thread with a composer (plain POST form, CSRF token included)
+echo $this->Conversation->render($messages, ['contact' => ['name' => 'Marta Vidal'], 'composer' => ['url' => ['action' => 'reply', $ticket->id]]]);
+
+// Team members with a role select (or badges with `readonly`)
+echo $this->MemberList->render($members, ['roles' => ['owner' => 'Owner', 'member' => 'Member']]);
+```
+Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
+
 ### Other components
 ```php
-echo $this->Avatar->render('Jane Doe', ['src' => $user->avatar, 'size' => 'lg']);
+echo $this->Avatar->render('Elena Sarto', ['src' => $user->avatar, 'size' => 'lg']);
 echo $this->Avatar->group($people, ['max' => 3]);
-echo $this->Accordion->render(['Is it accessible?' => 'Yes.'], ['multiple' => true]);
-echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Acme Website'], ['collapse' => 4]);
+echo $this->Accordion->render(['Can I export raw events?' => 'Yes, daily.'], ['multiple' => true]);
+echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Churn forecast'], ['collapse' => 4]);
 echo $this->ButtonGroup->render([['text' => 'Day'], ['text' => 'Week'], ['text' => 'Month']], ['aria-label' => 'Range']);
 echo $this->EmptyState->render('No projects yet', ['description' => 'Create your first project.', 'icon' => 'inbox', 'actions' => $this->Button->link('New project', ['action' => 'add'])]);
 echo $this->Progress->render(60);
@@ -431,6 +483,17 @@ area chart, tabs with a data table and row menus) only with these helpers:
 
 ```php
 <?= $this->element('BasecoatTheme.examples/dashboard') ?>
+```
+
+## Component catalog
+
+The catalog (<https://delamux.github.io/cakephp-basecoat-theme/>) is a static site generated from
+`docs/catalog/examples/<helper>/*.php` with the real helpers, and deployed to GitHub Pages on every push
+to `main`. Build it locally with:
+
+```bash
+composer docs              # build/gh-pages
+composer docs -- --strict  # also fail when a helper has no examples
 ```
 
 ## Translations

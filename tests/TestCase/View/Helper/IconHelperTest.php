@@ -53,6 +53,15 @@ class IconHelperTest extends HelperTestCase
         $this->assertSame('', (new IconHelper($this->View))->optional(null));
     }
 
+    public function testDashboardIconsAreBuiltIn(): void
+    {
+        $icon = new IconHelper($this->View);
+        foreach (['calendar', 'download', 'landmark', 'send', 'wallet'] as $name) {
+            $this->assertTrue($icon->has($name), $name);
+            $this->assertStringStartsWith('<svg', $icon->render($name));
+        }
+    }
+
     public function testUnknownIconThrows(): void
     {
         $this->expectException(InvalidArgumentException::class);

@@ -6,10 +6,17 @@
  *   [data-dialog-backdrop-close]), dismissible alerts ([data-alert-dismiss]) and flash toasts
  *   (template[data-basecoat-toast]): event delegation, no inline JS (CSP without 'unsafe-inline').
  * - Progress bars ([data-progress-value]: width via CSSOM) and "Back" links ([data-history-back]).
+ * - Command menu: [data-command-open] trigger, Ctrl/Cmd + dialog[data-command-hotkey], backdrop close.
+ * - Date range field: preset buttons ([data-range-from]/[data-range-to]) and trigger text ([data-range-label]).
  * - Re-initializes charts, toasts and progress bars in content swapped by htmx (htmx:load).
  * Requires Basecoat JS (and Chart.js + Basecoat chart.js for charts) to be loaded first.
  */
 (() => {
+  // Loaded twice (e.g. the script tag repeated in a page)? Keep the first instance only, so the
+  // delegated listeners below are registered once and a toggle or hotkey fires once.
+  if (window.BasecoatTheme) return;
+  window.BasecoatTheme = {};
+
   const parse = (value) => {
     if (!value) return undefined;
     try { return JSON.parse(value); } catch (e) { console.error('[BasecoatTheme] Invalid JSON', e); return undefined; }
@@ -90,10 +97,63 @@
       target.closest('.alert')?.remove();
       return;
     }
+    const command = target.closest('[data-command-open]');
+    if (command) {
+      const dialog = document.getElementById(command.dataset.commandOpen);
+      if (dialog && typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+      return;
+    }
+    // Date range preset: fill both inputs, update the trigger text and close the popover
+    const preset = target.closest('[data-range-from]');
+    if (preset) {
+      const root = preset.closest('.popover');
+      const inputs = root ? root.querySelectorAll('input[type="date"]') : [];
+      if (inputs.length < 2) return;
+      inputs[0].value = preset.dataset.rangeFrom || '';
+      inputs[1].value = preset.dataset.rangeTo || '';
+      inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+      // Closing relies on Basecoat's popover markup and state: the panel is the direct child
+      // `[data-popover]` (hidden with aria-hidden="true") and the direct child button carries
+      // aria-expanded. Keep in sync with DateRangeFieldHelper and Basecoat's popover.js.
+      const panel = root.querySelector(':scope > [data-popover]');
+      const trigger = root.querySelector(':scope > button');
+      if (panel) panel.setAttribute('aria-hidden', 'true');
+      if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.focus();
+      }
+      return;
+    }
     // Backdrop click (press and release on the dialog element itself, not its content)
-    if (target instanceof HTMLDialogElement && target.matches('[data-dialog-backdrop-close]') && backdropPress === target) {
+    if (target instanceof HTMLDialogElement && target.matches('[data-dialog-backdrop-close], .command-dialog') && backdropPress === target) {
       target.close();
     }
+  });
+
+  // Command menu hotkey: Ctrl/Cmd + key toggles dialog[data-command-hotkey]
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    const key = event.key?.toLowerCase();
+    if (!key) return;
+    const dialog = Array.from(document.querySelectorAll('dialog[data-command-hotkey]'))
+      .find((d) => (d.dataset.commandHotkey || '').toLowerCase() === key);
+    if (!dialog) return;
+    event.preventDefault();
+    if (dialog.open) dialog.close();
+    else if (typeof dialog.showModal === 'function') dialog.showModal();
+  });
+
+  // Date range field: keep the trigger text in sync with the inputs
+  document.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== 'date') return;
+    const root = input.closest('.popover');
+    const label = root && root.querySelector('[data-range-label]');
+    if (!label) return;
+    const [from, to] = root.querySelectorAll('input[type="date"]');
+    label.textContent = (from.value || to.value)
+      ? `${from.value || '…'} – ${to.value || '…'}`
+      : (label.dataset.placeholder || '');
   });
 
   const boot = () => { initCharts(); initToasts(); initProgress(); };
@@ -110,5 +170,5 @@
     initProgress(event.target);
   });
 
-  window.BasecoatTheme = { initCharts, initToasts, initProgress, toggleTheme };
+  Object.assign(window.BasecoatTheme, { initCharts, initToasts, initProgress, toggleTheme });
 })();

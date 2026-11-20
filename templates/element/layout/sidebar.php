@@ -3,7 +3,7 @@
  * Default sidebar of the BasecoatTheme layout.
  *
  * Data sources (view vars win over Configure):
- * - `brand` / `BasecoatTheme.brand`: ['name' => 'Acme Inc.', 'url' => '/', 'icon' => 'circle']
+ * - `brand` / `BasecoatTheme.brand`: ['name' => 'Fernway', 'url' => '/', 'icon' => 'circle']
  * - `sidebarMenu` / `BasecoatTheme.sidebar`: menu for SidebarHelper::render()
  * - `sidebarActions` / `BasecoatTheme.sidebarActions`: HTML under the brand (e.g. a "Quick create" button)
  * - `sidebarUser`: ['name' => ..., 'email' => ..., 'avatar' => url, 'menu' => DropdownMenu items]
