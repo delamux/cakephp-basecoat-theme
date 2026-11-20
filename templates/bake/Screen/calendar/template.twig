@@ -7,6 +7,7 @@
  */
 -#}
 {% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set tn = useDomain ? "__dn('" ~ plugin ~ "', " : "__n(" %}
 <?php
 /**
  * Calendar: month grid (a table, Monday first) with event chips, a side panel with the upcoming events and a legend.
@@ -69,7 +70,7 @@ $upcoming = array_slice($upcoming, 0, 5);
             <?= $this->Button->icon('chevron-left', {{ t|raw }}'Previous month'), ['url' => ['action' => 'index', '?' => ['month' => $prevMonth]], 'variant' => 'outline', 'data-nav' => 'prev']) ?>
             <?= $this->Button->icon('chevron-right', {{ t|raw }}'Next month'), ['url' => ['action' => 'index', '?' => ['month' => $nextMonth]], 'variant' => 'outline', 'data-nav' => 'next']) ?>
             <?= $this->Button->link({{ t|raw }}'Today'), ['action' => 'index'], ['variant' => 'outline', 'data-nav' => 'today']) ?>
-            <h3 class="ml-1 text-lg font-semibold" id="calendar-month"><?= h($monthLabel) ?></h3>
+            <h3 class="ml-1 text-lg font-semibold"><?= h($monthLabel) ?></h3>
         </div>
         <?php // TODO: only the month view is rendered. Render the week and day views and link these buttons to them. ?>
         <div class="flex items-center gap-1" role="group" aria-label="<?= h({{ t|raw }}'Calendar view')) ?>">
@@ -110,8 +111,7 @@ $upcoming = array_slice($upcoming, 0, 5);
                                     <div class="mb-1 flex justify-end">
                                         <time datetime="<?= h($key) ?>" class="inline-flex min-w-6 items-center justify-center rounded-full px-1 text-xs<?= $isToday ? ' bg-primary text-primary-foreground font-semibold' : '' ?>"<?= $isToday ? ' aria-current="date"' : '' ?>>
                                             <span aria-hidden="true"><?= h($day->format('j')) ?></span>
-                                            <span class="sr-only"><?= h($day->i18nFormat('d MMMM')) ?></span>
-                                            <?php if ($isToday) : ?><span class="sr-only">, <?= h({{ t|raw }}'Today')) ?></span><?php endif; ?>
+                                            <span class="sr-only"><?= h($day->i18nFormat('d MMMM')) ?><?= $isToday ? ', ' . h({{ t|raw }}'Today')) : '' ?></span>
                                         </time>
                                     </div>
                                     <?php if ($dayEvents) : ?>
@@ -120,7 +120,7 @@ $upcoming = array_slice($upcoming, 0, 5);
                                                 <?php $colors = $palette[$event['category']] ?? $neutral; ?>
                                                 <li>
                                                     <?php // TODO: link the chip to your own event view action. ?>
-                                                    <a href="#" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs <?= h($colors['chip']) ?>" data-event="<?= h((string)$event['id']) ?>" data-category="<?= h($event['category']) ?>">
+                                                    <a href="#" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs <?= h($colors['chip']) ?>" data-event="<?= h((string)$event['id']) ?>" data-category="<?= h($event['category']) ?>" title="<?= h(trim(($event['time'] ?? '') . ' ' . $event['title'])) ?>">
                                                         <?php if (!empty($event['time'])) : ?><span class="shrink-0 font-medium"><?= h($event['time']) ?></span><?php endif; ?>
                                                         <span class="truncate"><?= h($event['title']) ?></span>
                                                         <span class="sr-only">, <?= h($categories[$event['category']] ?? $event['category']) ?></span>
@@ -131,8 +131,7 @@ $upcoming = array_slice($upcoming, 0, 5);
                                                 <li>
                                                     <?php // TODO: link "more" to a day view listing every event of the day. ?>
                                                     <a href="#" class="text-muted-foreground hover:text-foreground block px-1.5 text-xs" data-more="<?= h($key) ?>">
-                                                        <?= h({{ t|raw }}'+{0} more', $hidden)) ?>
-                                                        <span class="sr-only"><?= h({{ t|raw }}'events on {0}', $day->i18nFormat('d MMMM'))) ?></span>
+                                                        <span aria-hidden="true"><?= h({{ t|raw }}'+{0} more', $hidden)) ?></span><span class="sr-only"><?= h({{ tn|raw }}'+{0} more event on {1}', '+{0} more events on {1}', $hidden, $hidden, $day->i18nFormat('d MMMM'))) ?></span>
                                                     </a>
                                                 </li>
                                             <?php endif; ?>

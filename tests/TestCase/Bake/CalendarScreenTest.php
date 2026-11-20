@@ -117,7 +117,8 @@ class CalendarScreenTest extends TestCase
             $this->assertStringContainsString('<span class="sr-only">' . $day . '</span>', $html);
         }
         $this->assertLessThan(strpos($html, 'Sunday'), strpos($html, 'Monday'), 'Monday first');
-        $this->assertStringContainsString('<h3 class="ml-1 text-lg font-semibold" id="calendar-month">November 2026</h3>', $html);
+        $this->assertStringContainsString('<h3 class="ml-1 text-lg font-semibold">November 2026</h3>', $html);
+        $this->assertStringNotContainsString('calendar-month', $html, 'No unused id');
     }
 
     public function testGridIsBuiltFromYearAndMonth(): void
@@ -145,7 +146,8 @@ class CalendarScreenTest extends TestCase
         $html = $this->render();
 
         $this->assertSame(1, substr_count($html, 'aria-current="date"'));
-        $this->assertStringContainsString('<span class="sr-only">, Today</span>', $html);
+        // One sr-only text, no stray space before the comma.
+        $this->assertStringContainsString('<span class="sr-only">20 November, Today</span>', $html);
         $this->assertMatchesRegularExpression('/<time datetime="2026-11-20"[^>]*aria-current="date"/', $html);
 
         $other = $this->render($this->data(['today' => '2027-01-05']));
@@ -158,6 +160,8 @@ class CalendarScreenTest extends TestCase
         $html = $this->render();
 
         $this->assertMatchesRegularExpression('/<a href="#"[^>]*data-event="3"[^>]*data-category="meeting"[^>]*>\s*<span class="shrink-0 font-medium">14:00<\/span>\s*<span class="truncate">Kickoff with Quillon Studio<\/span>\s*<span class="sr-only">, Customer meeting<\/span>/', $html);
+        // Chips are truncated at narrow widths: the full title is in a tooltip.
+        $this->assertMatchesRegularExpression('/data-event="3"[^>]*title="14:00 Kickoff with Quillon Studio"/', $html);
         // All-day event: no time.
         $this->assertMatchesRegularExpression('/data-event="4"[^>]*>\s*<span class="truncate">Usage report due<\/span>\s*<span class="sr-only">, Deadline<\/span>/', $html);
         // Events outside the month appear on the leading/trailing days.
@@ -173,7 +177,11 @@ class CalendarScreenTest extends TestCase
 
         // 24 Nov has four events: three chips and "+1 more".
         $this->assertStringContainsString('data-more="2026-11-24"', $html);
-        $this->assertMatchesRegularExpression('/\+1 more\s*<span class="sr-only">events on 24 November<\/span>/', $html);
+        $this->assertStringContainsString('<span aria-hidden="true">+1 more</span><span class="sr-only">+1 more event on 24 November</span>', $html);
+        $two = $this->render($this->data(['events' => array_merge(ScreenRegistry::data('calendar')['events'], [
+            ['id' => 90, 'date' => '2026-11-24', 'time' => '18:00', 'title' => 'Extra', 'category' => 'team'],
+        ])]));
+        $this->assertStringContainsString('<span class="sr-only">+2 more events on 24 November</span>', $two);
         $this->assertSame(1, substr_count($html, 'data-more='));
         $this->assertStringNotContainsString('data-event="13"', substr($html, 0, (int)strpos($html, '<aside')), 'The fourth chip is hidden');
     }
@@ -325,5 +333,6 @@ class CalendarScreenTest extends TestCase
         $files = (new BakeScreenCommand())->renderFiles('calendar', 'Calendar', 'Blog');
         $this->assertStringContainsString("__d('Blog', 'New event')", $files['templates/Calendar/index.php']);
         $this->assertStringContainsString("__d('Blog', '+{0} more', ", $files['templates/Calendar/index.php']);
+        $this->assertStringContainsString("__dn('Blog', '+{0} more event on {1}', '+{0} more events on {1}', ", $files['templates/Calendar/index.php']);
     }
 }
