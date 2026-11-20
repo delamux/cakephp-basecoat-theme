@@ -1,0 +1,170 @@
+{#
+/**
+ * BasecoatTheme bake template: `profile` screen (`bin/cake bake screen profile`).
+ * Reads the view variables of data.php (profile, stats, activity, projects).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Profile: cover band, identity, and tabs (Overview, Activity, Projects, Settings).
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var array<string, mixed> $profile Member: name, role, location, email, phone, timezone, joined, about, bio, skills, notifications (mentions, weekly_digest, product_news).
+ * @var array<int, array<string, mixed>> $stats Metrics: label, value, change, trend, description, icon.
+ * @var array<int, array<string, mixed>> $activity Timeline entries: id, icon, text, time.
+ * @var array<int, array<string, mixed>> $projects Projects: id, name, customer, progress (0-100), status (on_track, at_risk, planned, done), due.
+ */
+$this->assign('title', {{ t|raw }}'Profile'));
+
+$name = (string)($profile['name'] ?? '');
+$notifications = (array)($profile['notifications'] ?? []);
+$details = [
+    ['mail', {{ t|raw }}'Email'), (string)($profile['email'] ?? '')],
+    ['phone', {{ t|raw }}'Phone'), (string)($profile['phone'] ?? '')],
+    ['globe', {{ t|raw }}'Time zone'), (string)($profile['timezone'] ?? '')],
+    ['calendar', {{ t|raw }}'Joined'), (string)($profile['joined'] ?? '')],
+];
+$statusVariants = ['on_track' => 'secondary', 'at_risk' => 'destructive', 'planned' => 'outline', 'done' => 'default'];
+$statusLabels = [
+    'on_track' => {{ t|raw }}'On track'),
+    'at_risk' => {{ t|raw }}'At risk'),
+    'planned' => {{ t|raw }}'Planned'),
+    'done' => {{ t|raw }}'Done'),
+];
+
+// Overview
+$overview = '<div class="grid gap-4 lg:grid-cols-3">';
+$overview .= '<div class="flex min-w-0 flex-col gap-4 lg:col-span-2">';
+$about = (string)($profile['about'] ?? '');
+if ($about !== '') {
+    $overview .= $this->Card->render(
+        '<p class="text-sm leading-relaxed">' . h($about) . '</p>',
+        ['title' => {{ t|raw }}'About'), 'titleTag' => 'h3'],
+    );
+}
+$skills = '';
+foreach ((array)($profile['skills'] ?? []) as $skill) {
+    $skills .= '<li>' . $this->Badge->render((string)$skill, ['variant' => 'secondary']) . '</li>';
+}
+$overview .= $this->Card->render(
+    $skills !== '' ? '<ul class="flex flex-wrap gap-2">' . $skills . '</ul>' : '<p class="text-muted-foreground text-sm">' . h({{ t|raw }}'No skills listed yet.')) . '</p>',
+    ['title' => {{ t|raw }}'Skills'), 'titleTag' => 'h3'],
+);
+$overview .= '<div class="grid gap-4 sm:grid-cols-3">';
+// Stat labels and descriptions are data (translate them where you build $stats).
+foreach ($stats as $stat) {
+    $overview .= $this->MetricCard->render((string)$stat['label'], (string)$stat['value'], [
+        'change' => $stat['change'] ?? null,
+        'trend' => $stat['trend'] ?? 'flat',
+        'description' => isset($stat['description']) ? (string)$stat['description'] : null,
+        'icon' => $stat['icon'] ?? null,
+    ]);
+}
+$overview .= '</div></div>';
+$list = '<dl class="flex flex-col gap-4 text-sm">';
+foreach ($details as [$icon, $label, $value]) {
+    if ($value === '') {
+        continue;
+    }
+    $list .= '<div class="flex items-start gap-3">' . $this->Icon->render($icon, ['class' => 'text-muted-foreground mt-0.5 size-4 shrink-0'])
+        . '<div class="min-w-0"><dt class="text-muted-foreground text-xs">' . h($label) . '</dt><dd class="font-medium break-words">' . h($value) . '</dd></div></div>';
+}
+$list .= '</dl>';
+$overview .= '<div class="min-w-0">' . $this->Card->render($list, ['title' => {{ t|raw }}'Details'), 'titleTag' => 'h3']) . '</div>';
+$overview .= '</div>';
+
+// Activity
+if ($activity) {
+    $items = '';
+    foreach ($activity as $entry) {
+        $items .= '<li class="flex gap-3" data-activity="' . h((string)$entry['id']) . '">'
+            . '<span class="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full">' . $this->Icon->render((string)($entry['icon'] ?? 'check')) . '</span>'
+            . '<div class="min-w-0"><p class="text-sm">' . h((string)$entry['text']) . '</p>'
+            . '<p class="text-muted-foreground text-xs">' . h((string)$entry['time']) . '</p></div></li>';
+    }
+    $activityPanel = $this->Card->render('<ol class="flex flex-col gap-5">' . $items . '</ol>', ['title' => {{ t|raw }}'Recent activity'), 'titleTag' => 'h3']);
+} else {
+    $activityPanel = $this->EmptyState->render({{ t|raw }}'No activity yet'), ['description' => {{ t|raw }}'Recent actions will show up here.'), 'icon' => 'clock']);
+}
+
+// Projects
+if ($projects) {
+    $cards = '';
+    foreach ($projects as $project) {
+        $status = (string)($project['status'] ?? '');
+        $progress = (int)($project['progress'] ?? 0);
+        $body = '<div class="flex flex-col gap-3">'
+            . '<div class="flex items-center justify-between gap-2 text-sm"><span>' . h({{ t|raw }}'Progress')) . '</span><span class="font-medium tabular-nums">' . $progress . '%</span></div>'
+            . $this->Progress->render($progress, ['aria-label' => {{ t|raw }}'Progress of {0}', (string)$project['name'])])
+            . '<div class="flex items-center justify-between gap-2">'
+            . $this->Badge->render($statusLabels[$status] ?? $status, ['variant' => $statusVariants[$status] ?? 'secondary', 'data-status' => $status])
+            . '<span class="text-muted-foreground inline-flex items-center gap-1 text-xs">' . $this->Icon->render('calendar')
+            . '<span class="sr-only">' . h({{ t|raw }}'Due')) . '</span> ' . h((string)$project['due']) . '</span></div></div>';
+        $cards .= '<div class="min-w-0" data-project="' . h((string)$project['id']) . '">'
+            . $this->Card->render($body, ['title' => (string)$project['name'], 'description' => (string)($project['customer'] ?? ''), 'titleTag' => 'h3'])
+            . '</div>';
+    }
+    $projectsPanel = '<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">' . $cards . '</div>';
+} else {
+    $projectsPanel = $this->EmptyState->render({{ t|raw }}'No projects'), ['description' => {{ t|raw }}'Projects this person works on will show up here.'), 'icon' => 'briefcase']);
+}
+
+// Settings
+// TODO: point the form at your own action (POST with the CSRF token) and save the fields there.
+$settings = $this->Form->create(null, ['url' => '#', 'class' => 'flex flex-col gap-6']);
+$settings .= $this->Form->control('name', ['label' => {{ t|raw }}'Name'), 'value' => $name, 'id' => 'profile-name', 'autocomplete' => 'name']);
+$settings .= $this->Form->control('email', ['type' => 'email', 'label' => {{ t|raw }}'Email'), 'value' => (string)($profile['email'] ?? ''), 'id' => 'profile-email', 'autocomplete' => 'email']);
+$settings .= $this->Form->control('bio', ['type' => 'textarea', 'label' => {{ t|raw }}'Bio'), 'value' => (string)($profile['bio'] ?? ''), 'id' => 'profile-bio', 'rows' => 4]);
+$switches = [
+    'mentions' => {{ t|raw }}'Notify me when I am mentioned'),
+    'weekly_digest' => {{ t|raw }}'Send me a weekly digest'),
+    'product_news' => {{ t|raw }}'Product news and tips'),
+];
+$settings .= '<fieldset class="fieldset"><legend>' . h({{ t|raw }}'Notifications')) . '</legend><div class="flex flex-col gap-4">';
+foreach ($switches as $key => $label) {
+    $settings .= '<div class="flex items-center gap-3">'
+        . $this->Form->checkbox('notifications.' . $key, ['role' => 'switch', 'id' => 'profile-notify-' . $key, 'checked' => !empty($notifications[$key]), 'hiddenField' => false, 'class' => 'input'])
+        . '<label for="profile-notify-' . h($key) . '" class="text-sm">' . h($label) . '</label></div>';
+}
+$settings .= '</div></fieldset>';
+$settings .= '<div class="flex gap-2">' . $this->Form->submit({{ t|raw }}'Save changes')) . '</div>';
+$settings .= $this->Form->end();
+$settingsPanel = '<div class="max-w-2xl">' . $this->Card->render($settings, ['title' => {{ t|raw }}'Profile settings'), 'description' => {{ t|raw }}'Update how you appear to your team.'), 'titleTag' => 'h3']) . '</div>';
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <section class="overflow-hidden rounded-xl border" aria-label="<?= h({{ t|raw }}'Profile of {0}', $name)) ?>">
+        <?php // Decorative cover: a CSS gradient, no image. ?>
+        <div class="from-primary/30 via-primary/10 to-muted h-28 bg-linear-to-r sm:h-36" aria-hidden="true"></div>
+        <div class="flex flex-col gap-4 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+            <div class="-mt-10 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+                <?= $this->Avatar->render($name, ['decorative' => true, 'class' => 'border-background size-20 border-4 text-2xl']) ?>
+                <div class="min-w-0 sm:pb-1">
+                    <h2 class="truncate text-xl font-semibold"><?= h($name) ?></h2>
+                    <p class="text-muted-foreground text-sm"><?= h((string)($profile['role'] ?? '')) ?></p>
+                    <?php if (!empty($profile['location'])) : ?>
+                        <p class="text-muted-foreground mt-1 inline-flex items-center gap-1 text-sm">
+                            <?= $this->Icon->render('map-pin') ?>
+                            <span class="sr-only"><?= h({{ t|raw }}'Location')) ?>:</span>
+                            <?= h((string)$profile['location']) ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <?php // TODO: link "Edit profile" and "Message" to your own actions. ?>
+                <?= $this->Button->link({{ t|raw }}'Message'), '#', ['icon' => 'message-circle', 'variant' => 'outline']) ?>
+                <?= $this->Button->link({{ t|raw }}'Edit profile'), '#', ['icon' => 'pencil']) ?>
+            </div>
+        </div>
+    </section>
+
+    <?= $this->Tabs->render([
+        ['tab' => {{ t|raw }}'Overview'), 'panel' => '<div class="pt-4">' . $overview . '</div>', 'id' => 'overview'],
+        ['tab' => {{ t|raw }}'Activity'), 'panel' => '<div class="pt-4">' . $activityPanel . '</div>', 'id' => 'activity'],
+        ['tab' => {{ t|raw }}'Projects'), 'panel' => '<div class="pt-4">' . $projectsPanel . '</div>', 'id' => 'projects'],
+        ['tab' => {{ t|raw }}'Settings'), 'panel' => '<div class="pt-4">' . $settingsPanel . '</div>', 'id' => 'settings'],
+    ], ['id' => 'profile-tabs', 'variant' => 'line', 'listOptions' => ['aria-label' => {{ t|raw }}'Profile sections')]]) ?>
+</div>

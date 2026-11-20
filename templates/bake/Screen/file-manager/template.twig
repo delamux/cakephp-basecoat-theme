@@ -1,0 +1,235 @@
+{#
+/**
+ * BasecoatTheme bake template: `file-manager` screen (`bin/cake bake screen file-manager`).
+ * Reads the view variables of data.php (path, storage, types, breakdown, folders, files).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+{% set tn = useDomain ? "__dn('" ~ plugin ~ "', " : "__n(" %}
+<?php
+/**
+ * File manager: storage overview, folders, recent files, search and type filter, grid or list.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var string $path Current folder ("A/B"), empty for the root (the `path` query parameter wins).
+ * @var array{used: int|float, total: int|float, unit: string} $storage Storage used and available.
+ * @var array<string, string> $types File type => label (also the toolbar filter).
+ * @var array<int, array{type: string, used: int|float}> $breakdown Storage used per type, in the unit of `$storage`.
+ * @var array<int, array<string, mixed>> $folders Folders: name, files, size.
+ * @var array<int, array<string, mixed>> $files Files: id, name, type, owner, size, modified.
+ */
+$this->assign('title', {{ t|raw }}'Files'));
+
+$request = $this->getRequest();
+$indexUrl = $this->Url->build(['action' => 'index']);
+$view = $request->getQuery('view') === 'grid' ? 'grid' : 'list';
+// Current folder from ?path= (load its folders and files in your controller), without empty or dot segments
+$path = $request->getQuery('path', $path);
+$path = is_string($path) ? $path : '';
+$path = implode('/', array_filter(explode('/', $path), fn (string $segment): bool => !in_array($segment, ['', '.', '..'], true)));
+$filters = array_filter(array_map(fn (string $name): string => is_string($request->getQuery($name)) ? $request->getQuery($name) : '', ['q' => 'q', 'type' => 'type']), 'strlen');
+$filtered = $filters !== [];
+// Links keep the current view; a folder link adds ?path=, the view switch also keeps the filters
+$link = function (string $folder = '', ?string $mode = null, array $extra = []) use ($indexUrl, $view): string {
+    $query = array_filter(['path' => $folder, 'view' => $mode ?? $view] + $extra, 'strlen');
+
+    return $indexUrl . ($query ? '?' . http_build_query($query) : '');
+};
+
+// One icon per file type, decorative: the type is also written as text
+$typeIcons = ['document' => 'file-text', 'image' => 'file-image', 'video' => 'file-video', 'audio' => 'file-audio', 'archive' => 'file-archive'];
+$typeIcon = fn (string $type): string => $typeIcons[$type] ?? 'file-text';
+
+// Breadcrumb: Files / A / B (the last crumb is the current folder)
+$segments = array_values(array_filter(explode('/', $path), 'strlen'));
+$crumbs = [];
+if ($segments) {
+    $current = array_pop($segments);
+    $crumbs[] = ['label' => {{ t|raw }}'Files'), 'url' => $link()];
+    foreach ($segments as $i => $segment) {
+        $crumbs[] = ['label' => $segment, 'url' => $link(implode('/', array_slice($segments, 0, $i + 1)))];
+    }
+    $crumbs[] = $current;
+} else {
+    $crumbs[] = {{ t|raw }}'Files');
+}
+
+$unit = (string)$storage['unit'];
+$percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['total'] * 100) : 0;
+?>
+<div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Files'), [
+        'level' => 2,
+        'description' => {{ t|raw }}'Shared documents, media and customer folders.'),
+        'actions' => [
+            // TODO: connect "Upload" to an upload action of your controller (POST, multipart).
+            $this->Button->render({{ t|raw }}'Upload'), ['icon' => 'upload']),
+        ],
+    ]) ?>
+
+    <?= $this->Breadcrumb->render($crumbs, ['aria-label' => {{ t|raw }}'Current folder')]) ?>
+
+    <section aria-label="<?= h({{ t|raw }}'Storage')) ?>" class="card">
+        <header>
+            <h3 class="flex items-center gap-2"><?= $this->Icon->render('hard-drive') ?><?= h({{ t|raw }}'Storage')) ?></h3>
+            <p><?= h({{ t|raw }}'{0} {1} of {2} {1} used', $storage['used'], $unit, $storage['total'])) ?></p>
+        </header>
+        <section class="flex flex-col gap-4">
+            <?= $this->Progress->render($storage['used'], [
+                'max' => $storage['total'],
+                'aria-label' => {{ t|raw }}'Storage used'),
+                'data-storage-used' => (string)$percentUsed,
+            ]) ?>
+            <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <?php foreach ($breakdown as $item) : ?>
+                    <?php $label = $types[$item['type']] ?? $item['type']; ?>
+                    <li class="flex min-w-0 flex-col gap-1.5" data-storage-type="<?= h($item['type']) ?>">
+                        <span class="flex items-center gap-2 text-sm font-medium">
+                            <?= $this->Icon->render($typeIcon($item['type'])) ?>
+                            <span class="min-w-0 truncate"><?= h($label) ?></span>
+                        </span>
+                        <?= $this->Progress->render($item['used'], [
+                            'max' => $storage['total'],
+                            'aria-label' => {{ t|raw }}'{0} storage', $label),
+                        ]) ?>
+                        <span class="text-muted-foreground text-xs"><?= h($item['used'] . ' ' . $unit) ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    </section>
+
+    <?= $this->TableToolbar->render([
+        'url' => $indexUrl,
+        'hidden' => ['path' => $path, 'view' => $view],
+        'filter' => [
+            'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files')],
+            'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types],
+        ],
+    ]) ?>
+
+    <section aria-labelledby="file-manager-folders-heading" class="flex flex-col gap-3">
+        <h3 id="file-manager-folders-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Folders')) ?></h3>
+        <?php if ($folders) : ?>
+            <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <?php foreach ($folders as $folder) : ?>
+                    <li class="card min-w-0 p-4" data-folder="<?= h($folder['name']) ?>">
+                        <a href="<?= h($link(ltrim($path . '/' . $folder['name'], '/'))) ?>" class="flex min-w-0 items-center gap-3">
+                            <span class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md"><?= $this->Icon->render('folder') ?></span>
+                            <span class="flex min-w-0 flex-col">
+                                <span class="truncate text-sm font-medium"><?= h($folder['name']) ?></span>
+                                <span class="text-muted-foreground text-xs"><?= h({{ tn|raw }}'{0} file', '{0} files', (int)$folder['files'], $folder['files'])) ?> &middot; <?= h($folder['size']) ?></span>
+                            </span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php else : ?>
+            <?= $this->EmptyState->render({{ t|raw }}'No folders'), [
+                'description' => {{ t|raw }}'Folders you create will show up here.'),
+                'icon' => 'folder-open',
+            ]) ?>
+        <?php endif; ?>
+    </section>
+
+    <section aria-labelledby="file-manager-files-heading" class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3 id="file-manager-files-heading" class="text-base font-semibold"><?= h({{ t|raw }}'Recent files')) ?></h3>
+            <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'Layout')) ?>" data-view-switch>
+                <?= $this->Button->link({{ t|raw }}'List'), $link($path, 'list', $filters), [
+                    'icon' => 'list',
+                    'variant' => $view === 'list' ? 'secondary' : 'ghost',
+                    'size' => 'sm',
+                    'aria-current' => $view === 'list' ? 'true' : null,
+                ]) ?>
+                <?= $this->Button->link({{ t|raw }}'Grid'), $link($path, 'grid', $filters), [
+                    'icon' => 'layout-grid',
+                    'variant' => $view === 'grid' ? 'secondary' : 'ghost',
+                    'size' => 'sm',
+                    'aria-current' => $view === 'grid' ? 'true' : null,
+                ]) ?>
+            </nav>
+        </div>
+
+        <?php if (!$files) : ?>
+            <?= $this->EmptyState->render({{ t|raw }}'No files'), [
+                'description' => $filtered ? {{ t|raw }}'Nothing matches these filters. Try a different search.') : {{ t|raw }}'Upload a file to get started.'),
+                'icon' => 'folder-open',
+            ]) ?>
+        <?php elseif ($view === 'grid') : ?>
+            <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-view="grid">
+                <?php foreach ($files as $file) : ?>
+                    <?php $typeLabel = $types[$file['type']] ?? $file['type']; ?>
+                    <li class="card flex min-w-0 flex-col gap-3 p-4" data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>">
+                        <div class="flex items-start justify-between gap-2">
+                            <span class="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md"><?= $this->Icon->render($typeIcon($file['type'])) ?></span>
+                            <?= $this->DropdownMenu->render('', [
+                                // TODO: link these items to your own download, rename and delete actions.
+                                ['label' => {{ t|raw }}'Download'), 'url' => '#'],
+                                ['label' => {{ t|raw }}'Rename'), 'url' => '#'],
+                                '-',
+                                ['label' => {{ t|raw }}'Delete'), 'url' => '#', 'variant' => 'destructive'],
+                            ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $file['name'])], 'align' => 'end']) ?>
+                        </div>
+                        <div class="flex min-w-0 flex-col gap-0.5">
+                            <span class="truncate text-sm font-medium" title="<?= h($file['name']) ?>"><?= h($file['name']) ?></span>
+                            <span class="text-muted-foreground text-xs"><span class="sr-only"><?= h({{ t|raw }}'Type:')) ?> </span><?= h($typeLabel) ?> &middot; <?= h($file['size']) ?> &middot; <?= h($file['modified']) ?></span>
+                        </div>
+                        <span class="flex min-w-0 items-center gap-2 text-xs">
+                            <?= $this->Avatar->render($file['owner'], ['decorative' => true, 'size' => 'sm']) ?>
+                            <span class="truncate"><?= h($file['owner']) ?></span>
+                        </span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php else : ?>
+            <div class="relative min-w-0 overflow-x-auto rounded-lg border" data-view="list">
+                <table class="table">
+                    <caption class="sr-only"><?= h({{ t|raw }}'Recent files')) ?></caption>
+                    <thead>
+                        <tr>
+                            <th><?= h({{ t|raw }}'Name')) ?></th>
+                            <th><?= h({{ t|raw }}'Owner')) ?></th>
+                            <th><?= h({{ t|raw }}'Size')) ?></th>
+                            <th><?= h({{ t|raw }}'Modified')) ?></th>
+                            <th><span class="sr-only"><?= h({{ t|raw }}'Actions')) ?></span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($files as $file) : ?>
+                            <?php $typeLabel = $types[$file['type']] ?? $file['type']; ?>
+                            <tr data-file="<?= h((string)$file['id']) ?>" data-type="<?= h($file['type']) ?>">
+                                <td class="font-medium">
+                                    <span class="flex min-w-0 items-center gap-2">
+                                        <span class="text-muted-foreground"><?= $this->Icon->render($typeIcon($file['type'])) ?></span>
+                                        <span class="min-w-0 truncate"><?= h($file['name']) ?></span>
+                                        <span class="sr-only">(<?= h($typeLabel) ?>)</span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="flex items-center gap-2">
+                                        <?= $this->Avatar->render($file['owner'], ['decorative' => true, 'size' => 'sm']) ?>
+                                        <span class="whitespace-nowrap"><?= h($file['owner']) ?></span>
+                                    </span>
+                                </td>
+                                <td class="whitespace-nowrap"><?= h($file['size']) ?></td>
+                                <td class="text-muted-foreground whitespace-nowrap"><?= h($file['modified']) ?></td>
+                                <td class="text-right">
+                                    <?= $this->DropdownMenu->render('', [
+                                        // TODO: link these items to your own download, rename and delete actions.
+                                        ['label' => {{ t|raw }}'Download'), 'url' => '#'],
+                                        ['label' => {{ t|raw }}'Rename'), 'url' => '#'],
+                                        '-',
+                                        ['label' => {{ t|raw }}'Delete'), 'url' => '#', 'variant' => 'destructive'],
+                                    ], ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}', $file['name'])], 'align' => 'end']) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
+</div>

@@ -88,6 +88,33 @@ class IconHelperTest extends HelperTestCase
         }
     }
 
+    public function testBatchThreeIconsRenderDecorative(): void
+    {
+        $icon = new IconHelper($this->View);
+        $names = ['briefcase', 'building-2', 'calendar-clock', 'calendar-days', 'clock', 'dumbbell', 'file-archive', 'file-audio',
+            'file-image', 'file-video', 'folder-open', 'globe', 'hard-drive', 'mail-check', 'map-pin', 'rocket', 'upload', 'user-plus'];
+        foreach ($names as $name) {
+            $this->assertTrue($icon->has($name), $name);
+            $out = $icon->render($name);
+            $this->assertStringStartsWith('<svg', $out, $name);
+            $this->assertStringContainsString('aria-hidden="true"', $out, $name);
+        }
+        // Lucide 0.468.0 markup.
+        $this->assertStringContainsString(
+            '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+            $icon->render('clock'),
+        );
+    }
+
+    public function testIconNamesAreAlphabetical(): void
+    {
+        $property = new \ReflectionProperty(IconHelper::class, 'icons');
+        $names = array_keys($property->getValue(new IconHelper($this->View)));
+        $sorted = $names;
+        sort($sorted, SORT_STRING);
+        $this->assertSame($sorted, $names);
+    }
+
     public function testUnknownIconThrows(): void
     {
         $this->expectException(InvalidArgumentException::class);

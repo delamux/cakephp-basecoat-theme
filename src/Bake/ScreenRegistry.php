@@ -179,6 +179,41 @@ final class ScreenRegistry
                 'path' => $dir . 'notes',
                 'icon' => 'sticky-note',
             ],
+            'bookings' => [
+                'title' => 'Bookings',
+                'description' => 'Day schedule of classes per room and coach, with date navigation and a list view.',
+                'controller' => 'Bookings',
+                'path' => $dir . 'bookings',
+                'icon' => 'calendar-clock',
+            ],
+            'calendar' => [
+                'title' => 'Calendar',
+                'description' => 'Month calendar with categorised events, today marker and an upcoming list.',
+                'controller' => 'Calendar',
+                'path' => $dir . 'calendar',
+                'icon' => 'calendar-days',
+            ],
+            'profile' => [
+                'title' => 'Profile',
+                'description' => 'User profile with cover, details, skills, activity timeline, projects and settings tabs.',
+                'controller' => 'Profile',
+                'path' => $dir . 'profile',
+                'icon' => 'circle-user',
+            ],
+            'onboarding' => [
+                'title' => 'Onboarding',
+                'description' => 'Five-step onboarding flow with a step indicator and no-JS navigation.',
+                'controller' => 'Onboarding',
+                'path' => $dir . 'onboarding',
+                'icon' => 'rocket',
+            ],
+            'file-manager' => [
+                'title' => 'File manager',
+                'description' => 'Storage overview, folders, recent files, search and type filter.',
+                'controller' => 'Files',
+                'path' => $dir . 'file-manager',
+                'icon' => 'folder',
+            ],
         ];
     }
 }

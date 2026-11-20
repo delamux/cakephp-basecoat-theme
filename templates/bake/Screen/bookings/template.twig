@@ -1,0 +1,199 @@
+{#
+/**
+ * BasecoatTheme bake template: `bookings` screen (`bin/cake bake screen bookings`).
+ * Reads the view variables of data.php (date, dateLabel, view, dayStart, dayEnd, resources, types, bookings).
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
+ */
+-#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
+<?php
+/**
+ * Bookings: day schedule with one column per resource and classes placed by start and end time
+ * (CSS grid, one row per 30 minutes), plus a list view of the same bookings.
+ *
+ * @var \{{ namespace }}\View\AppView $this
+ * @var string $date Day shown (Y-m-d). Your controller reads the `date` query parameter (the previous / next
+ *   day links set it), validates it and passes that day, its label and its bookings.
+ * @var string $dateLabel The day as displayed in the header.
+ * @var string $view `grid` or `list` (the `view` query parameter wins).
+ * @var string $dayStart First time of the grid (HH:MM, on the half hour).
+ * @var string $dayEnd End of the grid (HH:MM, on the half hour, at most 24 hours after $dayStart).
+ * @var array<string, string> $resources Resource id => name (rooms or coaches), one grid column each (up to 6).
+ * @var array<string, string> $types Class type => label.
+ * @var array<int, array<string, mixed>> $bookings Rows: id, resource, type, name, coach, start, end, booked, capacity.
+ */
+$this->assign('title', {{ t|raw }}'Bookings'));
+
+$request = $this->getRequest();
+$indexUrl = $this->Url->build(['action' => 'index']);
+$view = (string)$request->getQuery('view', $view);
+$view = in_array($view, ['grid', 'list'], true) ? $view : 'grid';
+$link = fn (array $query): string => $indexUrl . '?' . http_build_query($query + $request->getQueryParams());
+
+// Previous / next day (GET ?date=); no day navigation when $date is not a valid Y-m-d date
+$day = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+$day = $day !== false && $day->format('Y-m-d') === $date ? $day : null;
+$previousUrl = $day ? $link(['date' => $day->modify('-1 day')->format('Y-m-d')]) : null;
+$nextUrl = $day ? $link(['date' => $day->modify('+1 day')->format('Y-m-d')]) : null;
+
+// Minutes since midnight of an HH:MM time
+$minutes = fn (string $time): int => (int)substr($time, 0, 2) * 60 + (int)substr($time, 3, 2);
+$dayStartMinutes = $minutes($dayStart);
+$slots = max(1, min(48, intdiv($minutes($dayEnd) - $dayStartMinutes, 30)));
+$dayEndMinutes = $dayStartMinutes + $slots * 30;
+
+// Fixed class sets, written out in full so a compiled Tailwind build finds them (the grid is placed
+// with utility classes, never inline styles). Row 1 is the header; one row per 30 minutes (up to 48).
+$rowStarts = [
+    2 => 'row-start-2', 3 => 'row-start-3', 4 => 'row-start-4', 5 => 'row-start-5', 6 => 'row-start-6', 7 => 'row-start-7', 8 => 'row-start-8', 9 => 'row-start-9',
+    10 => 'row-start-10', 11 => 'row-start-11', 12 => 'row-start-12', 13 => 'row-start-13', 14 => 'row-start-14', 15 => 'row-start-15', 16 => 'row-start-16', 17 => 'row-start-17',
+    18 => 'row-start-18', 19 => 'row-start-19', 20 => 'row-start-20', 21 => 'row-start-21', 22 => 'row-start-22', 23 => 'row-start-23', 24 => 'row-start-24', 25 => 'row-start-25',
+    26 => 'row-start-26', 27 => 'row-start-27', 28 => 'row-start-28', 29 => 'row-start-29', 30 => 'row-start-30', 31 => 'row-start-31', 32 => 'row-start-32', 33 => 'row-start-33',
+    34 => 'row-start-34', 35 => 'row-start-35', 36 => 'row-start-36', 37 => 'row-start-37', 38 => 'row-start-38', 39 => 'row-start-39', 40 => 'row-start-40', 41 => 'row-start-41',
+    42 => 'row-start-42', 43 => 'row-start-43', 44 => 'row-start-44', 45 => 'row-start-45', 46 => 'row-start-46', 47 => 'row-start-47', 48 => 'row-start-48', 49 => 'row-start-49',
+];
+$spanClasses = [1 => 'row-span-1', 2 => 'row-span-2', 3 => 'row-span-3', 4 => 'row-span-4', 5 => 'row-span-5', 6 => 'row-span-6', 7 => 'row-span-7', 8 => 'row-span-8'];
+$columnStarts = [1 => 'col-start-1', 2 => 'col-start-2', 3 => 'col-start-3', 4 => 'col-start-4', 5 => 'col-start-5', 6 => 'col-start-6', 7 => 'col-start-7'];
+$columnTemplates = [
+    1 => 'grid-cols-[3.5rem_minmax(9rem,1fr)]',
+    2 => 'grid-cols-[3.5rem_repeat(2,minmax(9rem,1fr))]',
+    3 => 'grid-cols-[3.5rem_repeat(3,minmax(9rem,1fr))]',
+    4 => 'grid-cols-[3.5rem_repeat(4,minmax(9rem,1fr))]',
+    5 => 'grid-cols-[3.5rem_repeat(5,minmax(9rem,1fr))]',
+    6 => 'grid-cols-[3.5rem_repeat(6,minmax(9rem,1fr))]',
+];
+$typeColors = [
+    'wod' => 'border-rose-300 bg-rose-100 text-rose-950 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-100',
+    'lifting' => 'border-sky-300 bg-sky-100 text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100',
+    'mobility' => 'border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100',
+    'open' => 'border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100',
+];
+$fallbackColor = 'border-border bg-muted text-foreground';
+$resourceIds = array_slice(array_keys($resources), 0, 6);
+
+// Bookings of the shown resources, placed on the 30-minute rows (row 1 is the header). Bookings
+// outside the day are skipped and the ones crossing its start or end are clipped to it.
+// TODO: overlapping bookings of one resource share the same cells; show them side by side (or
+// prevent them when saving) if your schedule allows overlaps. The list view shows every booking.
+$placed = [];
+foreach ($bookings as $booking) {
+    $column = array_search($booking['resource'], $resourceIds, true);
+    $from = max($minutes($booking['start']), $dayStartMinutes);
+    $to = min($minutes($booking['end']), $dayEndMinutes);
+    if ($column === false || $to <= $from) {
+        continue;
+    }
+    $startSlot = intdiv($from - $dayStartMinutes, 30);
+    $span = max(1, min(8, intdiv($to - $from, 30), $slots - $startSlot));
+    $placed[] = $booking + ['column' => $column + 2, 'row' => $startSlot + 2, 'span' => $span];
+}
+usort($bookings, fn (array $a, array $b): int => [$a['start'], $a['resource']] <=> [$b['start'], $b['resource']]);
+
+// Row menu; `side` opens it upwards for the last rows of the grid so the scroll area does not clip it
+$menu = fn (array $booking, array $options = []): string => $this->DropdownMenu->render('', [
+    // TODO: link these items to your own edit and cancel actions (cancel must be a POST).
+    ['label' => {{ t|raw }}'Edit booking'), 'url' => '#'],
+    '-',
+    ['label' => {{ t|raw }}'Cancel booking'), 'url' => '#', 'variant' => 'destructive'],
+], $options + ['trigger' => ['icon' => 'ellipsis', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t|raw }}'Actions for {0}, {1}', $booking['name'], $booking['start'] . '–' . $booking['end'])], 'align' => 'end']);
+$capacity = fn (array $booking): string => '<span>' . h($booking['booked'] . '/' . $booking['capacity']) . '</span><span class="sr-only"> ' . h({{ t|raw }}'booked')) . '</span>';
+?>
+<div class="flex min-w-0 flex-col gap-4 px-4 md:gap-6 lg:px-6">
+    <?= $this->PageHeader->render({{ t|raw }}'Bookings'), [
+        'level' => 2,
+        'description' => {{ t|raw }}'Classes and open gym hours at Ironbark Box.'),
+        'actions' => [
+            // TODO: connect "New booking" to your own add action (or open a dialog with a form).
+            $this->Button->render({{ t|raw }}'New booking'), ['icon' => 'plus']),
+        ],
+    ]) ?>
+
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            <?php if ($day) : ?>
+                <?= $this->Button->icon('chevron-left', {{ t|raw }}'Previous day'), ['url' => $previousUrl, 'variant' => 'outline', 'rel' => 'prev']) ?>
+                <h3 class="min-w-0 px-1 text-base font-medium"><time datetime="<?= h($day->format('Y-m-d')) ?>"><?= h($dateLabel) ?></time></h3>
+                <?= $this->Button->icon('chevron-right', {{ t|raw }}'Next day'), ['url' => $nextUrl, 'variant' => 'outline', 'rel' => 'next']) ?>
+            <?php else : ?>
+                <h3 class="min-w-0 px-1 text-base font-medium"><?= h($dateLabel) ?></h3>
+            <?php endif; ?>
+        </div>
+        <nav class="flex items-center gap-1" aria-label="<?= h({{ t|raw }}'View')) ?>">
+            <?= $this->Button->link({{ t|raw }}'Grid'), $link(['view' => 'grid']), ['icon' => 'layout-grid', 'variant' => $view === 'grid' ? 'secondary' : 'outline', 'size' => 'sm', 'aria-current' => $view === 'grid' ? 'true' : null]) ?>
+            <?= $this->Button->link({{ t|raw }}'List'), $link(['view' => 'list']), ['icon' => 'list', 'variant' => $view === 'list' ? 'secondary' : 'outline', 'size' => 'sm', 'aria-current' => $view === 'list' ? 'true' : null]) ?>
+        </nav>
+    </div>
+
+    <?php if (!$placed || !$resourceIds) : ?>
+        <?= $this->EmptyState->render({{ t|raw }}'No classes scheduled'), [
+            'description' => {{ t|raw }}'There is nothing booked for this day yet.'),
+            'icon' => 'calendar-clock',
+        ]) ?>
+    <?php elseif ($view === 'list') : ?>
+        <section class="min-w-0" aria-label="<?= h({{ t|raw }}'Bookings list')) ?>">
+            <?php
+            $rows = [];
+            foreach ($bookings as $booking) {
+                $rows[] = [
+                    'time' => h($booking['start'] . '–' . $booking['end']),
+                    'name' => '<span class="font-medium">' . h($booking['name']) . '</span>',
+                    'type' => $this->Badge->render((string)($types[$booking['type']] ?? $booking['type']), ['variant' => 'outline', 'data-booking-type' => $booking['type']]),
+                    'resource' => h($resources[$booking['resource']] ?? $booking['resource']),
+                    'coach' => h($booking['coach']),
+                    'booked' => $capacity($booking),
+                    'actions' => ['content' => $menu($booking), 'class' => 'text-right'],
+                ];
+            }
+            ?>
+            <?= $this->Table->render([
+                'time' => ['label' => {{ t|raw }}'Time'), 'escape' => false],
+                'name' => ['label' => {{ t|raw }}'Class'), 'escape' => false],
+                'type' => ['label' => {{ t|raw }}'Type'), 'escape' => false],
+                'resource' => ['label' => {{ t|raw }}'Resource'), 'escape' => false],
+                'coach' => ['label' => {{ t|raw }}'Coach'), 'escape' => false],
+                'booked' => ['label' => {{ t|raw }}'Booked'), 'escape' => false],
+                'actions' => ['label' => '', 'escape' => false],
+            ], $rows) ?>
+        </section>
+    <?php else : ?>
+        <section class="relative min-w-0 overflow-x-auto rounded-lg border" aria-label="<?= h({{ t|raw }}'Schedule for {0}', $dateLabel)) ?>">
+            <div class="grid min-w-max <?= h($columnTemplates[count($resourceIds)]) ?> grid-rows-[auto] auto-rows-[2.5rem]" data-schedule-grid>
+                <div class="bg-muted/50 col-start-1 row-start-1 p-2 text-xs"><span class="sr-only"><?= h({{ t|raw }}'Time')) ?></span></div>
+                <?php foreach ($resourceIds as $i => $resourceId) : ?>
+                    <div class="bg-muted/50 border-l p-2 text-sm font-medium <?= h($columnStarts[$i + 2]) ?> row-start-1" data-resource="<?= h($resourceId) ?>"><?= h($resources[$resourceId]) ?></div>
+                <?php endforeach; ?>
+
+                <?php for ($slot = 0; $slot < $slots; $slot++) : ?>
+                    <?php $clock = sprintf('%02d:%02d', intdiv($dayStartMinutes + $slot * 30, 60), ($dayStartMinutes + $slot * 30) % 60); ?>
+                    <div class="pointer-events-none col-start-1 col-span-full border-t <?= $slot === 0 ? 'border-transparent' : '' ?> <?= str_ends_with($clock, ':30') ? 'border-dashed' : '' ?> row-span-1 <?= h($rowStarts[$slot + 2]) ?>"></div>
+                    <?php if (str_ends_with($clock, ':00')) : ?>
+                        <div class="text-muted-foreground col-start-1 px-2 pt-1 text-right text-xs tabular-nums row-span-1 <?= h($rowStarts[$slot + 2]) ?>"><?= h($clock) ?></div>
+                    <?php endif; ?>
+                <?php endfor; ?>
+
+                <?php foreach ($placed as $booking) : ?>
+                    <?php
+                    $typeLabel = (string)($types[$booking['type']] ?? $booking['type']);
+                    $range = $booking['start'] . '–' . $booking['end'];
+                    $typeAndTime = '<span data-type-label>' . h($typeLabel) . '</span> · ' . h($range);
+                    $nearEnd = $booking['row'] - 2 + 3 > $slots;
+                    ?>
+                    <div role="group" aria-label="<?= h($booking['name'] . ', ' . $range . ', ' . $resources[$booking['resource']]) ?>"
+                        data-booking-id="<?= h((string)$booking['id']) ?>" data-booking-type="<?= h($booking['type']) ?>"
+                        class="relative m-0.5 min-w-0 rounded-md border p-1.5 pr-8 text-xs leading-4 <?= h($typeColors[$booking['type']] ?? $fallbackColor) ?> <?= h($columnStarts[$booking['column']]) ?> <?= h($rowStarts[$booking['row']]) ?> <?= h($spanClasses[$booking['span']]) ?>">
+                        <?php if ($booking['span'] < 2) : ?>
+                            <p class="truncate"><span class="font-semibold"><?= h($booking['name']) ?></span> · <?= $typeAndTime ?></p>
+                            <p class="sr-only"><?= h($booking['coach']) ?> · <?= $capacity($booking) ?></p>
+                        <?php else : ?>
+                            <p class="truncate font-semibold"><?= h($booking['name']) ?></p>
+                            <p class="truncate"><?= $typeAndTime ?></p>
+                            <p class="truncate"><?= h($booking['coach']) ?> · <?= $capacity($booking) ?></p>
+                        <?php endif; ?>
+                        <?= $menu($booking, ['class' => 'absolute top-0.5 right-0.5', 'side' => $nearEnd ? 'top' : null]) ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+</div>

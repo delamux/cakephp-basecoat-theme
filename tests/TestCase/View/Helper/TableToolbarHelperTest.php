@@ -66,6 +66,24 @@ class TableToolbarHelperTest extends HelperTestCase
         $this->assertStringContainsString('<input type="hidden" name="direction" value="asc">', $out);
     }
 
+    public function testHiddenFieldsKeepContext(): void
+    {
+        $out = (new TableToolbarHelper($this->View))->render([
+            'filter' => $this->controls(),
+            'hidden' => ['path' => 'A & B/C', 'view' => 'grid', 'empty' => '', 'none' => null],
+            'clear' => '/files',
+        ]);
+
+        $this->assertStringContainsString('<input type="hidden" name="path" value="A &amp; B/C">', $out);
+        $this->assertStringContainsString('<input type="hidden" name="view" value="grid">', $out);
+        $this->assertStringNotContainsString('name="empty"', $out);
+        $this->assertStringNotContainsString('name="none"', $out);
+        preg_match('/<form[^>]*>/', $out, $form);
+        $this->assertStringNotContainsString(' hidden=', $form[0], 'Not rendered as a form attribute');
+        // "Clear" drops the filters but keeps the context.
+        $this->assertStringContainsString('href="/files?path=A+%26+B%2FC&amp;view=grid"', $out);
+    }
+
     public function testHtmxAttributes(): void
     {
         $out = (new TableToolbarHelper($this->View))->render([

@@ -341,6 +341,8 @@ echo $this->DateRangeField->render('period', ['presets' => ['This month' => ['20
 
 // Filter bar above a table: a ListFilter (or its controls() array) plus actions
 echo $this->TableToolbar->render(['filter' => $listFilter, 'actions' => $this->Button->link('New order', ['action' => 'add'])]);
+// `hidden` keeps page context (folder, layout…) when filtering and in the "Clear" link
+echo $this->TableToolbar->render(['filter' => $controls, 'hidden' => ['path' => $path, 'view' => $view]]);
 
 // Command palette: trigger with ⌘K hint + dialog (Ctrl/⌘ + K opens it; `hotkey` changes the key,
 // pass the same value to trigger() so the hint and aria-keyshortcuts match)
@@ -464,6 +466,16 @@ bin/cake bake screen users --force                     # overwrite existing file
     table in a List tab.
   - `notes` (`Notes`): notes workspace with labels, search, a grid / list toggle and text, checklist and
     image notes.
+  - `bookings` (`Bookings`): day schedule of classes per room and coach (one grid row per 30 minutes),
+    previous / next day links (`?date=`) and a list view.
+  - `calendar` (`Calendar`): month calendar with categorised events, today marker, `?month=` navigation
+    and an upcoming list.
+  - `profile` (`Profile`): user profile with cover, details, skills, activity timeline, projects and a
+    settings form, in tabs.
+  - `onboarding` (`Onboarding`): five-step setup flow with a step indicator and no-JS navigation
+    (`?step=`).
+  - `file-manager` (`Files`): storage overview, folders with breadcrumb (`?path=`), recent files as a
+    grid or list, search and type filter.
 - `[<Controller>]`: controller name, default the screen's (see the list above); `team_inbox` and
   `TeamInbox` both give `TeamInboxController`.
 - `--list`: lists the screens with their description and exits.
@@ -484,16 +496,21 @@ The generated templates use the Basecoat helpers (`$this->PageHeader`, `$this->T
 [Loading the helpers](#loading-the-helpers)). If your app loads helpers one by one instead, add the ones
 the screen uses (all `BasecoatTheme.*`; `Form` is `BasecoatTheme.Form`):
 
-| Screen | Helpers |
-| --- | --- |
-| `users` | `PageHeader`, `TableToolbar`, `Table`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `Form` |
-| `notifications` | `PageHeader`, `TableToolbar`, `Badge`, `Button`, `EmptyState`, `NotificationList` |
-| `chats` | `Conversation`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
-| `ai-chat` | `Card`, `Avatar`, `Button`, `Form`, `Icon` |
-| `mail` | `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
-| `todo` | `PageHeader`, `TableToolbar`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `EmptyState`, `Form`, `Icon` |
-| `kanban` | `PageHeader`, `Tabs`, `Table`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Icon` |
-| `notes` | `PageHeader`, `Button`, `EmptyState`, `Form`, `Icon` |
+| Screen | Default controller | Helpers |
+| --- | --- | --- |
+| `users` | `Users` | `PageHeader`, `TableToolbar`, `Table`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `Form` |
+| `notifications` | `Notifications` | `PageHeader`, `TableToolbar`, `Badge`, `Button`, `EmptyState`, `NotificationList` |
+| `chats` | `Chats` | `Conversation`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `ai-chat` | `Assistant` | `Card`, `Avatar`, `Button`, `Form`, `Icon` |
+| `mail` | `Mail` | `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `todo` | `Tasks` | `PageHeader`, `TableToolbar`, `Avatar`, `Badge`, `DropdownMenu`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `kanban` | `Board` | `PageHeader`, `Tabs`, `Table`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Icon` |
+| `notes` | `Notes` | `PageHeader`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `bookings` | `Bookings` | `PageHeader`, `Table`, `Badge`, `DropdownMenu`, `Button`, `EmptyState` |
+| `calendar` | `Calendar` | `PageHeader`, `Badge`, `Button` |
+| `profile` | `Profile` | `Tabs`, `Card`, `MetricCard`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `onboarding` | `Onboarding` | `Card`, `ChoiceCards`, `Button`, `EmptyState`, `Form`, `Icon` |
+| `file-manager` | `Files` | `PageHeader`, `Breadcrumb`, `TableToolbar`, `Progress`, `Avatar`, `DropdownMenu`, `Button`, `EmptyState`, `Icon` |
 
 Their strings use `__()` / `__n()` (`__d('<plugin>', …)` / `__dn('<plugin>', …)` with `--plugin`),
 like the CRUD bake templates.

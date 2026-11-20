@@ -40,12 +40,28 @@ class ScreenRegistryTest extends TestCase
         $expected = ['chats' => ['Chats', 'message-circle'], 'ai-chat' => ['Assistant', 'sparkles'], 'mail' => ['Mail', 'mail'],
             'todo' => ['Tasks', 'list-checks'], 'kanban' => ['Board', 'columns-2'], 'notes' => ['Notes', 'sticky-note']];
         $all = ScreenRegistry::all();
-        $this->assertSame(['users', 'notifications', ...array_keys($expected)], array_keys($all));
+        $this->assertSame(['users', 'notifications', ...array_keys($expected)], array_slice(array_keys($all), 0, 8));
         foreach ($expected as $slug => [$controller, $icon]) {
             $this->assertSame($controller, $all[$slug]['controller'], $slug);
             $this->assertSame($icon, $all[$slug]['icon'], $slug);
             $this->assertSame(ROOT . '/templates/bake/Screen/' . $slug, $all[$slug]['path'], $slug);
             $this->assertNotSame('', $all[$slug]['title']);
+            $this->assertNotSame('', $all[$slug]['description']);
+        }
+    }
+
+    public function testBatchThreeBuiltIns(): void
+    {
+        $expected = ['bookings' => ['Bookings', 'Bookings', 'calendar-clock'], 'calendar' => ['Calendar', 'Calendar', 'calendar-days'],
+            'profile' => ['Profile', 'Profile', 'circle-user'], 'onboarding' => ['Onboarding', 'Onboarding', 'rocket'],
+            'file-manager' => ['File manager', 'Files', 'folder']];
+        $all = ScreenRegistry::all();
+        $this->assertSame(['notes', ...array_keys($expected)], array_slice(array_keys($all), 7));
+        foreach ($expected as $slug => [$title, $controller, $icon]) {
+            $this->assertSame($title, $all[$slug]['title'], $slug);
+            $this->assertSame($controller, $all[$slug]['controller'], $slug);
+            $this->assertSame($icon, $all[$slug]['icon'], $slug);
+            $this->assertSame(ROOT . '/templates/bake/Screen/' . $slug, $all[$slug]['path'], $slug);
             $this->assertNotSame('', $all[$slug]['description']);
         }
     }
