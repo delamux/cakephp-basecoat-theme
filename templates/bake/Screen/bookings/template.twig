@@ -187,7 +187,8 @@ $current = 'aria-[current=true]:bg-secondary aria-[current=true]:text-secondary-
             $rows = [];
             foreach ($bookings as $booking) {
                 $rows[] = [
-                    '_row' => ['data-booking-row' => (string)$booking['id']],
+                    // Kept in time order after a move: the drag script rewrites the sort key of the moved booking's row
+                    '_row' => ['data-booking-row' => (string)$booking['id'], 'data-dnd-sort' => '{start}|{col}', 'data-dnd-sort-key' => $booking['start'] . '|' . ($resources[$booking['resource']] ?? $booking['resource'])],
                     'time' => $range($booking),
                     'name' => '<span class="font-medium">' . h($booking['name']) . '</span>',
                     'type' => $this->Badge->render((string)($types[$booking['type']] ?? $booking['type']), ['variant' => 'outline', 'data-booking-type' => $booking['type']]),

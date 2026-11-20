@@ -88,22 +88,17 @@ $pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $n
         <?php
         // The search box and the status select drive the client-side filter of the list below. They keep
         // working as a GET form without JavaScript (the server filters then).
-        $toolbar = $this->TableToolbar->render([
+        echo $this->TableToolbar->render([
             'url' => $this->Url->build(['action' => 'index']),
             'filter' => [
-                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search users')],
-                'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => $statuses],
+                'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search users'), 'attributes' => ['data-filter-input' => '#' . $scope]],
+                'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => $statuses, 'attributes' => ['data-filter-facet' => '#' . $scope]],
             ],
             // TODO: wire "Columns" to a column picker of your own.
             // Keeps the rows-per-page choice when the filters are submitted.
             'actions' => $this->Form->hidden('perPage', ['value' => $perPage])
                 . $this->Button->link({{ t|raw }}'Columns'), '#', ['icon' => 'columns-2', 'variant' => 'outline']),
         ]);
-        echo str_replace(
-            ['<input type="search" name="q"', '<select name="status"'],
-            ['<input data-filter-input="#' . $scope . '" type="search" name="q"', '<select data-filter-facet="#' . $scope . '" name="status"'],
-            $toolbar,
-        );
         ?>
 
         <div id="<?= h($scope) ?>" class="flex flex-col gap-4">

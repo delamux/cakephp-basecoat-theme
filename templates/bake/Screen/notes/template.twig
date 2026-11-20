@@ -155,6 +155,9 @@ $art = [
                                 'value' => $mode,
                                 'variant' => $view === $mode ? 'secondary' : 'ghost',
                                 'aria-pressed' => $view === $mode ? 'true' : 'false',
+                                // The script swaps the variant when the layout changes without a reload
+                                'data-active-variant' => 'secondary',
+                                'data-inactive-variant' => 'ghost',
                                 'data-view-switch' => $mode,
                                 'data-view-target' => '#' . $board,
                             ]) ?>
@@ -172,7 +175,7 @@ $art = [
                 // listen to the basecoat:toggle and basecoat:move events instead.
                 ?>
                 <div id="<?= h($board) ?>" data-view="<?= h($view) ?>">
-                <section aria-label="<?= h({{ t|raw }}'Notes')) ?>" data-dnd-container data-dnd-label="<?= h({{ t|raw }}'Notes')) ?>"<?= $dndAttributes ?>
+                <section aria-label="<?= h({{ t|raw }}'Notes')) ?>" data-dnd-container data-dnd-axis="both" data-dnd-label="<?= h({{ t|raw }}'Notes')) ?>"<?= $dndAttributes ?>
                     data-view-classes="<?= h((string)json_encode($boardClasses)) ?>" class="<?= $boardClasses[$view] ?>">
                     <?php foreach ($notes as $note) : ?>
                         <?php

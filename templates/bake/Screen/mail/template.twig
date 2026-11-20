@@ -50,12 +50,27 @@ $reading = function (?array $open) use ($labelBadge): string {
         <header class="flex flex-col gap-3">
             <div class="flex flex-wrap items-start justify-between gap-2">
                 <h3 class="text-lg font-semibold"><?= h($open['subject']) ?></h3>
-                <?php // TODO: wire these buttons to your own POST actions (reply, forward, archive, delete). ?>
+                <?php
+                // TODO: wire Reply and Forward to your own actions. Star, Archive and Delete act on the message's
+                // row in the list (data-toggle-target / data-remove-target): same events and endpoint as the row buttons.
+                $row = '#mail-row-' . $open['id'];
+                ?>
                 <div class="flex items-center gap-1">
                     <?= $this->Button->icon('reply', {{ t|raw }}'Reply'), ['variant' => 'ghost']) ?>
                     <?= $this->Button->icon('forward', {{ t|raw }}'Forward'), ['variant' => 'ghost']) ?>
-                    <?= $this->Button->icon('archive', {{ t|raw }}'Archive'), ['variant' => 'ghost']) ?>
-                    <?= $this->Button->icon('trash', {{ t|raw }}'Delete'), ['variant' => 'ghost']) ?>
+                    <?= $this->Button->icon('star', {{ t|raw }}'Star'), [
+                        'variant' => 'ghost',
+                        'class' => 'aria-pressed:[&_svg]:fill-current',
+                        'aria-pressed' => !empty($open['starred']) ? 'true' : 'false',
+                        'data-toggle' => 'starred',
+                        'data-toggle-attr' => 'data-starred',
+                        'data-toggle-off' => 'false',
+                        'data-toggle-target' => $row,
+                        'data-announce-on' => {{ t|raw }}'{0} starred.', '{label}'),
+                        'data-announce-off' => {{ t|raw }}'{0} unstarred.', '{label}'),
+                    ]) ?>
+                    <?= $this->Button->icon('archive', {{ t|raw }}'Archive'), ['variant' => 'ghost', 'data-remove-item' => 'archive', 'data-remove-target' => $row, 'data-screens-i18n-removed' => {{ t|raw }}'{label} archived.')]) ?>
+                    <?= $this->Button->icon('trash', {{ t|raw }}'Delete'), ['variant' => 'ghost', 'data-remove-item' => 'delete', 'data-remove-target' => $row, 'data-screens-i18n-removed' => {{ t|raw }}'{label} deleted.')]) ?>
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -173,12 +188,12 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                 // handles the star / archive / delete buttons of each row. TODO: set `data-endpoint` on the list to
                 // POST `{action: 'toggle', id, name: 'starred', on}` and `{action: 'archive'|'delete', id}` as JSON.
                 ?>
-                <ul id="mail-list" class="flex flex-col divide-y rounded-lg border lg:max-h-[40rem] lg:overflow-y-auto" data-master="#mail-pane" data-master-focus>
+                <ul id="mail-list" class="flex flex-col divide-y rounded-lg border lg:max-h-[40rem] lg:overflow-y-auto" data-master="#mail-pane" data-master-focus data-master-empty="mail-empty">
                     <?php foreach ($messages as $message) : ?>
                         <?php $starred = !empty($message['starred']); ?>
-                        <li class="flex flex-col" data-filter-item data-toggle-item data-id="<?= h((string)$message['id']) ?>" data-label="<?= h((string)$message['subject']) ?>" data-filter-text="<?= h($message['from']['name'] . ' ' . $message['subject'] . ' ' . $message['snippet']) ?>" data-starred="<?= $starred ? 'true' : 'false' ?>">
+                        <li id="mail-row-<?= h((string)$message['id']) ?>" class="flex flex-col" data-filter-item data-toggle-item data-id="<?= h((string)$message['id']) ?>" data-label="<?= h((string)$message['subject']) ?>" data-filter-text="<?= h($message['from']['name'] . ' ' . $message['subject'] . ' ' . $message['snippet']) ?>" data-starred="<?= $starred ? 'true' : 'false' ?>">
                             <?php // TODO: link each message to your own view action. ?>
-                            <a href="#" class="group hover:bg-accent aria-[current=true]:bg-accent flex flex-col gap-1 p-3" data-message-id="<?= h((string)$message['id']) ?>" data-master-item="mail-message-<?= h((string)$message['id']) ?>" data-unread="<?= $message['unread'] ? 'true' : 'false' ?>"<?= $open && $open['id'] === $message['id'] ? ' aria-current="true"' : '' ?>>
+                            <a href="#" class="group hover:bg-accent aria-[current=true]:bg-accent flex flex-col gap-1 p-3" data-message-id="<?= h((string)$message['id']) ?>" data-master-item="mail-message-<?= h((string)$message['id']) ?>" data-label="<?= h((string)$message['subject']) ?>" data-unread="<?= $message['unread'] ? 'true' : 'false' ?>"<?= $open && $open['id'] === $message['id'] ? ' aria-current="true"' : '' ?>>
                                 <span class="flex items-center gap-2">
                                     <span class="group-data-[unread=true]:font-semibold flex-1 truncate font-medium">
                                         <?php if ($message['unread']) : ?>
@@ -211,6 +226,8 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
                                     'data-toggle' => 'starred',
                                     'data-toggle-attr' => 'data-starred',
                                     'data-toggle-off' => 'false',
+                                    'data-announce-on' => {{ t|raw }}'{0} starred.', '{label}'),
+                                    'data-announce-off' => {{ t|raw }}'{0} unstarred.', '{label}'),
                                 ]) ?>
                                 <?= $this->Button->icon('archive', {{ t|raw }}'Archive: {0}', $message['subject']), [
                                     'variant' => 'ghost',
@@ -241,6 +258,10 @@ $linkClass = 'btn shrink-0 justify-start gap-2 md:w-full';
             <?= $reading($open) ?>
         </section>
     </div>
+    <?php // The empty reading pane, shown again when the open message is archived or deleted. ?>
+    <template id="mail-empty">
+        <?= $reading(null) ?>
+    </template>
     <?php foreach ($messages as $message) : ?>
         <?php // The reading pane of each message, cloned into the pane when it is selected. ?>
         <template id="mail-message-<?= h((string)$message['id']) ?>">

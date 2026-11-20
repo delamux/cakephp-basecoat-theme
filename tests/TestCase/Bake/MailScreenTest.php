@@ -360,7 +360,8 @@ class MailScreenTest extends TestCase
         $html = $this->render();
 
         $this->assertStringContainsString('<ul id="mail-list"', $html);
-        $this->assertStringContainsString('data-master="#mail-pane" data-master-focus>', $html);
+        $this->assertStringContainsString('data-master="#mail-pane" data-master-focus data-master-empty="mail-empty">', $html);
+        $this->assertMatchesRegularExpression('#<template id="mail-empty">\s*<h2 class="sr-only">Reading pane</h2>\s*<div class="empty">#', $html, 'Shown again when the open message is removed');
         $this->assertStringContainsString('id="mail-pane"', $html);
         foreach ($data['messages'] as $message) {
             $this->assertStringContainsString('data-master-item="mail-message-' . $message['id'] . '"', $html);
@@ -379,9 +380,15 @@ class MailScreenTest extends TestCase
         $count = count($data['messages']);
 
         $this->assertSame($count, substr_count($html, 'data-filter-item data-toggle-item'));
-        $this->assertSame($count, substr_count($html, 'data-remove-item="archive"'));
-        $this->assertSame($count, substr_count($html, 'data-remove-item="delete"'));
-        $this->assertSame($count, substr_count($html, 'data-toggle="starred" data-toggle-attr="data-starred" data-toggle-off="false"'));
+        $live = $this->live($html);
+        // One set per row plus the reading pane of the open message, whose buttons act on its row
+        $this->assertSame($count + 1, substr_count($live, 'data-remove-item="archive"'));
+        $this->assertSame($count + 1, substr_count($live, 'data-remove-item="delete"'));
+        $this->assertSame($count + 1, substr_count($live, 'data-toggle="starred" data-toggle-attr="data-starred" data-toggle-off="false"'));
+        $this->assertSame($count, substr_count($live, '<li id="mail-row-'));
+        $this->assertMatchesRegularExpression('/data-remove-item="archive" data-remove-target="#mail-row-\d+"/', $live);
+        $this->assertMatchesRegularExpression('/data-toggle-off="false" data-toggle-target="#mail-row-\d+"/', $live);
+        $this->assertStringContainsString('data-announce-on="{label} starred."', $live);
         $this->assertStringContainsString('data-filter-text="Kofi Mensah Harbor &amp; Pine onboarding: field mapping ', $html);
         $this->assertStringContainsString('data-screens-i18n-removed="{label} archived."', $html);
         $this->assertMatchesRegularExpression('/<li[^>]*data-filter-empty hidden>No messages match\.<\/li>/', $html);

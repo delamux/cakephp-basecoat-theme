@@ -290,7 +290,7 @@ class BookingsScreenTest extends TestCase
         $this->assertMatchesRegularExpression('/data-booking-id="1"[^>]*\s+data-dnd-item data-id="1" data-dnd-label="Sunrise WOD"\s+data-dnd-row="0" data-dnd-col="0" data-dnd-span="2"\s+data-dnd-aria="Sunrise WOD, \{start\}–\{end\}, \{col\}" data-dnd-mirror="\[data-booking-row=&quot;1&quot;\]"/', $html);
         $this->assertMatchesRegularExpression('/data-booking-id="9"[^>]*\s+data-dnd-item[^>]*data-dnd-row="6" data-dnd-col="2" data-dnd-span="6"/', $html);
         $this->assertSame(15, substr_count($html, 'data-dnd-resize aria-hidden="true"'));
-        $this->assertStringContainsString('<tr data-booking-row="1">', $html);
+        $this->assertStringContainsString('<tr data-booking-row="1" data-dnd-sort="{start}|{col}" data-dnd-sort-key="06:00|', $html, 'List rows are re-sorted after a move');
         $this->assertStringContainsString('<span data-dnd-text="col">Main floor</span>', $html);
         $this->assertStringContainsString('data-dnd-aria="Actions for Sunrise WOD, {start}–{end}"', $html);
 

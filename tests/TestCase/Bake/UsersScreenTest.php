@@ -118,8 +118,8 @@ class UsersScreenTest extends HelperTestCase
 
         $this->assertStringContainsString('basecoat-screens.js', $this->View->fetch('script'));
         $this->assertStringContainsString('interactivity.css', $this->View->fetch('css'));
-        $this->assertStringContainsString('<input data-filter-input="#users-list" type="search" name="q"', $html);
-        $this->assertStringContainsString('<select data-filter-facet="#users-list" name="status"', $html);
+        $this->assertStringContainsString('<input type="search" name="q" data-filter-input="#users-list"', $html);
+        $this->assertStringContainsString('<select name="status" data-filter-facet="#users-list"', $html);
         $this->assertStringContainsString('<div id="users-list"', $html);
         $this->assertStringContainsString('data-select-all="#users-list"', $html);
         $count = count(ScreenRegistry::data('users')['users']);

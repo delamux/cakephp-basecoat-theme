@@ -240,7 +240,7 @@ class OnboardingScreenTest extends TestCase
         $html = $this->render(null, ['step' => '5']);
 
         $this->assertStringContainsString('Review and finish', $html);
-        foreach (['Harbor &amp; Pine', 'harbor-pine', '2 people', 'Team', 'Madrid (UTC+1)', 'Weekly'] as $text) {
+        foreach (['Harbor &amp; Pine', 'harbor-pine', 'elena.sarto@example.com, kofi.mensah@example.com', 'Team', 'Madrid (UTC+1)', 'Weekly'] as $text) {
             $this->assertStringContainsString($text, $html);
         }
         $this->assertMatchesRegularExpression('/<button type="button"[^>]*>\s*Finish\s*<svg.*?<\/svg>\s*<\/button>/s', $html);
@@ -252,11 +252,25 @@ class OnboardingScreenTest extends TestCase
         $this->assertStringNotContainsString('>Continue<', $this->panel($html, 5));
     }
 
-    public function testSingleInviteIsSingular(): void
+    public function testReviewListsTheInvitesAndBindsTheFields(): void
     {
         $html = $this->render($this->data(['invites' => ['a@example.com']]), ['step' => '5']);
 
-        $this->assertStringContainsString('1 person', $html);
+        $this->assertMatchesRegularExpression('/<dd [^>]*data-bind="invite_1 invite_2 invite_3" data-bind-empty="Nobody yet">a@example\.com<\/dd>/', $html);
+        foreach (['workspace_name', 'workspace_slug', 'timezone', 'digest'] as $field) {
+            $this->assertStringContainsString('data-bind="' . $field . '"', $html);
+        }
+        $this->assertMatchesRegularExpression('/data-bind="plan" data-bind-map="\{&quot;[a-z]+&quot;:&quot;/', $html);
+    }
+
+    public function testFieldsHaveInlineErrors(): void
+    {
+        $html = $this->render(null, ['step' => '1']);
+
+        foreach (['workspace_name', 'workspace_slug', 'invite_1'] as $field) {
+            $this->assertMatchesRegularExpression('/<input[^>]*aria-errormessage="onboarding-error-' . $field . '"/', $html);
+            $this->assertStringContainsString('<p id="onboarding-error-' . $field . '" class="text-destructive -mt-4 text-sm" hidden></p>', $html);
+        }
     }
 
     public function testRendersWithEmptyData(): void
@@ -273,7 +287,7 @@ class OnboardingScreenTest extends TestCase
             $html = $this->render($empty, ['step' => (string)$step]);
             $this->assertStringContainsString('Step ' . $step . ' of 5', $html);
         }
-        $this->assertStringContainsString('0 people', $this->render($empty, ['step' => '5']));
+        $this->assertMatchesRegularExpression('/data-bind-empty="Nobody yet">Nobody yet<\/dd>/', $this->render($empty, ['step' => '5']));
     }
 
     public function testRendersWithoutStepsOrWorkspaceWithoutWarnings(): void
@@ -381,7 +395,7 @@ class OnboardingScreenTest extends TestCase
         $this->assertStringContainsString('data-stepper data-stepper-start="' . ($step - 1) . '"', $html);
         $this->assertSame(5, substr_count($html, 'data-step data-step-title='));
         $this->assertSame(5, substr_count($html, 'data-step-indicator'));
-        $this->assertSame(4, substr_count($html, ' hidden>'), 'Every panel but the current one starts hidden');
+        $this->assertSame(4, preg_match_all('/<div data-step [^>]* hidden>/', $html), 'Every panel but the current one starts hidden');
         for ($n = 1; $n <= 5; $n++) {
             $this->assertSame($n !== $step, preg_match('/^<div data-step [^>]* hidden>/', $this->panel($html, $n)) === 1, 'Panel ' . $n);
         }

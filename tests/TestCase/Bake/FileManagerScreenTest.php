@@ -247,11 +247,11 @@ class FileManagerScreenTest extends TestCase
         $script = $this->lastView->fetch('script');
 
         $this->assertStringContainsString('basecoat-screens.js', $script);
-        $this->assertStringContainsString('basecoat-dropzone.js', $script);
+        $this->assertStringNotContainsString('basecoat-dropzone.js', $script, 'The drop zone is part of basecoat-screens.js');
         $this->assertStringContainsString('interactivity.css', $this->lastView->fetch('css'));
         // Search, type filter and layout switch target the results
-        $this->assertStringContainsString('<input data-filter-input="#files-results" type="search" name="q"', $html);
-        $this->assertStringContainsString('<select data-filter-facet="#files-results" name="type"', $html);
+        $this->assertStringContainsString('<input type="search" name="q" data-filter-input="#files-results"', $html);
+        $this->assertStringContainsString('<select name="type" data-filter-facet="#files-results"', $html);
         $this->assertStringContainsString('<div id="files-results" data-view="list"', $html);
         $this->assertMatchesRegularExpression('/<a [^>]*data-view-switch="grid"[^>]*data-view-target="#files-results"/', $html);
         $this->assertMatchesRegularExpression('/<a [^>]*data-view-switch="list"[^>]*data-view-target="#files-results"/', $html);
@@ -270,7 +270,8 @@ class FileManagerScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<section aria-labelledby="file-manager-upload-heading" data-dropzone data-dropzone-i18n-added="\{count\} added/', $html);
+        $this->assertMatchesRegularExpression('/<section aria-labelledby="file-manager-upload-heading" data-dropzone\s+data-screens-i18n-files-added="\{count\} added/', $html);
+        $this->assertStringContainsString('data-screens-i18n-file-removed="{name} removed from the upload list."', $html);
         $this->assertMatchesRegularExpression('/<input type="file" multiple id="file-manager-upload-input" data-dropzone-input/', $html);
         $this->assertStringContainsString('<label for="file-manager-upload-input"', $html);
         $this->assertStringContainsString('<template data-dropzone-item>', $html);

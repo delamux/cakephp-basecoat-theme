@@ -38,13 +38,12 @@ $last = $total > 0 ? $first + count($notifications) - 1 : 0;
 // with the CSRF token, and reverted when the request fails. Listen to basecoat:toggle for your own handling.
 $root = '#notifications-root';
 $unreadOnPage = count(array_filter($notifications, fn (array $row): bool => !empty($row['unread'])));
-// The live badge counts the unread rows of this page, so it only follows the clicks when the whole inbox is on it
-$liveCount = $unreadOnPage === $unreadCount;
 
-// Title with the unread count; the count is hidden when everything is read
+// Title with the unread count. The number follows the clicks: unread rows of this page plus the unread
+// ones on other pages (data-count-offset); the badge hides at 0
 $heading = h({{ t|raw }}'Inbox'));
 if ($unreadCount > 0) {
-    $number = '<span' . ($liveCount ? ' data-count-for="' . h($root . ' [data-state=unread]') . '"' : '') . '>' . $unreadCount . '</span>';
+    $number = '<span data-count-for="' . h($root . ' [data-state=unread]') . '" data-count-offset="' . max(0, $unreadCount - $unreadOnPage) . '" data-count-hide-zero=".badge">' . $unreadCount . '</span>';
     $heading .= ' ' . $this->Badge->render(str_replace('{count}', $number, h({{ t|raw }}'{0} unread', '{count}'))), [
         'variant' => 'secondary',
         'class' => 'align-middle',
@@ -53,65 +52,69 @@ if ($unreadCount > 0) {
     ]);
 }
 
-// Adds the hooks to the rows of the list: id, state and search text, the "Mark as read" button and the
-// Accept / Decline answers (only the inert buttons: the POST forms of the 'urls' option keep submitting).
-$enhance = function (string $html) use ($notifications, $types): string {
-    $parts = preg_split('/(?=<li[ >])/', $html) ?: [];
-    $rows = array_values($notifications);
-    foreach ($parts as $index => $part) {
-        $row = $rows[$index - 1] ?? null;
-        if ($index === 0 || $row === null) {
-            continue;
-        }
-        $unread = !empty($row['unread']);
-        $title = (string)($row['title'] ?? '');
-        $search = implode(' ', array_filter([$title, (string)($row['body'] ?? ''), (string)($types[$row['type'] ?? ''] ?? ''), (string)($row['actor']['name'] ?? '')]));
-        $part = (string)preg_replace('/^<li/', '<li data-toggle-item data-filter-item data-id="' . h((string)($row['id'] ?? $index)) . '" data-state="' . ($unread ? 'unread' : 'read') . '" data-filter-text="' . h($search) . '"', $part, 1);
-        $part = (string)preg_replace('/^(<li[^>]*? class=")/', '$1data-[state=read]:bg-transparent ', $part, 1);
-        $part = str_replace('data-unread-dot="true"', 'data-unread-dot="true" data-toggle-for="read" data-toggle-hidden="on"', $part);
+// TODO: the Accept / Decline buttons only update the row on this page. Set
+// $urls = ['accept' => ['action' => 'accept', '{id}'], 'decline' => ['action' => 'decline', '{id}']];
+// to post to your own actions instead (POST forms with the CSRF token; '{id}' is the notification id).
+$urls = [];
 
-        if (!str_contains($part, '<form') && str_contains($part, 'data-action="accept"')) {
-            $part = (string)preg_replace(
-                '/(<button[^>]*data-action="accept".*?<\/button>)(\s*)(<button[^>]*data-action="decline".*?<\/button>)/s',
-                '<span class="contents" data-toggle-for="accepted" data-toggle-hidden="on"><span class="contents" data-toggle-for="declined" data-toggle-hidden="on">$1$2$3</span></span>'
-                . '<span class="text-muted-foreground text-sm" role="status"><span data-toggle-for="accepted" data-text-on="' . h({{ t|raw }}'Accepted')) . '"></span><span data-toggle-for="declined" data-text-on="' . h({{ t|raw }}'Declined')) . '"></span></span>',
-                $part,
-                1,
-            );
-            $part = str_replace(['data-action="accept"', 'data-action="decline"'], ['data-action="accept" data-toggle="accepted" data-toggle-attr="data-accepted"', 'data-action="decline" data-toggle="declined" data-toggle-attr="data-declined"'], $part);
+// Data hooks of the rows (NotificationList options): id, read state, type and search text; the unread dot
+// hides once read; the inert Accept / Decline buttons answer in place (and mark the row as read), the POST
+// forms of the 'urls' option are left alone; unread rows get a "Mark as read" button
+$listOptions = [
+    'types' => $types,
+    'urls' => $urls,
+    'itemAttributes' => fn (array $row, int $index): array => [
+        'data-toggle-item' => true,
+        'data-filter-item' => true,
+        'data-id' => (string)($row['id'] ?? $index),
+        'data-state' => !empty($row['unread']) ? 'unread' : 'read',
+        'data-filter-tags' => (string)($row['type'] ?? ''),
+        'data-filter-text' => implode(' ', array_filter([(string)($row['title'] ?? ''), (string)($row['body'] ?? ''), (string)($types[$row['type'] ?? ''] ?? ''), (string)($row['actor']['name'] ?? '')])),
+        'data-label' => (string)($row['title'] ?? ''),
+        'class' => 'data-[state=read]:bg-transparent',
+    ],
+    'dotAttributes' => ['data-toggle-for' => 'read', 'data-toggle-hidden' => 'on'],
+    'actionAttributes' => [
+        'accept' => ['data-toggle' => 'accepted', 'data-toggle-attr' => 'data-accepted', 'data-toggle-also' => 'answered read'],
+        'decline' => ['data-toggle' => 'declined', 'data-toggle-attr' => 'data-declined', 'data-toggle-also' => 'answered read'],
+    ],
+    'actionsAttributes' => ['class' => 'contents', 'data-toggle-for' => 'answered', 'data-toggle-hidden' => 'on'],
+    'footer' => function (array $row) use ($urls): string {
+        $out = '';
+        if ($urls === [] && in_array($row['type'] ?? '', ['access'], true) && empty($row['actions'])) {
+            $out .= '<span class="text-muted-foreground text-sm" role="status">'
+                . '<span data-toggle-for="accepted" data-text-on="' . h({{ t|raw }}'Accepted')) . '"></span>'
+                . '<span data-toggle-for="declined" data-text-on="' . h({{ t|raw }}'Declined')) . '"></span></span>';
         }
-
-        if ($unread) {
-            $markRead = $this->Button->render({{ t|raw }}'Mark as read'), [
+        if (!empty($row['unread'])) {
+            $title = (string)($row['title'] ?? '');
+            $out .= $this->Button->render({{ t|raw }}'Mark as read'), [
                 'icon' => 'check',
                 'size' => 'sm',
                 'variant' => 'ghost',
                 'aria-label' => {{ t|raw }}'Mark "{0}" as read', $title),
                 'data-toggle' => 'read',
+                'data-toggle-unset' => 'data-unread',
                 'data-toggle-for' => 'read',
                 'data-toggle-hidden' => 'on',
+                'data-announce-on' => {{ t|raw }}'{0} marked as read.', '{label}'),
             ]);
-            $part = str_contains($part, '</div></div></li>')
-                ? (string)preg_replace('/<\/div><\/div><\/li>/', $markRead . '</div></div></li>', $part, 1)
-                : (string)preg_replace('/<\/div><\/li>/', '<div class="flex flex-wrap items-center gap-2 pt-1">' . $markRead . '</div></div></li>', $part, 1);
         }
-        $parts[$index] = $part;
-    }
 
-    return implode('', $parts);
-};
+        return $out;
+    },
+];
 
-// Search box and Status filter of the toolbar work on the rows already on the page (Type still filters on the server)
+// Search box, Status and Type filter the rows already on the page (each select is its own facet key); without
+// JavaScript they are a GET form and the server filters
 $toolbar = $this->TableToolbar->render([
     'url' => $indexUrl,
     'filter' => [
-        'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search notifications')],
-        'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => ['unread' => {{ t|raw }}'Unread'), 'read' => {{ t|raw }}'Read')]],
-        'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types],
+        'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search notifications'), 'attributes' => ['data-filter-input' => $root]],
+        'status' => ['type' => 'select', 'label' => {{ t|raw }}'Status'), 'options' => ['unread' => {{ t|raw }}'Unread'), 'read' => {{ t|raw }}'Read')], 'attributes' => ['data-filter-facet' => $root, 'data-filter-key' => 'status']],
+        'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types, 'attributes' => ['data-filter-facet' => $root, 'data-filter-key' => 'type']],
     ],
 ]);
-$toolbar = (string)preg_replace('/<input([^>]*type="search")/', '<input data-filter-input="' . $root . '"$1', $toolbar, 1);
-$toolbar = (string)preg_replace('/<select([^>]*name="status")/', '<select data-filter-facet="' . $root . '"$1', $toolbar, 1);
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
     <?= $this->PageHeader->render($heading, [
@@ -126,6 +129,7 @@ $toolbar = (string)preg_replace('/<select([^>]*name="status")/', '<select data-f
                 'disabled' => $unreadCount === 0,
                 'data-toggle-all' => 'read',
                 'data-toggle-scope' => $root,
+                'data-announce-on' => {{ t|raw }}'All notifications marked as read.'),
             ]),
             // TODO: link the settings button to your notification preferences page.
             $this->Button->icon('settings-2', {{ t|raw }}'Notification settings'), ['variant' => 'ghost']),
@@ -138,12 +142,7 @@ $toolbar = (string)preg_replace('/<select([^>]*name="status")/', '<select data-f
         data-screens-i18n-results="<?= h({{ t|raw }}'{visible} of {total} shown.')) ?>"
         data-screens-i18n-failed="<?= h({{ t|raw }}'Could not save the change.')) ?>">
         <?php if ($notifications) : ?>
-            <?php
-            // TODO: the Accept / Decline buttons only update the row on this page. Pass
-            // 'urls' => ['accept' => ['action' => 'accept', '{id}'], 'decline' => ['action' => 'decline', '{id}']]
-            // to post to your own actions (POST forms with the CSRF token; '{id}' is the notification id).
-            ?>
-            <?= $enhance($this->NotificationList->render($notifications, ['types' => $types])) ?>
+            <?= $this->NotificationList->render($notifications, $listOptions) ?>
             <div data-filter-empty hidden>
                 <?= $this->EmptyState->render({{ t|raw }}'No notifications'), [
                     'description' => {{ t|raw }}'Nothing matches these filters. Try a different search.'),

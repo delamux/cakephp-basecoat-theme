@@ -327,12 +327,16 @@ class KanbanScreenTest extends TestCase
         $this->assertSame(count($data['cards']), substr_count($html, 'data-dnd-item data-dnd-id="'));
         $this->assertStringContainsString('data-dnd-label="In progress"', $html);
         $this->assertSame(count($data['columns']), substr_count($html, 'data-count-for="#kanban-list-'));
-        $this->assertSame(count($data['cards']), substr_count($html, 'data-kanban-row="'), 'The List view column cells follow the moves');
+        $this->assertSame(count($data['cards']), substr_count($html, '" data-dnd-text="container">'), 'The List view column cells follow the moves');
+        $first = (string)$data['cards'][0]['id'];
+        $this->assertStringContainsString('data-dnd-mirror="[data-kanban-row=&quot;' . $first . '&quot;]"', $html);
+        $this->assertStringContainsString('<span data-kanban-row="' . $first . '" data-dnd-text="container">', $html);
         $this->assertStringNotContainsString('data-endpoint=', $html, 'No endpoint by default');
         $baked = (new BakeScreenCommand())->renderFiles('kanban', 'Board')['templates/Board/index.php'];
-        foreach (['basecoat-dnd', 'basecoat-screens', 'basecoat-kanban'] as $script) {
+        foreach (['basecoat-dnd', 'basecoat-screens'] as $script) {
             $this->assertStringContainsString("'BasecoatTheme." . $script . "'", $baked);
         }
+        $this->assertStringNotContainsString('basecoat-kanban', $baked, 'The List view sync is a basecoat-dnd.js hook');
         $this->assertStringContainsString("'BasecoatTheme.interactivity'", $baked);
         $this->assertStringContainsString('data-endpoint', $baked, 'TODO comment shows where to wire the endpoint');
     }

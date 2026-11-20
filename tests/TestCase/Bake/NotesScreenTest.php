@@ -325,7 +325,8 @@ class NotesScreenTest extends TestCase
         $this->assertStringContainsString('data-filter-input="#notes-board"', $html);
         $this->assertSame(2, substr_count($html, 'data-view-target="#notes-board"'));
         $this->assertMatchesRegularExpression('/<div id="notes-board" data-view="grid">/', $html);
-        $this->assertStringContainsString('data-dnd-container', $html);
+        $this->assertStringContainsString('data-dnd-container data-dnd-axis="both"', $html, 'Grid view (CSS columns): x and y decide the drop place');
+        $this->assertSame(2, substr_count($html, 'data-active-variant="secondary" data-inactive-variant="ghost"'), 'The layout buttons restyle without a reload');
         $this->assertSame(8, substr_count($html, 'data-dnd-item'));
         $this->assertSame(8, substr_count($html, 'data-filter-item'));
         $this->assertSame(8, substr_count($html, 'data-dnd-handle'));

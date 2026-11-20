@@ -48,6 +48,13 @@ $texts = [
 // The invited emails always offer three fields: the listed ones plus empty rows
 $invites = array_values($invites);
 $inviteFields = max(3, count($invites));
+// Inline error of a field: basecoat-screens.js writes the validation message here (aria-errormessage) when
+// Continue finds the field invalid; without JavaScript the browser shows its own message
+$errorId = fn (string $field): string => 'onboarding-error-' . $field;
+$error = fn (string $field): string => '<p id="' . h($errorId($field)) . '" class="text-destructive -mt-4 text-sm" hidden></p>';
+// The review step repeats the values typed in the other steps (data-bind) while the flow runs in the page
+$inviteNames = implode(' ', array_map(fn (int $i): string => 'invite_' . $i, range(1, $inviteFields)));
+$nobody = {{ t|raw }}'Nobody yet');
 ?>
 <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 lg:px-6">
     <?php if ($currentKey === null) : ?>
@@ -106,7 +113,9 @@ $inviteFields = max(3, count($invites));
                         'value' => $workspace['name'],
                         'required' => true,
                         'autocomplete' => 'organization',
+                        'aria-errormessage' => $errorId('workspace_name'),
                     ]) ?>
+                    <?= $error('workspace_name') ?>
                     <?= $this->Form->control('workspace_slug', [
                         'label' => {{ t|raw }}'Workspace URL'),
                         'value' => $workspace['slug'],
@@ -114,7 +123,9 @@ $inviteFields = max(3, count($invites));
                         'pattern' => '[a-z0-9\-]+',
                         'autocapitalize' => 'none',
                         'aria-describedby' => 'onboarding-slug-hint',
+                        'aria-errormessage' => $errorId('workspace_slug'),
                     ]) ?>
+                    <?= $error('workspace_slug') ?>
                     <p class="text-muted-foreground -mt-4 text-sm" id="onboarding-slug-hint"><?= h({{ t|raw }}'Lowercase letters, numbers and hyphens only.')) ?></p>
                 <?php elseif ($key === 'team') : ?>
                     <?php for ($i = 1; $i <= $inviteFields; $i++) : ?>
@@ -124,7 +135,9 @@ $inviteFields = max(3, count($invites));
                             'value' => $invites[$i - 1] ?? '',
                             'placeholder' => {{ t|raw }}'name@example.com'),
                             'autocomplete' => 'off',
+                            'aria-errormessage' => $errorId('invite_' . $i),
                         ]) ?>
+                        <?= $error('invite_' . $i) ?>
                     <?php endfor; ?>
                 <?php elseif ($key === 'plan') : ?>
                     <?= $this->ChoiceCards->render('plan', array_map(fn (array $item): array => [
@@ -179,27 +192,27 @@ $inviteFields = max(3, count($invites));
             <dl class="flex flex-col gap-3 text-sm">
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Workspace')) ?></dt>
-                    <dd class="font-medium"><?= h($workspace['name']) ?></dd>
+                    <dd class="font-medium" data-bind="workspace_name"><?= h($workspace['name']) ?></dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Workspace URL')) ?></dt>
-                    <dd class="font-medium break-all"><?= h($workspace['slug']) ?></dd>
+                    <dd class="font-medium break-all" data-bind="workspace_slug"><?= h($workspace['slug']) ?></dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Invitations')) ?></dt>
-                    <dd class="font-medium"><?= h({{ tn|raw }}'{0} person', '{0} people', count(array_filter($invites)), count(array_filter($invites)))) ?></dd>
+                    <dd class="font-medium break-all text-right" data-bind="<?= h($inviteNames) ?>" data-bind-empty="<?= h($nobody) ?>"><?= h(array_filter($invites) ? implode(', ', array_filter($invites)) : $nobody) ?></dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Plan')) ?></dt>
-                    <dd class="font-medium"><?= h($plans[$plan]['title'] ?? $plan) ?></dd>
+                    <dd class="font-medium" data-bind="plan" data-bind-map="<?= h((string)json_encode(array_map(fn (array $item): string => (string)$item['title'], $plans))) ?>"><?= h($plans[$plan]['title'] ?? $plan) ?></dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Timezone')) ?></dt>
-                    <dd class="font-medium"><?= h($timezones[$preferences['timezone'] ?? ''] ?? '') ?></dd>
+                    <dd class="font-medium" data-bind="timezone"><?= h($timezones[$preferences['timezone'] ?? ''] ?? '') ?></dd>
                 </div>
                 <div class="flex justify-between gap-4">
                     <dt class="text-muted-foreground"><?= h({{ t|raw }}'Email digest')) ?></dt>
-                    <dd class="font-medium"><?= h($digests[$preferences['digest'] ?? ''] ?? '') ?></dd>
+                    <dd class="font-medium" data-bind="digest"><?= h($digests[$preferences['digest'] ?? ''] ?? '') ?></dd>
                 </div>
             </dl>
             <div class="mt-6 flex items-center justify-between gap-2">

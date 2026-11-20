@@ -22,7 +22,6 @@ $this->assign('title', {{ t|raw }}'Board'));
 $columnTitles = $columns;
 $this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);
 $this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
-$this->Html->script('BasecoatTheme.basecoat-kanban', ['block' => 'script', 'defer' => true]);
 $this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
 $priorityVariants = ['high' => 'destructive', 'medium' => 'secondary', 'low' => 'outline'];
 
@@ -58,7 +57,8 @@ $cardMenu = fn (array $card): string => $this->Button->icon('ellipsis', {{ t|raw
 $emptyText = {{ t|raw }}'No cards yet.');
 
 // Drag and drop (mouse, touch and keyboard: Space to pick up, arrows to move, Space to drop) moves the cards
-// between the lists and updates the counters and the List view (basecoat-dnd.js, basecoat-kanban.js).
+// between the lists and updates the counters and the List view (basecoat-dnd.js: the card's data-dnd-mirror
+// points at its List row, whose data-dnd-text="container" cell gets the name of the new column).
 // TODO: to save the moves add a `data-endpoint` attribute (the URL of a `move` action of your controller,
 // built with $this->Url->build()) to the board below: it receives a JSON POST {action: 'move', id, from, to, index, fromIndex} with the CSRF token and a
 // failed save puts the card back. Without an endpoint the board only changes in the browser.
@@ -79,7 +79,8 @@ foreach ($columns as $columnId => $columnTitle) {
         . ' data-dnd-container data-dnd-group="kanban" data-dnd-label="' . h($columnTitle) . '">';
     foreach ($columnCards as $card) {
         $board .= '<li class="bg-card text-card-foreground flex flex-col gap-3 rounded-lg border p-3 shadow-xs" data-kanban-card="' . h((string)$card['id']) . '"'
-            . ' data-dnd-item data-dnd-id="' . h((string)$card['id']) . '" data-dnd-label="' . h($card['title']) . '">'
+            . ' data-dnd-item data-dnd-id="' . h((string)$card['id']) . '" data-dnd-label="' . h($card['title']) . '"'
+            . ' data-dnd-mirror="' . h('[data-kanban-row="' . $card['id'] . '"]') . '">'
                 . '<div class="flex items-start justify-between gap-2">'
                 . '<h4 class="text-sm leading-snug font-medium">' . h($card['title']) . '</h4>'
                 . $cardMenu($card)
@@ -107,8 +108,8 @@ $board .= '</div>';
 
 $rows = array_map(fn (array $card): array => [
     'title' => h($card['title']),
-    // data-kanban-row: basecoat-kanban.js writes the new column here when the card is dragged
-    'column' => '<span data-kanban-row="' . h((string)$card['id']) . '">' . h($columnTitles[$card['column']] ?? (string)$card['column']) . '</span>',
+    // Mirror of the card (data-dnd-mirror): basecoat-dnd.js writes the new column here when the card is dragged
+    'column' => '<span data-kanban-row="' . h((string)$card['id']) . '" data-dnd-text="container">' . h($columnTitles[$card['column']] ?? (string)$card['column']) . '</span>',
     'priority' => $priorityBadge($card),
     'assignees' => $assignees($card),
     'progress' => $progress($card),

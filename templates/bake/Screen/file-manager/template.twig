@@ -25,7 +25,6 @@ $this->assign('title', {{ t|raw }}'Files'));
 // Client behaviour (select all + bulk bar, search and type filter, grid / list switch, drop zone):
 // see "Interactivity" in the README.
 $this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);
-$this->Html->script('BasecoatTheme.basecoat-dropzone', ['block' => 'script', 'defer' => true]);
 $this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);
 $results = 'files-results';
 
@@ -111,19 +110,14 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
     <?php
     // The search box and the type select drive the client-side filter of the files below. They keep working
     // as a GET form without JavaScript (the server filters then).
-    $toolbar = $this->TableToolbar->render([
+    echo $this->TableToolbar->render([
         'url' => $indexUrl,
         'hidden' => ['path' => $path, 'view' => $view],
         'filter' => [
-            'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files')],
-            'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types],
+            'q' => ['type' => 'search', 'label' => {{ t|raw }}'Search files'), 'attributes' => ['data-filter-input' => '#' . $results]],
+            'type' => ['type' => 'select', 'label' => {{ t|raw }}'Type'), 'options' => $types, 'attributes' => ['data-filter-facet' => '#' . $results]],
         ],
     ]);
-    echo str_replace(
-        ['<input type="search" name="q"', '<select name="type"'],
-        ['<input data-filter-input="#' . $results . '" type="search" name="q"', '<select data-filter-facet="#' . $results . '" name="type"'],
-        $toolbar,
-    );
     ?>
 
     <section aria-labelledby="file-manager-folders-heading" class="flex flex-col gap-3">
@@ -153,17 +147,13 @@ $percentUsed = $storage['total'] > 0 ? (int)round($storage['used'] / $storage['t
     <?php
     // TODO: the files are only listed in the page. Handle the `basecoat:upload` event of the zone (its detail
     // holds the File objects) and send them to an upload action of your controller (POST, multipart, CSRF token).
-    $dropzoneMessages = [
-        'added' => {{ t|raw }}'{count} added to the upload list.'),
-        'removed' => {{ t|raw }}'{name} removed from the upload list.'),
-        'cleared' => {{ t|raw }}'Upload list cleared.'),
-    ];
-    $dropzoneAttributes = '';
-    foreach ($dropzoneMessages as $key => $message) {
-        $dropzoneAttributes .= ' data-dropzone-i18n-' . $key . '="' . h($message) . '"';
-    }
+    // Drop zone of basecoat-screens.js; the messages are announced when files are added, removed or cleared
     ?>
-    <section aria-labelledby="file-manager-upload-heading" data-dropzone<?= $dropzoneAttributes ?> class="data-[over]:border-primary data-[over]:bg-accent flex flex-col gap-3 rounded-lg border border-dashed p-4">
+    <section aria-labelledby="file-manager-upload-heading" data-dropzone
+        data-screens-i18n-files-added="<?= h({{ t|raw }}'{count} added to the upload list.')) ?>"
+        data-screens-i18n-file-removed="<?= h({{ t|raw }}'{name} removed from the upload list.')) ?>"
+        data-screens-i18n-files-cleared="<?= h({{ t|raw }}'Upload list cleared.')) ?>"
+        class="data-[over]:border-primary data-[over]:bg-accent flex flex-col gap-3 rounded-lg border border-dashed p-4">
         <h3 id="file-manager-upload-heading" class="flex items-center gap-2 text-base font-semibold"><?= $this->Icon->render('upload') ?><?= h({{ t|raw }}'Add files')) ?></h3>
         <p class="text-muted-foreground text-sm"><?= h({{ t|raw }}'Drop files here or choose them from your device.')) ?></p>
         <div class="flex flex-col gap-1.5">

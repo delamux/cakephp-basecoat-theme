@@ -98,7 +98,7 @@ $thread = function (array $chat, array $items) use ($statusLabel): string {
                         <?php $active = (int)$chat['id'] === (int)($activeChat['id'] ?? 0); ?>
                         <li data-chat-id="<?= h((string)$chat['id']) ?>"<?= $active ? ' data-active="true"' : '' ?>>
                             <?php // TODO: link each conversation to your own view action (e.g. ['action' => 'view', $chat['id']]). ?>
-                            <a href="#" class="hover:bg-accent aria-[current=true]:bg-accent flex items-center gap-3 rounded-lg p-2" data-master-item="chat-thread-<?= h((string)$chat['id']) ?>"<?= $active ? ' aria-current="true"' : '' ?>>
+                            <a href="#" class="hover:bg-accent aria-[current=true]:bg-accent flex items-center gap-3 rounded-lg p-2" data-master-item="chat-thread-<?= h((string)$chat['id']) ?>" data-label="<?= h($chat['name']) ?>"<?= $active ? ' aria-current="true"' : '' ?>>
                                 <?php if (!empty($chat['group'])) : ?>
                                     <span class="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full"><?= $this->Icon->render('users') ?><span class="sr-only"><?= h({{ t|raw }}'Group chat, {0} members', (int)($chat['members'] ?? 0))) ?></span></span>
                                 <?php else : ?>

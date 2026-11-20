@@ -39,7 +39,8 @@
  *          off -> data-toggle-off value or attribute removed. Checkbox: on = checked. Button with
  *          aria-pressed: flips; other buttons set "on" (Mark as read, Accept). On the control:
  *          data-toggle-class (classes toggled on the item), data-toggle-unset="data-unread" (attributes
- *          removed while on), data-toggle-also="read" (switching on also switches those toggles on),
+ *          removed while on), data-toggle-also="read answered" (switching on also switches those on,
+ *          through their own control on the item, else as the attribute data-<name>="true"),
  *          data-announce-on / data-announce-off="{label} starred." (announced), data-toggle-focus="sel"
  *          (where focus goes when the control hides itself; default: the first control the toggle
  *          revealed, else the item). Inside the item, [data-toggle-for="name"] elements get data-text-on /
@@ -75,8 +76,9 @@
  *          Next validates the panel's fields (checkValidity) first; values are kept. A field with
  *          aria-errormessage="id" gets its validation message in that element (shown, announced, linked
  *          with aria-describedby, aria-invalid) instead of the browser bubble; cleared once valid.
- *          [data-bind="field-name"] (data-bind-empty="Not set") shows the current value of that field
- *          (select: option text, checkbox / radio: label of the checked ones), e.g. on a Review step.
+ *          [data-bind="field-name other-field"] (data-bind-empty="Not set") shows the current values of
+ *          those fields joined with ", " (select: option text, checkbox / radio: label of the checked
+ *          ones, or data-bind-map='{"value": "Text"}'), e.g. on a Review step.
  *          Nav controls outside the panels are hidden when useless (prev on the first step, next on the
  *          last, finish until the last). Event basecoat:step (cancelable) {from, to, total}.
  * DROPZONE [data-dropzone] with input[type=file][data-dropzone-input] (the picker, also for keyboard
@@ -487,6 +489,14 @@
   };
 
   const readToggle = (item, name, attr) => (attr === 'data-state' ? item.getAttribute(attr) === name : item.hasAttribute(attr) && item.getAttribute(attr) !== 'false');
+  /** Sets a checkbox / aria-pressed control to the current state of its item. */
+  const syncControl = (control) => {
+    const item = toggleItemOf(control);
+    if (!item) return;
+    const on = readToggle(item, control.getAttribute('data-toggle'), control.getAttribute('data-toggle-attr') || 'data-state');
+    if (control.matches('input[type="checkbox"]')) control.checked = on;
+    else if (control.hasAttribute('aria-pressed')) control.setAttribute('aria-pressed', String(on));
+  };
 
   const writeToggle = (item, control, name, on) => {
     const attr = control.getAttribute('data-toggle-attr') || 'data-state';
@@ -566,8 +576,10 @@
         if (also === name) return;
         let alsoControl = controlsFor(item, also)[0];
         if (!alsoControl) {
+          // No control of that toggle on the item: it is stored as data-<name>="true"
           alsoControl = document.createElement('button');
           alsoControl.setAttribute('data-toggle', also);
+          alsoControl.setAttribute('data-toggle-attr', `data-${also}`);
         }
         setToggle(item, alsoControl, also, true, true);
       });
@@ -666,6 +678,8 @@
     control.querySelectorAll('[data-master-clear]').forEach((el) => el.remove());
     control.removeAttribute('data-unread');
     replaceUrl(control);
+    // Pane controls acting on a row (data-toggle-target) show the row's current state, not the template's
+    detail.querySelectorAll('[data-toggle][data-toggle-target]').forEach(syncControl);
     init(detail);
     if (window.BasecoatDnd && typeof window.BasecoatDnd.init === 'function') window.BasecoatDnd.init(detail);
     if (master.hasAttribute('data-master-focus')) {
@@ -800,10 +814,16 @@
   };
   const refreshBindings = (stepper) => {
     stepper.querySelectorAll('[data-bind]').forEach((el) => {
-      const name = el.getAttribute('data-bind');
-      const fields = Array.from(stepper.querySelectorAll(`[name="${CSS.escape(name)}"]`)).filter((f) => f.type !== 'hidden' && !f.disabled);
+      const map = parseJson(el.getAttribute('data-bind-map')) || {};
+      const fields = splitList(el.getAttribute('data-bind')).reduce((all, name) => all.concat(
+        Array.from(stepper.querySelectorAll(`[name="${CSS.escape(name)}"]`)).filter((f) => f.type !== 'hidden' && !f.disabled),
+      ), []);
       if (!fields.length) return;
-      const text = joinValues(fields.reduce((all, f) => all.concat(fieldText(f)), []), el.getAttribute('data-bind-empty'));
+      const values = fields.reduce((all, f) => all.concat(
+        // data-bind-map='{"value": "Text"}' names values (radio cards whose label holds more than a name)
+        map && (f.type === 'radio' || f.type === 'checkbox') ? (f.checked ? [map[f.value] !== undefined ? map[f.value] : fieldText(f)[0]] : []) : fieldText(f),
+      ), []);
+      const text = joinValues(values, el.getAttribute('data-bind-empty'));
       if (el.textContent !== text) el.textContent = text;
     });
   };

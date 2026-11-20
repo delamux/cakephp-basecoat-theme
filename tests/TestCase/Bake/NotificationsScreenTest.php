@@ -121,7 +121,7 @@ class NotificationsScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<span[^>]*role="status"[^>]*><span data-count-for="[^"]*">5<\/span> unread<\/span>/', $html);
+        $this->assertMatchesRegularExpression('/<span[^>]*role="status"[^>]*><span data-count-for="[^"]*" data-count-offset="0" data-count-hide-zero=".badge">5<\/span> unread<\/span>/', $html);
         $this->assertStringContainsString('Mark all as read', $html);
         $this->assertMatchesRegularExpression('/<button[^>]*>\s*<svg[^>]*>.*?<\/svg>\s*<span class="sr-only">Notification settings<\/span>\s*<\/button>/s', $html);
     }
@@ -302,12 +302,16 @@ class NotificationsScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertSame(10, substr_count($html, 'data-toggle-item data-filter-item'));
+        $this->assertSame(10, substr_count($html, 'data-toggle-item="1" data-filter-item="1"'));
+        $this->assertSame(10, preg_match_all('/data-filter-tags="(task|message|team|access)"/', $html));
         $this->assertSame(5, substr_count($html, 'data-state="unread"'));
         $this->assertSame(5, substr_count($html, 'data-state="read"'));
         $this->assertStringContainsString('id="notifications-root"', $html);
-        $this->assertMatchesRegularExpression('/<input data-filter-input="#notifications-root"[^>]*type="search"/', $html);
-        $this->assertMatchesRegularExpression('/<select data-filter-facet="#notifications-root"[^>]*name="status"/', $html);
+        $this->assertMatchesRegularExpression('/<input type="search" name="q" data-filter-input="#notifications-root"/', $html);
+        $this->assertMatchesRegularExpression('/<select name="status" data-filter-facet="#notifications-root" data-filter-key="status"/', $html);
+        $this->assertMatchesRegularExpression('/<select name="type" data-filter-facet="#notifications-root" data-filter-key="type"/', $html, 'Type filters on the client too');
+        $this->assertSame(5, substr_count($html, 'data-toggle-unset="data-unread"'), 'Mark as read drops the stale data-unread');
+        $this->assertSame(4, substr_count($html, 'data-toggle-also="answered read"'), 'Accept / Decline also mark as read');
         $this->assertStringContainsString('data-filter-empty hidden', $html);
         $this->assertStringContainsString('data-toggle-all="read" data-toggle-scope="#notifications-root"', $html);
         $this->assertSame(5, substr_count($html, 'data-toggle="read"'), 'One "Mark as read" per unread row');
@@ -329,13 +333,14 @@ class NotificationsScreenTest extends TestCase
     public function testWiredAcceptDeclineStayPostForms(): void
     {
         $html = $this->render(null, [], fn(string $code): string => str_replace(
-            '[\'types\' => $types]',
-            '[\'types\' => $types, \'urls\' => [\'accept\' => \'/requests/{id}/accept\', \'decline\' => \'/requests/{id}/decline\']]',
+            '$urls = [];',
+            '$urls = [\'accept\' => \'/requests/{id}/accept\', \'decline\' => \'/requests/{id}/decline\'];',
             $code,
         ));
 
         $this->assertStringContainsString('action="/requests/1/accept"', $html);
         $this->assertStringNotContainsString('data-toggle="accepted"', $html, 'The forms are left alone so they still submit');
+        $this->assertStringNotContainsString('data-text-on="Accepted"', $html);
         $this->assertStringContainsString('data-toggle="read"', $html);
     }
 }
