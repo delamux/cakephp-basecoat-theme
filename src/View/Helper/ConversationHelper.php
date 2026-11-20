@@ -111,7 +111,8 @@ class ConversationHelper extends AbstractComponentHelper
     protected function header(array $contact, string $actions, bool $escape): string
     {
         $name = (string)($contact['name'] ?? '');
-        $avatarOptions = !empty($contact['avatar']) ? ['src' => $contact['avatar']] : [];
+        // The name is printed next to the avatar: its initials / image stay out of the accessible name.
+        $avatarOptions = ['decorative' => true] + (!empty($contact['avatar']) ? ['src' => $contact['avatar']] : []);
         $subtitle = isset($contact['subtitle']) && $contact['subtitle'] !== ''
             ? $this->formatTemplate('subtitle', ['content' => $this->text((string)$contact['subtitle'], $escape)])
             : '';

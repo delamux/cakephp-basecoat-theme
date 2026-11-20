@@ -80,4 +80,10 @@ class WorkspaceSwitcherHelperTest extends HelperTestCase
     {
         $this->assertSame('', (new WorkspaceSwitcherHelper($this->View))->render([]));
     }
+
+    public function testInitialsLogoIsHiddenNextToTheName(): void
+    {
+        $html = (new WorkspaceSwitcherHelper($this->View))->render([['name' => 'Lantern Books']]);
+        $this->assertStringContainsString('<span aria-hidden="true">LB</span>', $html);
+    }
 }

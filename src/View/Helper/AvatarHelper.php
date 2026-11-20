@@ -13,6 +13,8 @@ use function Cake\Core\h;
  * echo $this->Avatar->render('Kofi Mensah', ['src' => '/img/avatars/kofi.png']);
  * echo $this->Avatar->render('Ana', ['size' => 'lg', 'class' => 'rounded-lg']);
  * echo $this->Avatar->group([['name' => 'A'], ['name' => 'B'], ['name' => 'C']], ['max' => 2]);
+ * // Next to the visible name: hide the initials from screen readers (no "KM Kofi Mensah")
+ * echo $this->Avatar->render('Kofi Mensah', ['decorative' => true]) . h('Kofi Mensah');
  * ```
  *
  * Sizes: sm, default, lg.
@@ -65,6 +67,9 @@ class AvatarHelper extends AbstractComponentHelper
      * - `size`: `sm` or `lg`.
      * - `badge`: HTML/text of a status badge (`.avatar-badge`).
      * - `imageOptions`, `fallbackOptions`, `badgeOptions`: Attributes of the parts.
+     * - `decorative`: `true` when the name is rendered next to the avatar: the initials get
+     *   `aria-hidden="true"` and the image an empty `alt`, so screen readers read the name once.
+     *   The badge stays exposed (put its meaning in `sr-only` text). Default `false`.
      *
      * @param string $name Person name.
      * @param array<string, mixed> $options Options.
@@ -72,18 +77,23 @@ class AvatarHelper extends AbstractComponentHelper
      */
     public function render(string $name, array $options = []): string
     {
+        $decorative = !empty($options['decorative']);
         $image = '';
         if (!empty($options['src'])) {
             $src = $options['src'];
             $src = is_array($src) ? $this->Url->build($src) : $this->Url->image((string)$src);
-            $imageAttrs = (array)($options['imageOptions'] ?? []) + ['alt' => $options['alt'] ?? $name];
-            $image = $this->renderTemplate('image', $this->partAttributes('image', $imageAttrs), ['src' => h($src)]);
+            $imageOptions = (array)($options['imageOptions'] ?? []);
+            $alt = $imageOptions['alt'] ?? ($decorative ? '' : ($options['alt'] ?? $name));
+            unset($imageOptions['alt']);
+            // Added after the clean-up so an empty `alt` (decorative image) is kept.
+            $imageAttrs = $this->partAttributes('image', $imageOptions) + ['alt' => (string)$alt];
+            $image = $this->renderTemplate('image', $imageAttrs, ['src' => h($src)]);
         }
 
         $initials = $options['initials'] ?? $this->initials($name);
         $fallback = $this->renderTemplate(
             'fallback',
-            $this->partAttributes('fallback', (array)($options['fallbackOptions'] ?? [])),
+            $this->partAttributes('fallback', (array)($options['fallbackOptions'] ?? []) + ($decorative ? ['aria-hidden' => 'true'] : [])),
             ['content' => h($initials)],
         );
 
@@ -97,7 +107,7 @@ class AvatarHelper extends AbstractComponentHelper
         }
 
         $attributes = $this->rootAttributes('avatar', $options, [
-            'src', 'alt', 'initials', 'badge', 'imageOptions', 'fallbackOptions', 'badgeOptions',
+            'src', 'alt', 'initials', 'decorative', 'badge', 'imageOptions', 'fallbackOptions', 'badgeOptions',
         ]);
 
         return $this->renderTemplate('avatar', $attributes, [

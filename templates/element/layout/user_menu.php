@@ -10,6 +10,8 @@ $email = (string)($user['email'] ?? '');
 $avatar = $this->Avatar->render($name, array_filter([
     'src' => $user['avatar'] ?? null,
     'class' => 'rounded-lg',
+    // The name is printed next to the avatar.
+    'decorative' => true,
 ]));
 $identity = sprintf(
     '<span class="grid flex-1 text-left text-sm leading-tight"><span class="truncate font-medium">%s</span><span class="truncate text-xs text-muted-foreground">%s</span></span>',

@@ -170,7 +170,8 @@ class WorkspaceSwitcherHelper extends AbstractComponentHelper
                 . h($class) . '">' . $this->Icon->render((string)$workspace['icon'], ['class' => 'size-4']) . '</span>';
         }
 
-        $options = ['class' => $class];
+        // Decorative: the workspace name is printed next to the logo.
+        $options = ['class' => $class, 'decorative' => true];
         if (!empty($workspace['logo'])) {
             $options['src'] = $workspace['logo'];
         }

@@ -37,4 +37,28 @@ class AvatarHelperTest extends HelperTestCase
             $avatar->group(['A', 'B', 'C', ['name' => 'D']], ['max' => 2, 'avatar' => ['size' => 'sm']]),
         );
     }
+
+    public function testDecorativeHidesInitialsAndImageButKeepsBadgeText(): void
+    {
+        $avatar = new AvatarHelper($this->View);
+        $this->assertSame(
+            '<span class="avatar"><img src="https://cdn.example.com/k.png" alt=""><span aria-hidden="true">KM</span><span class="avatar-badge"><span class="sr-only">Online</span></span></span>',
+            $avatar->render('Kofi Mensah', [
+                'src' => 'https://cdn.example.com/k.png',
+                'decorative' => true,
+                'badge' => '<span class="sr-only">Online</span>',
+            ]),
+        );
+    }
+
+    public function testDecorativeInGroupAndDefaultUnchanged(): void
+    {
+        $avatar = new AvatarHelper($this->View);
+        $this->assertSame(
+            '<div class="avatar-group"><span class="avatar"><span aria-hidden="true">A</span></span></div>',
+            $avatar->group(['A'], ['avatar' => ['decorative' => true]]),
+        );
+        $this->assertStringNotContainsString('aria-hidden', $avatar->render('Ines Duarte'));
+        $this->assertStringNotContainsString('decorative', $avatar->render('Ines Duarte', ['decorative' => false]));
+    }
 }

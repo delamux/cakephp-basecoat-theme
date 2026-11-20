@@ -376,6 +376,7 @@ Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-them
 ```php
 echo $this->Avatar->render('Elena Sarto', ['src' => $user->avatar, 'size' => 'lg']);
 echo $this->Avatar->group($people, ['max' => 3]);
+echo $this->Avatar->render($user->name, ['decorative' => true]) . h($user->name); // name printed next to it
 echo $this->Accordion->render(['Can I export raw events?' => 'Yes, daily.'], ['multiple' => true]);
 echo $this->Breadcrumb->render(['Home' => '/', 'Projects' => ['controller' => 'Projects'], 'Churn forecast'], ['collapse' => 4]);
 echo $this->ButtonGroup->render([['text' => 'Day'], ['text' => 'Week'], ['text' => 'Month']], ['aria-label' => 'Range']);
@@ -400,6 +401,9 @@ The helpers follow the [Lucide accessibility guide](https://lucide.dev/how-to/ac
   `DropdownMenu` `trigger.label`, `Sidebar->toggle()`, `Theme->toggle()`, the dialog close button and the
   pagination first/last links ("First page", "Last page"). Previous / Next keep their text for screen
   readers on small screens.
+- Avatars next to a visible name are decorative: `Avatar->render($name, ['decorative' => true])` hides the
+  initials (`aria-hidden`) and gives the image an empty `alt`, so the name is read once ("Kofi Mensah",
+  not "KM Kofi Mensah"). A status `badge` stays exposed, so give it `sr-only` text.
 - Meaning never depends on an icon or a colour alone: indicators, unread rows, metric trends and statuses
   carry text (visible or `sr-only`).
 - One icon per meaning across the plugin, screens and catalog: `ellipsis-vertical` row/more actions,
@@ -685,6 +689,11 @@ Changes in this version that can affect existing apps:
   text (escaped), e.g. `'trigger' => ['icon' => 'ellipsis-vertical', 'label' => 'Actions for ' . $name]`.
   It replaces passing `aria-label` in `trigger`. The CRUD bake `index` template now uses it
   (`'Actions for {0}'` with the record's display field).
+- **Avatars next to a name are hidden from screen readers.** New `Avatar` option `decorative` (default
+  `false`, output unchanged without it). `Conversation` (header), `MemberList`, `WorkspaceSwitcher`, the
+  sidebar user menu and `NotificationList` (when the title contains the actor's name) now render their
+  avatar with it: the initials get `aria-hidden="true"` and an avatar image gets `alt=""`. Tests that
+  matched `<span>KM</span>` in these helpers need updating.
 - **`Button` `indicatorLabel`:** `''` renders no screen reader text for the indicator.
 - **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
   text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.
