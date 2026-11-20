@@ -190,12 +190,13 @@ class NotificationsScreenTest extends TestCase
 
         $this->assertStringContainsString('Showing 1 to 10 of 24', $html);
         $this->assertStringContainsString('href="/notifications?page=2&amp;status=unread"', $html);
-        $this->assertMatchesRegularExpression('/<button[^>]*disabled[^>]*>\s*Previous/', $html);
+        $this->assertMatchesRegularExpression('/<button[^>]*disabled[^>]*>\s*<svg[^>]*><path d="m15 18-6-6 6-6"\/><\/svg>\s*Previous<\/button>/s', $html);
+        $this->assertMatchesRegularExpression('/<a [^>]*rel="next"[^>]*>\s*Next\s*<svg[^>]*><path d="m9 18 6-6-6-6"/s', $html, 'Same pager as the users screen: icon at the end of Next');
 
         $last = $this->render($this->data(['page' => 3, 'notifications' => array_slice(ScreenRegistry::data('notifications')['notifications'], 0, 4)]));
         $this->assertStringContainsString('Showing 21 to 24 of 24', $last);
         $this->assertStringContainsString('href="/notifications?page=2"', $last);
-        $this->assertMatchesRegularExpression('/<button[^>]*disabled[^>]*>\s*Next/', $last);
+        $this->assertMatchesRegularExpression('/<button[^>]*disabled[^>]*>\s*Next\s*<svg/', $last);
     }
 
     public function testRendersWithEmptyData(): void

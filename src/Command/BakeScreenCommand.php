@@ -10,6 +10,8 @@ use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
 use Cake\Core\Configure;
+use Cake\Core\Exception\MissingPluginException;
+use Cake\Core\Plugin;
 use Cake\TwigView\View\TwigView;
 use InvalidArgumentException;
 use UnexpectedValueException;
@@ -61,7 +63,21 @@ class BakeScreenCommand extends BakeCommand
             return static::CODE_ERROR;
         }
 
-        $root = $this->plugin ? $this->_pluginPath($this->plugin) : null;
+        $root = null;
+        if ($this->plugin) {
+            try {
+                $root = Plugin::path($this->plugin);
+            } catch (MissingPluginException) {
+                $io->error(sprintf(
+                    'Plugin `%s` is not loaded. Create it with `bin/cake bake plugin %s` or load it with `bin/cake plugin load %s`.',
+                    $this->plugin,
+                    $this->plugin,
+                    $this->plugin,
+                ));
+
+                return static::CODE_ERROR;
+            }
+        }
         foreach ($files as $relative => $contents) {
             $this->writeFile($io, $this->outputPath($relative, $root), $contents, $this->force);
         }
@@ -107,6 +123,8 @@ class BakeScreenCommand extends BakeCommand
             'namespace' => $plugin ? $this->_pluginNamespace($plugin) : (string)Configure::read('App.namespace'),
             'name' => $name,
             'plugin' => $plugin,
+            // As in bake's CRUD templates: strings use `__d('<plugin>', ...)` when baking into a plugin.
+            'useDomain' => (bool)$plugin,
             'slug' => $slug,
             'title' => $screen['title'],
             'description' => $screen['description'],

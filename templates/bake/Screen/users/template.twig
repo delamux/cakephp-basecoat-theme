@@ -2,8 +2,11 @@
 /**
  * `users` screen: people of a workspace with search, status filter, table and pagination.
  * Reads the `users`, `statuses`, `total`, `page` and `perPage` view variables.
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates).
  */
 #}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
 <?php
 /**
  * @var \{{ namespace }}\View\AppView $this
@@ -13,7 +16,7 @@
  * @var int $page Current page, starting at 1.
  * @var int $perPage Users per page.
  */
-$this->assign('title', 'Users');
+$this->assign('title', {{ t }}'Users'));
 
 $statusVariants = ['active' => 'primary', 'invited' => 'outline', 'suspended' => 'destructive'];
 $request = $this->getRequest();
@@ -28,7 +31,7 @@ foreach ($users as $user) {
         // TODO: wire the checkboxes to your own bulk actions (e.g. a form posting `ids[]`).
         'select' => [
             'escape' => false,
-            'content' => '<input type="checkbox" name="ids[]" value="' . h((string)$user['id']) . '" aria-label="' . h('Select ' . $user['name']) . '">',
+            'content' => '<input type="checkbox" name="ids[]" value="' . h((string)$user['id']) . '" aria-label="' . h({{ t }}'Select {0}', $user['name'])) . '">',
         ],
         'name' => [
             'escape' => false,
@@ -50,11 +53,11 @@ foreach ($users as $user) {
             'escape' => false,
             'content' => $this->DropdownMenu->render('', [
                 // TODO: link these items to your own view, edit and delete actions.
-                ['label' => 'View profile', 'url' => '#'],
-                ['label' => 'Edit user', 'url' => '#'],
+                ['label' => {{ t }}'View profile'), 'url' => '#'],
+                ['label' => {{ t }}'Edit user'), 'url' => '#'],
                 '-',
-                ['label' => 'Suspend', 'url' => '#', 'variant' => 'destructive'],
-            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => 'Actions for ' . $user['name']], 'align' => 'end']),
+                ['label' => {{ t }}'Suspend'), 'url' => '#', 'variant' => 'destructive'],
+            ], ['trigger' => ['icon' => 'ellipsis-vertical', 'variant' => 'ghost', 'size' => 'icon-sm', 'label' => {{ t }}'Actions for {0}', $user['name'])], 'align' => 'end']),
         ],
     ];
 }
@@ -62,43 +65,43 @@ foreach ($users as $user) {
 $pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $number] + $query];
 ?>
 <div class="flex flex-col gap-4 px-4 md:gap-6 lg:px-6">
-    <?= $this->PageHeader->render('Users', [
-        'description' => 'People with access to this workspace, their roles and plans.',
+    <?= $this->PageHeader->render({{ t }}'Users'), [
+        'description' => {{ t }}'People with access to this workspace, their roles and plans.'),
         'actions' => [
             // TODO: point "Add user" at your own add action.
-            $this->Button->link('Add user', '#', ['icon' => 'plus']),
+            $this->Button->link({{ t }}'Add user'), '#', ['icon' => 'plus']),
         ],
     ]) ?>
 
-    <section class="flex flex-col gap-4" aria-label="User list">
+    <section class="flex flex-col gap-4" aria-label="<?= h({{ t }}'User list')) ?>">
         <?= $this->TableToolbar->render([
             'url' => $this->Url->build(['action' => 'index']),
             'filter' => [
-                'q' => ['type' => 'search', 'label' => 'Search users'],
-                'status' => ['type' => 'select', 'label' => 'Status', 'options' => $statuses],
+                'q' => ['type' => 'search', 'label' => {{ t }}'Search users')],
+                'status' => ['type' => 'select', 'label' => {{ t }}'Status'), 'options' => $statuses],
             ],
             // TODO: wire "Columns" to a column picker of your own.
             // Keeps the rows-per-page choice when the filters are submitted.
             'actions' => $this->Form->hidden('perPage', ['value' => $perPage])
-                . $this->Button->link('Columns', '#', ['icon' => 'columns-2', 'variant' => 'outline']),
+                . $this->Button->link({{ t }}'Columns'), '#', ['icon' => 'columns-2', 'variant' => 'outline']),
         ]) ?>
 
         <?= $this->Table->render([
-            'select' => ['label' => '<input type="checkbox" aria-label="Select all users">', 'escape' => false, 'class' => 'w-10'],
-            'name' => 'User',
-            'role' => 'Role',
-            'plan' => 'Plan',
-            'email' => 'Email',
-            'location' => 'Location',
-            'status' => 'Status',
-            'actions' => ['label' => '<span class="sr-only">Actions</span>', 'escape' => false, 'class' => 'w-10'],
-        ], $rows, ['empty' => 'No users found.']) ?>
+            'select' => ['label' => '<input type="checkbox" aria-label="' . h({{ t }}'Select all users')) . '">', 'escape' => false, 'class' => 'w-10'],
+            'name' => {{ t }}'User'),
+            'role' => {{ t }}'Role'),
+            'plan' => {{ t }}'Plan'),
+            'email' => {{ t }}'Email'),
+            'location' => {{ t }}'Location'),
+            'status' => {{ t }}'Status'),
+            'actions' => ['label' => '<span class="sr-only">' . h({{ t }}'Actions')) . '</span>', 'escape' => false, 'class' => 'w-10'],
+        ], $rows, ['empty' => {{ t }}'No users found.')]) ?>
 
         <div class="flex flex-col items-center justify-between gap-3 text-sm text-muted-foreground sm:flex-row">
             <p>
                 <?= $total === 0 || $users === []
-                    ? 'No results'
-                    : h(sprintf('Showing %d to %d of %d users', $first, $last, $total)) ?>
+                    ? h({{ t }}'No results'))
+                    : h({{ t }}'Showing {0} to {1} of {2} users', $first, $last, $total)) ?>
             </p>
             <div class="flex flex-wrap items-center justify-center gap-4">
                 <?= $this->Form->create(null, ['type' => 'get', 'url' => ['action' => 'index'], 'valueSources' => ['query'], 'class' => 'flex items-center gap-2']) ?>
@@ -109,21 +112,21 @@ $pageUrl = fn (int $number): array => ['action' => 'index', '?' => ['page' => $n
                     <?php endforeach; ?>
                     <?= $this->Form->control('perPage', [
                         'type' => 'select',
-                        'label' => 'Rows per page',
+                        'label' => {{ t }}'Rows per page'),
                         'options' => [12 => '12', 24 => '24', 48 => '48'],
                         'value' => $perPage,
                         'required' => false,
                     ]) ?>
-                    <?= $this->Form->button('Apply', ['type' => 'submit', 'variant' => 'ghost']) ?>
+                    <?= $this->Form->button({{ t }}'Apply'), ['type' => 'submit', 'variant' => 'ghost']) ?>
                 <?= $this->Form->end() ?>
-                <nav class="flex items-center gap-2" aria-label="Pagination">
-                    <span>Page <?= h((string)$page) ?> of <?= h((string)$pageCount) ?></span>
+                <nav class="flex items-center gap-2" aria-label="<?= h({{ t }}'Pagination')) ?>">
+                    <span><?= h({{ t }}'Page {0} of {1}', $page, $pageCount)) ?></span>
                     <?= $page > 1
-                        ? $this->Button->link('Previous', $pageUrl($page - 1), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm'])
-                        : $this->Button->render('Previous', ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                        ? $this->Button->link({{ t }}'Previous'), $pageUrl($page - 1), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'prev'])
+                        : $this->Button->render({{ t }}'Previous'), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
                     <?= $page < $pageCount
-                        ? $this->Button->link('Next', $pageUrl($page + 1), ['icon' => 'chevron-right', 'variant' => 'outline', 'size' => 'sm'])
-                        : $this->Button->render('Next', ['icon' => 'chevron-right', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                        ? $this->Button->link({{ t }}'Next'), $pageUrl($page + 1), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'next'])
+                        : $this->Button->render({{ t }}'Next'), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
                 </nav>
             </div>
         </div>

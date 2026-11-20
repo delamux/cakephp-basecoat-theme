@@ -7,6 +7,7 @@ use BasecoatTheme\Bake\PhpLiteral;
 use BasecoatTheme\Bake\ScreenRegistry;
 use BasecoatTheme\Command\BakeScreenCommand;
 use Cake\Console\TestSuite\ConsoleIntegrationTestTrait;
+use Cake\Core\BasePlugin;
 use Cake\Core\Configure;
 use Cake\TestSuite\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -55,6 +56,7 @@ class BakeScreenCommandTest extends TestCase
     {
         ScreenRegistry::reset();
         ScratchBakeScreenCommand::$srcRoot = null;
+        $this->clearPlugins();
         $this->removeDir($this->scratch);
         parent::tearDown();
     }
@@ -74,6 +76,7 @@ class BakeScreenCommandTest extends TestCase
         $this->assertStringContainsString('public function index(): void', $code);
         $this->assertStringContainsString("\$this->set('items', [", $code);
         $this->assertStringNotContainsString('setTheme', $code);
+        $this->assertMatchesRegularExpression('#// TODO: [^\n]*query parameters#', $code, 'Says the sample ignores the search/filter/paging query');
         $view = (string)file_get_contents($template);
         $this->assertStringContainsString('<h1 data-screen="demo">Inbox</h1>', $view);
         $this->assertStringContainsString('@var \TestApp\View\AppView $this', $view);
@@ -221,6 +224,7 @@ class BakeScreenCommandTest extends TestCase
 
     public function testPluginOption(): void
     {
+        $this->loadPlugins([new BasePlugin(['name' => 'Fernway', 'path' => $this->scratch . 'plugins' . DS . 'Fernway' . DS])]);
         $this->exec('bake screen demo Inbox --plugin Fernway');
 
         $this->assertExitSuccess();
@@ -236,6 +240,41 @@ class BakeScreenCommandTest extends TestCase
             (string)file_get_contents($root . 'templates' . DS . 'Inbox' . DS . 'index.php'),
         );
         $this->assertDirectoryDoesNotExist($this->src . 'Controller');
+    }
+
+    public function testUnloadedPluginIsACleanError(): void
+    {
+        $this->exec('bake screen demo Inbox --plugin Nowhere');
+
+        $this->assertExitError();
+        $this->assertErrorContains('Plugin `Nowhere` is not loaded');
+        $this->assertDirectoryDoesNotExist($this->scratch . 'plugins');
+        $this->assertDirectoryDoesNotExist($this->src);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function builtInScreens(): array
+    {
+        return ['users' => ['users', 'Users'], 'notifications' => ['notifications', 'Notifications']];
+    }
+
+    #[DataProvider('builtInScreens')]
+    public function testScreenStringsAreTranslatable(string $slug, string $title): void
+    {
+        $command = new BakeScreenCommand();
+        $this->loadPlugins(['BasecoatTheme']);
+
+        $app = $command->renderFiles($slug, $title)["templates/{$title}/index.php"];
+        $this->assertStringContainsString("\$this->assign('title', __('{$title}'));", $app);
+        $this->assertStringContainsString("__('Previous')", $app);
+        $this->assertStringNotContainsString('__d(', $app);
+
+        $plugin = $command->renderFiles($slug, $title, 'Fernway/Desk')["templates/{$title}/index.php"];
+        $this->assertStringContainsString("\$this->assign('title', __d('Fernway/Desk', '{$title}'));", $plugin);
+        $this->assertStringContainsString("__d('Fernway/Desk', 'Previous')", $plugin);
+        $this->assertStringNotContainsString('__(', $plugin);
     }
 
     public function testAppSourcesGoToApp(): void

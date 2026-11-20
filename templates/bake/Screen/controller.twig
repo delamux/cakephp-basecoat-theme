@@ -3,7 +3,7 @@
  * BasecoatTheme bake template: controller of a screen (`bin/cake bake screen`), shared by all
  * screens. Variables: `namespace` (app or plugin namespace), `name` (controller name without the
  * `Controller` suffix), `vars` (view variable => PHP literal of its sample value, from the screen
- * `data.php`), `slug`, `title`, `description`, `plugin`.
+ * `data.php`), `slug`, `title`, `description`, `plugin`, `useDomain`.
  */
 -#}
 <?php
@@ -28,6 +28,8 @@ class {{ name }}Controller extends AppController
      */
     public function index(): void
     {
+        // TODO: the search, filter and paging query parameters (`q`, `status`, `type`, `page`, `perPage`)
+        // are ignored until real data is wired: read them with `$this->request->getQuery()` in your query.
 {% for var, literal in vars %}
         $this->set('{{ var }}', {{ literal }});
 {% endfor %}

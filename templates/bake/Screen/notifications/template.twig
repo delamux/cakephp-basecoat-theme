@@ -2,9 +2,11 @@
 /**
  * BasecoatTheme bake template: `notifications` screen (`bin/cake bake screen notifications`).
  * Reads the view variables of data.php (notifications, unreadCount, types, total, page, perPage).
- * Twig variables used: `namespace`. The rest is the PHP view, written literally.
+ * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
+ * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
  */
 -#}
+{% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
 <?php
 /**
  * Notifications: inbox with unread highlighting, search and filters, and a paginated list.
@@ -17,7 +19,7 @@
  * @var int $page Current page.
  * @var int $perPage Notifications per page.
  */
-$this->assign('title', 'Notifications');
+$this->assign('title', {{ t }}'Notifications'));
 
 // Footer: "Showing 1 to 10 of 24" and previous / next links that keep the current filters
 $request = $this->getRequest();
@@ -29,9 +31,9 @@ $first = $total > 0 ? ($page - 1) * $perPage + 1 : 0;
 $last = $total > 0 ? $first + count($notifications) - 1 : 0;
 
 // Title with the unread count; the count is hidden when everything is read
-$heading = h('Inbox');
+$heading = h({{ t }}'Inbox'));
 if ($unreadCount > 0) {
-    $heading .= ' ' . $this->Badge->render($unreadCount . ' unread', [
+    $heading .= ' ' . $this->Badge->render({{ t }}'{0} unread', $unreadCount), [
         'variant' => 'secondary',
         'class' => 'align-middle',
         'data-unread-count' => (string)$unreadCount,
@@ -42,29 +44,29 @@ if ($unreadCount > 0) {
     <?= $this->PageHeader->render($heading, [
         'level' => 2,
         'escape' => false,
-        'description' => 'Requests, mentions and updates from your Fernway workspace.',
+        'description' => {{ t }}'Requests, mentions and updates from your workspace.'),
         'actions' => [
             // TODO: connect "Mark all as read" to an action of your controller (POST).
-            $this->Button->render('Mark all as read', [
+            $this->Button->render({{ t }}'Mark all as read'), [
                 'icon' => 'check',
                 'variant' => 'outline',
                 'disabled' => $unreadCount === 0,
             ]),
             // TODO: link the settings button to your notification preferences page.
-            $this->Button->icon('settings-2', 'Notification settings', ['variant' => 'ghost']),
+            $this->Button->icon('settings-2', {{ t }}'Notification settings'), ['variant' => 'ghost']),
         ],
     ]) ?>
 
     <?= $this->TableToolbar->render([
         'url' => $indexUrl,
         'filter' => [
-            'q' => ['type' => 'search', 'label' => 'Search notifications'],
-            'status' => ['type' => 'select', 'label' => 'Status', 'options' => ['unread' => 'Unread', 'read' => 'Read']],
-            'type' => ['type' => 'select', 'label' => 'Type', 'options' => $types],
+            'q' => ['type' => 'search', 'label' => {{ t }}'Search notifications')],
+            'status' => ['type' => 'select', 'label' => {{ t }}'Status'), 'options' => ['unread' => {{ t }}'Unread'), 'read' => {{ t }}'Read')]],
+            'type' => ['type' => 'select', 'label' => {{ t }}'Type'), 'options' => $types],
         ],
     ]) ?>
 
-    <section aria-label="Notifications">
+    <section aria-label="<?= h({{ t }}'Notifications')) ?>">
         <?php if ($notifications) : ?>
             <?php
             // TODO: the Accept / Decline buttons do nothing yet. Pass
@@ -73,8 +75,8 @@ if ($unreadCount > 0) {
             ?>
             <?= $this->NotificationList->render($notifications, ['types' => $types]) ?>
         <?php else : ?>
-            <?= $this->EmptyState->render('No notifications', [
-                'description' => $filtered ? 'Nothing matches these filters. Try a different search.' : "You're all caught up.",
+            <?= $this->EmptyState->render({{ t }}'No notifications'), [
+                'description' => $filtered ? {{ t }}'Nothing matches these filters. Try a different search.') : {{ t }}"You're all caught up."),
                 'icon' => 'inbox',
             ]) ?>
         <?php endif; ?>
@@ -82,18 +84,18 @@ if ($unreadCount > 0) {
 
     <footer class="flex flex-wrap items-center justify-between gap-3">
         <p class="text-muted-foreground text-sm">
-            <?= h($total > 0 ? sprintf('Showing %d to %d of %d', $first, $last, $total) : 'Showing 0 of 0') ?>
+            <?= h($total > 0 ? {{ t }}'Showing {0} to {1} of {2}', $first, $last, $total) : {{ t }}'Showing 0 of 0')) ?>
         </p>
-        <nav class="flex items-center gap-2" aria-label="Pagination">
+        <nav class="flex items-center gap-2" aria-label="<?= h({{ t }}'Pagination')) ?>">
             <?php if ($page > 1) : ?>
-                <?= $this->Button->link('Previous', $pageUrl($page - 1), ['variant' => 'outline', 'size' => 'sm', 'rel' => 'prev']) ?>
+                <?= $this->Button->link({{ t }}'Previous'), $pageUrl($page - 1), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'prev']) ?>
             <?php else : ?>
-                <?= $this->Button->render('Previous', ['variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                <?= $this->Button->render({{ t }}'Previous'), ['icon' => 'chevron-left', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
             <?php endif; ?>
             <?php if ($page < $pageCount) : ?>
-                <?= $this->Button->link('Next', $pageUrl($page + 1), ['variant' => 'outline', 'size' => 'sm', 'rel' => 'next']) ?>
+                <?= $this->Button->link({{ t }}'Next'), $pageUrl($page + 1), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'rel' => 'next']) ?>
             <?php else : ?>
-                <?= $this->Button->render('Next', ['variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
+                <?= $this->Button->render({{ t }}'Next'), ['icon' => 'chevron-right', 'iconPosition' => 'end', 'variant' => 'outline', 'size' => 'sm', 'disabled' => true]) ?>
             <?php endif; ?>
         </nav>
     </footer>

@@ -121,5 +121,6 @@ class UsersScreenTest extends HelperTestCase
         preg_match('/<a href="([^"]*page=2[^"]*)"/', $html, $m);
         $this->assertStringContainsString('q=an', html_entity_decode($m[1]));
         $this->assertStringContainsString('status=active', html_entity_decode($m[1]));
+        $this->assertMatchesRegularExpression('/<a [^>]*page=2[^>]*>\s*Next\s*<svg[^>]*><path d="m9 18 6-6-6-6"/s', $html, 'The Next icon goes after the text');
     }
 }
