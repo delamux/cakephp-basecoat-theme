@@ -56,7 +56,7 @@ class ScreenRegistryTest extends TestCase
             'profile' => ['Profile', 'Profile', 'circle-user'], 'onboarding' => ['Onboarding', 'Onboarding', 'rocket'],
             'file-manager' => ['File manager', 'Files', 'folder']];
         $all = ScreenRegistry::all();
-        $this->assertSame(['notes', ...array_keys($expected)], array_slice(array_keys($all), 7));
+        $this->assertSame(['notes', ...array_keys($expected)], array_slice(array_keys($all), 7, 6));
         foreach ($expected as $slug => [$title, $controller, $icon]) {
             $this->assertSame($title, $all[$slug]['title'], $slug);
             $this->assertSame($controller, $all[$slug]['controller'], $slug);

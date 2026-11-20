@@ -106,6 +106,18 @@ class IconHelperTest extends HelperTestCase
         );
     }
 
+    public function testWorkflowScreenIcons(): void
+    {
+        $icon = new IconHelper($this->View);
+        // Lucide 0.468.0 markup.
+        $this->assertStringContainsString(
+            '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg>',
+            $icon->render('workflow'),
+        );
+        $this->assertStringContainsString('<polygon points="6 3 20 12 6 21 6 3"/></svg>', $icon->render('play'));
+        $this->assertStringContainsString('aria-hidden="true"', $icon->render('workflow'));
+    }
+
     public function testIconNamesAreAlphabetical(): void
     {
         $property = new \ReflectionProperty(IconHelper::class, 'icons');
