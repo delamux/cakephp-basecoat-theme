@@ -31,6 +31,9 @@ define('WWW_ROOT', ROOT . '/webroot/');
 define('TMP', sys_get_temp_dir() . '/basecoat-theme-tests/');
 define('CACHE', TMP . 'cache/');
 define('LOGS', TMP . 'logs/');
+if (!is_dir(TMP) && !mkdir(TMP, 0777, true) && !is_dir(TMP)) {
+    throw new RuntimeException('Cannot create the test temp directory ' . TMP);
+}
 define('CORE_PATH', ROOT . '/vendor/cakephp/cakephp/');
 define('CAKE', CORE_PATH . 'src/');
 
