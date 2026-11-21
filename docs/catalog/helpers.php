@@ -26,6 +26,7 @@ $groups = [
         'ButtonGroup' => ['Button group', 'Joins related buttons into a single control.'],
         'ChoiceCards' => ['Choice cards', 'Radio group rendered as selectable cards with an icon, a title and an optional description.'],
         'DateRangeField' => ['Date range field', 'From and to dates in a popover with native date inputs and quick presets, compatible with the DateRange list filter.'],
+        'Flow' => ['Flow editor', 'Steps linked by connections on a canvas (React Flow, bundled with the plugin): drag, connect, add from a palette and edit in a side panel; a list without JavaScript.'],
     ],
     'Data display' => [
         'Table' => ['Table', 'Tables from a column list and rows, with captions and sortable headers driven by the core PaginatorHelper.'],

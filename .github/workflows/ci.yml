@@ -34,3 +34,8 @@ jobs:
       - name: JS unit tests
         if: matrix.php == '8.3'
         run: composer test-js
+      - name: Flow editor bundle is up to date
+        if: matrix.php == '8.3'
+        run: |
+          npm --prefix resources/flow ci --no-audit --no-fund
+          npm --prefix resources/flow run check

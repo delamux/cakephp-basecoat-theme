@@ -68,8 +68,10 @@ class CatalogBuilderTest extends TestCase
         $this->assertFileExists($this->out . '/assets/basecoat-theme.js');
         $this->assertFileExists($this->out . '/assets/catalog.js');
         $this->assertFileExists($this->out . '/components/index.html');
-        // Plugin stylesheets at their plugin asset URL (`BasecoatTheme.workflow` => /basecoat_theme/css/workflow.css).
-        $this->assertFileEquals(ROOT . '/webroot/css/workflow.css', $this->out . '/basecoat_theme/css/workflow.css');
+        // Plugin stylesheets and scripts at their plugin asset URL (`BasecoatTheme.basecoat-flow` => /basecoat_theme/…).
+        $this->assertFileEquals(ROOT . '/webroot/css/basecoat-flow.css', $this->out . '/basecoat_theme/css/basecoat-flow.css');
+        $this->assertFileEquals(ROOT . '/webroot/js/basecoat-flow.js', $this->out . '/basecoat_theme/js/basecoat-flow.js');
+        $this->assertFileEquals(ROOT . '/webroot/js/basecoat-flow.LICENSES.txt', $this->out . '/basecoat_theme/js/basecoat-flow.LICENSES.txt');
     }
 
     public function testEveryPluginScriptIsCopied(): void

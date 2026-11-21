@@ -28,6 +28,7 @@ final class BasecoatHelpers
         'Dialog' => 'BasecoatTheme.Dialog',
         'DropdownMenu' => 'BasecoatTheme.DropdownMenu',
         'EmptyState' => 'BasecoatTheme.EmptyState',
+        'Flow' => 'BasecoatTheme.Flow',
         'Form' => 'BasecoatTheme.Form',
         'Icon' => 'BasecoatTheme.Icon',
         'Kbd' => 'BasecoatTheme.Kbd',
