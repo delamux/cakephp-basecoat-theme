@@ -242,3 +242,17 @@ msgstr ""
 
 msgid "Press enter or space to select a connection."
 msgstr ""
+
+msgid "Week of {0}"
+msgstr ""
+
+msgid "All day"
+msgstr ""
+
+msgid "+{0} more"
+msgstr ""
+
+msgid "{0} event outside hours"
+msgid_plural "{0} events outside hours"
+msgstr[0] ""
+msgstr[1] ""

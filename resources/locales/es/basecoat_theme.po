@@ -243,3 +243,17 @@ msgstr "Pulsa Intro o Espacio para seleccionar un paso y ver sus detalles."
 
 msgid "Press enter or space to select a connection."
 msgstr "Pulsa Intro o Espacio para seleccionar una conexión."
+
+msgid "Week of {0}"
+msgstr "Semana del {0}"
+
+msgid "All day"
+msgstr "Todo el día"
+
+msgid "+{0} more"
+msgstr "+{0} más"
+
+msgid "{0} event outside hours"
+msgid_plural "{0} events outside hours"
+msgstr[0] "{0} evento fuera de horario"
+msgstr[1] "{0} eventos fuera de horario"

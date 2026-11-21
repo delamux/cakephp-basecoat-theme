@@ -94,4 +94,198 @@ class CalendarHelperTest extends HelperTestCase
         ], ['date' => '2026-11-18', 'start' => '00:00', 'end' => '24:00', 'slot' => 15, 'days' => [0, 6]]);
         $this->assertIsString($html);
     }
+
+    /**
+     * @param array<string, mixed> $override
+     * @return array<string, mixed>
+     */
+    private function ev(int $id, string $date, ?string $time, ?string $end = null, array $override = []): array
+    {
+        return $override + ['id' => $id, 'title' => 'Event ' . $id, 'date' => $date, 'time' => $time, 'end' => $end];
+    }
+
+    /**
+     * The `<li>` of an event placed in the body (its class attribute), or null.
+     */
+    private function placed(string $html, string $title): ?string
+    {
+        return preg_match('#<li class="(bc-cal-event bc-cal-row-[^"]*)"><a[^>]*>(?:(?!</li>).)*' . preg_quote($title, '#') . '#s', $html, $m) ? $m[1] : null;
+    }
+
+    public function testWeekStructureAndAssets(): void
+    {
+        $html = $this->helper()->week([], ['date' => '2026-11-18', 'days' => [1, 2, 3, 4, 5]]);
+
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-md" aria-label="Week of Monday 16 November 2026" data-calendar-view="week" data-calendar-date="2026-11-18">', $html);
+        $this->assertStringContainsString('<div class="bc-cal-scroll" role="region" tabindex="0" aria-label="Week of Monday 16 November 2026">', $html);
+        $this->assertStringContainsString('<div class="bc-cal-times" aria-hidden="true">', $html);
+        $this->assertSame(5, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertStringContainsString('<span class="bc-cal-hour bc-cal-row-1">08:00</span>', $html);
+        $this->assertStringContainsString('<span class="bc-cal-hour bc-cal-row-23">19:00</span>', $html);
+        $this->assertStringContainsString('<ol class="bc-cal-body bc-cal-rows-24 bc-cal-slot-30">', $html);
+        $this->assertStringNotContainsString('style=', $html);
+        $this->assertStringNotContainsString('<script', $html);
+        $this->assertStringNotContainsString('data-dnd', $html, 'Week is read-only');
+        $this->assertStringContainsString('basecoat-calendar.css', (string)$this->View->fetch('css'));
+    }
+
+    public function testAssetsCanBeSkipped(): void
+    {
+        $this->helper()->week([], ['date' => '2026-11-18', 'assets' => false]);
+        $this->assertStringNotContainsString('basecoat-calendar.css', (string)$this->View->fetch('css'));
+    }
+
+    public function testColumnWidthLabelAndClass(): void
+    {
+        $html = $this->helper()->week([], ['date' => '2026-11-18', 'columnWidth' => 'sm', 'label' => 'Team week', 'class' => 'mt-4', 'data-x' => 'y']);
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-sm mt-4" aria-label="Team week" data-calendar-view="week" data-calendar-date="2026-11-18" data-x="y">', $html);
+    }
+
+    public function testEventPlacement(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '10:30'),
+            $this->ev(2, '2026-11-17', '09:10', '09:40'),
+            $this->ev(3, '2026-11-16', '10:00'),
+        ], ['date' => '2026-11-18', 'days' => [1, 2, 3, 4, 5]]);
+
+        $this->assertSame('bc-cal-event bc-cal-row-3 bc-cal-span-3 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($html, 'Event 1'));
+        $this->assertSame('bc-cal-event bc-cal-row-3 bc-cal-span-2 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($html, 'Event 2'));
+        $this->assertStringContainsString('<span class="bc-cal-time">09:10–09:40</span>', $html, 'Real times are shown');
+        $this->assertSame('bc-cal-event bc-cal-row-5 bc-cal-span-1 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($html, 'Event 3'), 'No end: one slot');
+        // Columns hold their own day's events
+        $this->assertMatchesRegularExpression('#id="[^"]*2026-11-16[^"]*".*?Event 3.*?id="[^"]*2026-11-17#s', $html);
+    }
+
+    public function testClippingMarksCut(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '07:30', '09:00'),
+            $this->ev(2, '2026-11-18', '19:30', '21:00'),
+        ], ['date' => '2026-11-18']);
+
+        $this->assertSame('bc-cal-event bc-cal-row-1 bc-cal-span-2 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none bc-cal-cut-start', $this->placed($html, 'Event 1'));
+        $this->assertSame('bc-cal-event bc-cal-row-24 bc-cal-span-1 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none bc-cal-cut-end', $this->placed($html, 'Event 2'));
+        $this->assertStringContainsString('<span class="bc-cal-time">07:30–09:00</span>', $html);
+    }
+
+    public function testFullDayWith24(): void
+    {
+        $html = $this->helper()->week([$this->ev(1, '2026-11-18', '23:00', '24:00')], ['date' => '2026-11-18', 'start' => '00:00', 'end' => '24:00', 'slot' => 60]);
+
+        $this->assertStringContainsString('bc-cal-rows-24', $html);
+        $this->assertSame('bc-cal-event bc-cal-row-24 bc-cal-span-1 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($html, 'Event 1'));
+        $this->assertStringContainsString('<span class="bc-cal-time">23:00–24:00</span>', $html);
+    }
+
+    public function testOutsideHoursAndOtherWeeksAreNotPlaced(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '06:00', '07:00'),
+            $this->ev(2, '2026-11-18', '20:00', '21:00'),
+            $this->ev(3, '2026-11-25', '10:00', '11:00'),
+            $this->ev(4, '2026-11-21', '10:00', '11:00'),
+        ], ['date' => '2026-11-18', 'days' => [1, 2, 3, 4, 5]]);
+
+        $this->assertNull($this->placed($html, 'Event 1'));
+        $this->assertStringContainsString('<details class="bc-cal-outside"><summary>2 events outside hours</summary>', $html);
+        $this->assertStringContainsString('Event 1', $html, 'Still reachable in the details');
+        $this->assertStringNotContainsString('Event 3', $html, 'Other week');
+        $this->assertStringNotContainsString('Event 4', $html, 'Saturday is not shown');
+    }
+
+    public function testLanes(): void
+    {
+        $three = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '11:00'),
+            $this->ev(2, '2026-11-18', '09:30', '10:00'),
+            $this->ev(3, '2026-11-18', '10:00', '12:00'),
+            $this->ev(4, '2026-11-18', '13:00', '14:00'),
+        ], ['date' => '2026-11-18']);
+        $this->assertStringContainsString('bc-cal-lanes-2 bc-cal-lane-1', (string)$this->placed($three, 'Event 1'));
+        $this->assertStringContainsString('bc-cal-lanes-2 bc-cal-lane-2', (string)$this->placed($three, 'Event 2'));
+        $this->assertStringContainsString('bc-cal-lanes-2 bc-cal-lane-2', (string)$this->placed($three, 'Event 3'), 'Lane 2 is free again at 10:00');
+        $this->assertStringContainsString('bc-cal-lanes-1 bc-cal-lane-1', (string)$this->placed($three, 'Event 4'), 'Separate cluster');
+
+        $events = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $events[] = $this->ev($i, '2026-11-18', '09:00', '10:00');
+        }
+        $six = $this->helper()->week($events, ['date' => '2026-11-18']);
+        $this->assertSame(4, preg_match_all('#<li class="bc-cal-event bc-cal-row-#', $six));
+        $this->assertStringContainsString('bc-cal-lanes-4 bc-cal-lane-4', (string)$this->placed($six, 'Event 4'));
+        $this->assertStringContainsString('<details class="bc-cal-more"><summary>+2 more</summary>', $six);
+        $this->assertNull($this->placed($six, 'Event 6'));
+        $this->assertStringContainsString('Event 6', $six);
+    }
+
+    public function testAllDayRow(): void
+    {
+        $html = $this->helper()->week([$this->ev(1, '2026-11-18', null)], ['date' => '2026-11-18', 'days' => [1, 2, 3]]);
+        $this->assertSame(3, substr_count($html, '<ul class="bc-cal-allday">'), 'One per column');
+        $this->assertMatchesRegularExpression('#<ul class="bc-cal-allday"><li class="bc-cal-event bc-cal-c-none"><a href="\#"><span class="bc-cal-time">All day</span>#', $html);
+
+        $none = $this->helper()->week([$this->ev(1, '2026-11-18', '09:00')], ['date' => '2026-11-18']);
+        $this->assertStringNotContainsString('bc-cal-allday', $none);
+    }
+
+    public function testEventTextAndCategoryClass(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '10:00', ['title' => 'Kickoff', 'resource' => 'kofi', 'category' => 'meeting', 'url' => '/events/1']),
+            $this->ev(2, '2026-11-18', '11:00', '12:00', ['category' => 'party']),
+        ], ['date' => '2026-11-18', 'resources' => ['kofi' => 'Kofi Mensah'], 'categories' => ['meeting' => 'Customer meeting', 'party' => 'Party']]);
+
+        $this->assertStringContainsString('<a href="/events/1"><span class="bc-cal-time">09:00–10:00</span> <span class="bc-cal-title">Kickoff</span> <span class="bc-cal-meta">Kofi Mensah</span><span class="sr-only">, Wednesday 18 November, Customer meeting</span></a>', $html);
+        $this->assertStringContainsString('bc-cal-c-meeting', (string)$this->placed($html, 'Kickoff'));
+        $this->assertStringContainsString('bc-cal-c-none', (string)$this->placed($html, 'Event 2'), 'Unknown colour key: neutral');
+    }
+
+    public function testTodayAndDayUrl(): void
+    {
+        $html = $this->helper()->week([], [
+            'date' => '2026-11-18',
+            'today' => '2026-11-18',
+            'days' => [1, 2, 3],
+            'dayUrl' => fn (string $d): array => ['controller' => 'Calendar', 'action' => 'index', '?' => ['view' => 'day', 'date' => $d]],
+        ]);
+
+        $this->assertSame(1, substr_count($html, 'aria-current="date"'));
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-head bc-cal-today" id="[^"]+" aria-current="date"><a href="/calendar\?view=day&amp;date=2026-11-18"><span aria-hidden="true">Wed 18</span><span class="sr-only">Wednesday 18 November</span></a>#', $html);
+        $this->assertStringContainsString('href="/calendar?view=day&amp;date=2026-11-16"', $html);
+
+        $plain = $this->helper()->week([], ['date' => '2026-11-18', 'days' => [1]]);
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-head" id="[^"]+"><span aria-hidden="true">Mon 16</span><span class="sr-only">Monday 16 November</span>#', $plain);
+    }
+
+    public function testIdsAreUniqueAcrossCalls(): void
+    {
+        $h = $this->helper();
+        $html = $h->week([], ['date' => '2026-11-18']) . $h->week([], ['date' => '2026-11-18']);
+        preg_match_all('/ id="([^"]+)"/', $html, $m);
+        $this->assertSame(count($m[1]), count(array_unique($m[1])));
+    }
+
+    public function testEscaping(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '10:00', ['title' => '<b>&', 'resource' => 'r', 'url' => '/a?b=1&c="x"']),
+        ], ['date' => '2026-11-18', 'resources' => ['r' => '<i>R&D</i>'], 'label' => '"Week"']);
+
+        $this->assertStringNotContainsString('<b>', $html);
+        $this->assertStringNotContainsString('<i>', $html);
+        $this->assertStringContainsString('&lt;b&gt;&amp;', $html);
+        $this->assertStringContainsString('&lt;i&gt;R&amp;D&lt;/i&gt;', $html);
+        $this->assertStringContainsString('href="/a?b=1&amp;c=&quot;x&quot;"', $html);
+        $this->assertStringContainsString('aria-label="&quot;Week&quot;"', $html);
+    }
+
+    public function testStylesheetCoversAllRowsAndSpans(): void
+    {
+        $css = (string)file_get_contents(dirname(__DIR__, 4) . '/webroot/css/basecoat-calendar.css');
+        foreach (['.bc-cal-row-1{', '.bc-cal-row-96{', '.bc-cal-span-96{', '.bc-cal-rows-96{', '.bc-cal-lanes-4.bc-cal-lane-4{', '.bc-cal-w-lg{', '.bc-cal-c-team{', '.bc-cal-cut-start{'] as $rule) {
+            $this->assertStringContainsString($rule, $css);
+        }
+        $this->assertStringNotContainsString('.bc-cal-row-97', $css);
+    }
 }
