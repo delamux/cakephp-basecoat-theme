@@ -376,4 +376,41 @@ class CalendarHelperTest extends HelperTestCase
         $this->expectExceptionMessageMatches('/slot/');
         $this->helper()->day([], ['date' => '2026-11-18', 'slot' => 45]);
     }
+
+    public function testMonthMatchesTheScreenTable(): void
+    {
+        // Fixture: the month table the `calendar` screen rendered before it moved into the helper.
+        $dir = dirname(__DIR__, 3) . '/test_files/';
+        $data = json_decode((string)file_get_contents($dir . 'calendar-month.json'), true, 512, JSON_THROW_ON_ERROR);
+        $expected = trim((string)file_get_contents($dir . 'calendar-month.html'));
+
+        $html = $this->helper()->month($data['events'], ['date' => '2026-11-01', 'today' => '2026-11-20', 'categories' => $data['categories']]);
+
+        $this->assertSame($expected, $this->squash($html));
+        $this->assertSame('', (string)$this->View->fetch('css'), 'The month needs no calendar stylesheet');
+    }
+
+    public function testMonthDayUrlLinksTheDayNumber(): void
+    {
+        $html = $this->helper()->month([], [
+            'date' => '2026-11-18',
+            'today' => '2026-11-20',
+            'dayUrl' => fn (string $d): string => '/calendar?view=day&date=' . $d,
+        ]);
+        $this->assertStringContainsString('data-calendar="2026-11"', $html);
+        $this->assertMatchesRegularExpression('#<a href="/calendar\?view=day&amp;date=2026-11-18"[^>]*><time datetime="2026-11-18"#', $html);
+    }
+
+    public function testMonthAttributesGoOnTheTable(): void
+    {
+        $html = $this->helper()->month([], ['date' => '2026-02-10', 'attributes' => ['data-endpoint' => '/calendar/move'], 'class' => 'mt-2']);
+        $this->assertMatchesRegularExpression('#^<table class="w-full min-w-\[38rem\] table-fixed border-collapse text-sm mt-2" data-calendar="2026-02" data-endpoint="/calendar/move"#', $html);
+        $this->assertStringContainsString('<caption class="sr-only">February 2026</caption>', $html);
+    }
+
+    public function testMonthEventUrl(): void
+    {
+        $html = $this->helper()->month([['id' => 5, 'title' => 'Demo', 'date' => '2026-11-04', 'time' => '10:00', 'url' => '/events/5']], ['date' => '2026-11-01']);
+        $this->assertStringContainsString('<a href="/events/5" class="flex min-w-0 items-center gap-1', $html);
+    }
 }

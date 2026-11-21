@@ -188,7 +188,7 @@ final class ScreenRegistry
             ],
             'calendar' => [
                 'title' => 'Calendar',
-                'description' => 'Month calendar with categorised events, today marker and an upcoming list.',
+                'description' => 'Calendar with month, week and day views: categorised events, hours as rows, a column per person in the day view and an upcoming list.',
                 'controller' => 'Calendar',
                 'path' => $dir . 'calendar',
                 'icon' => 'calendar-days',

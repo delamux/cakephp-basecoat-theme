@@ -40,6 +40,25 @@ class CalendarHelper extends AbstractComponentHelper
     public const WIDTHS = ['sm', 'md', 'lg'];
 
     /**
+     * Chips shown per day in the month before "+N more".
+     *
+     * @var int
+     */
+    public const MONTH_CHIPS = 3;
+
+    /**
+     * Month chip colours per category key (Tailwind classes, written out for compiled builds).
+     *
+     * @var array<string, string>
+     */
+    protected const MONTH_CHIP = [
+        'meeting' => 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
+        'deadline' => 'bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200',
+        'release' => 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200',
+        'team' => 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
+    ];
+
+    /**
      * Most lanes side by side in a column; the other overlapping events go to "+N more".
      *
      * @var int
@@ -454,6 +473,143 @@ class CalendarHelper extends AbstractComponentHelper
         }
 
         return $this->Url->build(is_array($url) ? $url : (string)$url, ['escape' => false]);
+    }
+
+    /**
+     * Month view: a table of whole weeks (Monday first) with event chips; days are drop targets and
+     * chips are draggable with `basecoat-dnd.js` (load it with `basecoat-screens.js` and
+     * `interactivity.css`, as the `calendar` screen does). Up to 3 chips a day, then "+N more".
+     *
+     * Options: `date` (the month containing it), `today`, `categories`, `dayUrl` (links the day
+     * numbers and "+N more" to that day's view), `class` and `attributes` (on the `<table>`, e.g.
+     * `data-endpoint`).
+     *
+     * @param array<int, array<string, mixed>> $events Events.
+     * @param array<string, mixed> $options Options.
+     * @return string
+     * @throws \InvalidArgumentException For an invalid option or event.
+     */
+    public function month(array $events, array $options = []): string
+    {
+        $date = $options['date'] ?? null;
+        $first = (new Date($this->date(is_string($date) ? $date : '', 'date')->format('Y-m-01')));
+        $today = $options['today'] ?? null;
+        if ($today !== null) {
+            $this->date(is_string($today) ? $today : '', 'today');
+        }
+        $dayUrl = $options['dayUrl'] ?? null;
+        if ($dayUrl !== null && !is_callable($dayUrl)) {
+            throw new InvalidArgumentException('Calendar option "dayUrl" must be a callable or null.');
+        }
+        $categories = array_map('strval', (array)($options['categories'] ?? []));
+        $month = (int)$first->format('n');
+
+        $offset = (int)$first->format('N') - 1;
+        $weeks = (int)ceil(($offset + (int)$first->format('t')) / 7);
+        $start = $first->subDays($offset);
+        $monthLabel = $first->i18nFormat('LLLL y');
+
+        $byDay = [];
+        foreach ($this->events($events, 60) as $event) {
+            $byDay[$event['date']][] = $event;
+        }
+        foreach ($byDay as &$dayEvents) {
+            usort($dayEvents, fn (array $a, array $b): int => [(string)$a['fromText'], $a['title']] <=> [(string)$b['fromText'], $b['title']]);
+        }
+        unset($dayEvents);
+
+        $messages = [
+            'instructions' => __d('basecoat_theme', 'Press Space to pick up. Use the arrow keys to move (left and right change the day), Space or Enter to drop, Escape to cancel.'),
+            'picked-up' => __d('basecoat_theme', 'Picked up {label}. {container}, position {position} of {total}.'),
+            'moved' => __d('basecoat_theme', '{container}, position {position} of {total}.'),
+            'dropped' => __d('basecoat_theme', 'Dropped {label}. {container}, position {position} of {total}.'),
+            'cancelled' => __d('basecoat_theme', 'Cancelled. {label} is back in {container}, position {position} of {total}.'),
+            'failed' => __d('basecoat_theme', 'Could not save the change. {label} was moved back.'),
+        ];
+        $attributes = [
+            'class' => $this->mergeClasses('w-full min-w-[38rem] table-fixed border-collapse text-sm', $this->getConfig('class'), $options['class'] ?? null),
+            'data-calendar' => $first->format('Y-m'),
+        ] + (array)($options['attributes'] ?? []);
+        foreach ($messages as $key => $message) {
+            $attributes['data-dnd-i18n-' . $key] = $message;
+        }
+
+        $html = '<table' . $this->formatAttributes($attributes) . '>'
+            . '<caption class="sr-only">' . h($monthLabel) . '</caption><thead><tr>';
+        for ($i = 0; $i < 7; $i++) {
+            $weekday = $start->addDays($i);
+            $html .= '<th scope="col" class="text-muted-foreground border-b px-2 py-2 text-left text-xs font-medium">'
+                . '<span aria-hidden="true">' . h($weekday->i18nFormat('EEE')) . '</span>'
+                . '<span class="sr-only">' . h($weekday->i18nFormat('EEEE')) . '</span></th>';
+        }
+        $html .= '</tr></thead><tbody>';
+        for ($w = 0; $w < $weeks; $w++) {
+            $html .= '<tr>';
+            for ($i = 0; $i < 7; $i++) {
+                $day = $start->addDays($w * 7 + $i);
+                $html .= $this->monthDay($day, $byDay[$day->format('Y-m-d')] ?? [], $month, $today, $categories, $dayUrl);
+            }
+            $html .= '</tr>';
+        }
+
+        return $html . '</tbody></table>';
+    }
+
+    /**
+     * One day cell of the month table.
+     *
+     * @param \Cake\I18n\Date $day Day.
+     * @param array<int, array<string, mixed>> $events Normalized events of the day, sorted.
+     * @param int $month Month shown (1-12).
+     * @param string|null $today Today (`Y-m-d`).
+     * @param array<string, string> $categories Category labels.
+     * @param callable|null $dayUrl Link builder of a day.
+     * @return string
+     */
+    protected function monthDay(Date $day, array $events, int $month, ?string $today, array $categories, ?callable $dayUrl): string
+    {
+        $key = $day->format('Y-m-d');
+        $inMonth = (int)$day->format('n') === $month;
+        $isToday = $key === $today;
+        $hidden = max(0, count($events) - self::MONTH_CHIPS);
+        $url = $dayUrl !== null ? $this->link($dayUrl($key)) : null;
+
+        $number = '<time datetime="' . h($key) . '" class="inline-flex min-w-6 items-center justify-center rounded-full px-1 text-xs'
+            . ($isToday ? ' bg-primary text-primary-foreground font-semibold' : '') . '"' . ($isToday ? ' aria-current="date"' : '') . '>'
+            . '<span aria-hidden="true">' . h($day->format('j')) . '</span>'
+            . '<span class="sr-only">' . h($day->i18nFormat('d MMMM')) . ($isToday ? ', ' . h(__d('basecoat_theme', 'Today')) : '') . '</span></time>';
+        if ($url !== null) {
+            $number = '<a href="' . h($url) . '" class="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">' . $number . '</a>';
+        }
+
+        $html = '<td class="h-28 border-t border-l p-1 align-top first:border-l-0' . ($inMonth ? '' : ' bg-muted/40 text-muted-foreground') . '"'
+            . ' data-date="' . h($key) . '" data-toggle-item data-id="' . h($key) . '">'
+            . '<div class="mb-1 flex justify-end">' . $number . '</div>'
+            . '<ul class="flex min-h-16 flex-col gap-0.5" data-dnd-container data-dnd-group="calendar-days" data-dnd-touch="press"'
+            . ' data-id="' . h($key) . '" data-dnd-label="' . h($day->i18nFormat('EEEE d MMMM')) . '"'
+            . ' data-dnd-var-short="' . h($day->i18nFormat('EEE d MMM')) . '" data-dnd-var-date="' . h($key) . '">';
+        foreach ($events as $index => $event) {
+            $chip = self::MONTH_CHIP[$event['category'] ?? ''] ?? 'bg-muted text-foreground';
+            $label = trim((string)$event['fromText'] . ' ' . $event['title']);
+            $html .= '<li data-dnd-item data-id="' . h($event['id']) . '" data-dnd-label="' . h($label) . '"'
+                . ' data-dnd-mirror="' . h('[data-upcoming="' . $event['id'] . '"]') . '"'
+                . ($index < self::MONTH_CHIPS ? '' : ' data-toggle-for="expanded" data-toggle-hidden="off" hidden') . '>'
+                . '<a href="' . h($this->link($event['url'])) . '" class="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs ' . $chip . '"'
+                . ' data-dnd-handle data-event="' . h($event['id']) . '" data-category="' . h((string)$event['category']) . '" title="' . h($label) . '">'
+                . ($event['fromText'] !== null ? '<span class="shrink-0 font-medium">' . h($event['fromText']) . '</span>' : '')
+                . '<span class="truncate">' . h($event['title']) . '</span>'
+                . ($event['category'] !== null ? '<span class="sr-only">, ' . h($categories[$event['category']] ?? $event['category']) . '</span>' : '')
+                . '</a></li>';
+        }
+        if ($hidden > 0) {
+            $html .= '<li data-toggle-for="expanded" data-toggle-hidden="on">'
+                . '<a href="' . h($url ?? '#') . '" class="text-muted-foreground hover:text-foreground block px-1.5 text-xs" data-more="' . h($key) . '" data-toggle="expanded">'
+                . '<span aria-hidden="true">' . h(__d('basecoat_theme', '+{0} more', $hidden)) . '</span>'
+                . '<span class="sr-only">' . h(__dn('basecoat_theme', '+{0} more event on {1}', '+{0} more events on {1}', $hidden, $hidden, $day->i18nFormat('d MMMM'))) . '</span>'
+                . '</a></li>';
+        }
+
+        return $html . '</ul></td>';
     }
 
     /**

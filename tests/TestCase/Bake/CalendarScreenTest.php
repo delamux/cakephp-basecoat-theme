@@ -97,8 +97,20 @@ class CalendarScreenTest extends TestCase
     {
         $data = ScreenRegistry::data('calendar');
 
-        $this->assertSame(['year', 'month', 'today', 'categories', 'events'], array_keys($data));
+        $this->assertSame(['year', 'month', 'today', 'categories', 'resources', 'days', 'dayStart', 'dayEnd', 'events'], array_keys($data));
         $this->assertSame([2026, 11, '2026-11-20'], [$data['year'], $data['month'], $data['today']]);
+        $this->assertSame([[1, 2, 3, 4, 5], '08:00', '20:00'], [$data['days'], $data['dayStart'], $data['dayEnd']]);
+        $this->assertCount(5, $data['resources']);
+        foreach ($data['events'] as $event) {
+            $this->assertSame(['id', 'title', 'date', 'time', 'end', 'category', 'resource'], array_keys($event));
+            $this->assertTrue($event['resource'] === null || isset($data['resources'][$event['resource']]), 'Known resource');
+            $this->assertSame($event['time'] === null, $event['end'] === null, 'Timed events have an end');
+        }
+        // The week of today (Mon 16 - Fri 20) has enough to show: an overlap, an all-day event and one before 08:00.
+        $week = array_filter($data['events'], fn (array $e): bool => $e['date'] >= '2026-11-16' && $e['date'] <= '2026-11-20');
+        $this->assertGreaterThanOrEqual(8, count($week));
+        $this->assertContains(null, array_column($week, 'time'));
+        $this->assertContains('07:30', array_column($week, 'time'));
         $this->assertGreaterThanOrEqual(12, count($data['events']));
         $this->assertEqualsCanonicalizing(array_keys($data['categories']), array_unique(array_column($data['events'], 'category')));
         $perDay = array_count_values(array_column($data['events'], 'date'));
@@ -185,7 +197,7 @@ class CalendarScreenTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-more='));
         // The fourth chip is on the page but hidden; "+N more" reveals it in place with JavaScript.
         $this->assertMatchesRegularExpression('/<li data-dnd-item data-id="13"[^>]*data-toggle-for="expanded" data-toggle-hidden="off" hidden>/', $html, 'The fourth chip is hidden');
-        $this->assertMatchesRegularExpression('/<li data-toggle-for="expanded" data-toggle-hidden="on">\s*(<\?php.*?\?>)?\s*<a href="#"[^>]*data-more="2026-11-24" data-toggle="expanded">/s', $html);
+        $this->assertMatchesRegularExpression('/<li data-toggle-for="expanded" data-toggle-hidden="on">\s*(<\?php.*?\?>)?\s*<a href="\/calendar\?view=day&amp;date=2026-11-24"[^>]*data-more="2026-11-24" data-toggle="expanded">/s', $html);
     }
 
     public function testDaysAreDropTargetsAndChipsAreDraggable(): void
@@ -208,7 +220,7 @@ class CalendarScreenTest extends TestCase
 
         $this->assertStringNotContainsString('data-endpoint', $html);
         $template = (string)file_get_contents(ROOT . '/templates/bake/Screen/calendar/template.twig');
-        $this->assertStringContainsString('TODO: set data-endpoint=', $template);
+        $this->assertStringContainsString("TODO: add 'attributes' => ['data-endpoint' =>", $template);
         $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => 'script', 'defer' => true]);", $template);
         $this->assertStringContainsString("\$this->Html->script('BasecoatTheme.basecoat-screens', ['block' => 'script', 'defer' => true]);", $template);
         $this->assertStringContainsString("\$this->Html->css('BasecoatTheme.interactivity', ['block' => 'css']);", $template);
@@ -218,25 +230,94 @@ class CalendarScreenTest extends TestCase
     {
         $html = $this->render();
 
-        $this->assertStringContainsString('href="/calendar?month=2026-10"', $html);
-        $this->assertStringContainsString('href="/calendar?month=2026-12"', $html);
+        $this->assertStringContainsString('href="/calendar?view=month&amp;date=2026-10-01"', $html);
+        $this->assertStringContainsString('href="/calendar?view=month&amp;date=2026-12-01"', $html);
         $this->assertStringContainsString('<span class="sr-only">Previous month</span>', $html);
         $this->assertStringContainsString('<span class="sr-only">Next month</span>', $html);
-        $this->assertMatchesRegularExpression('/<a href="\/calendar"[^>]*data-nav="today"[^>]*>Today<\/a>/', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/calendar\?view=month"[^>]*data-nav="today"[^>]*>Today<\/a>/', $html);
 
         $dec = $this->render($this->data(['month' => 12]));
-        $this->assertStringContainsString('href="/calendar?month=2026-11"', $dec);
-        $this->assertStringContainsString('href="/calendar?month=2027-01"', $dec);
+        $this->assertStringContainsString('href="/calendar?view=month&amp;date=2026-11-01"', $dec);
+        $this->assertStringContainsString('href="/calendar?view=month&amp;date=2027-01-01"', $dec);
+
+        $old = $this->render(null, ['month' => '2026-12']);
+        $this->assertStringContainsString('<caption class="sr-only">December 2026</caption>', $old, 'Old ?month= links still work');
+        $byDate = $this->render(null, ['view' => 'month', 'date' => '2027-03-15']);
+        $this->assertStringContainsString('<caption class="sr-only">March 2027</caption>', $byDate);
     }
 
-    public function testViewSwitchIsInertAndNamed(): void
+    public function testViewSwitchLinks(): void
     {
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/role="group" aria-label="Calendar view"/', $html);
-        $this->assertMatchesRegularExpression('/<button[^>]*aria-pressed="true"[^>]*data-view="month"[^>]*>Month<\/button>/', $html);
-        $this->assertSame(2, substr_count($html, 'aria-pressed="false"'));
+        $this->assertStringContainsString('<nav class="flex items-center gap-1" aria-label="Calendar view">', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/calendar\?view=month&amp;date=2026-11-20"[^>]*aria-current="true"[^>]*data-view="month"[^>]*>Month<\/a>/', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/calendar\?view=week&amp;date=2026-11-20"[^>]*data-view="week"[^>]*>Week<\/a>/', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/calendar\?view=day&amp;date=2026-11-20"[^>]*data-view="day"[^>]*>Day<\/a>/', $html);
+        $this->assertSame(1, substr_count($html, 'aria-current="true"'));
         $this->assertStringContainsString('New event', $html);
+    }
+
+    public function testWeekView(): void
+    {
+        $html = $this->render(null, ['view' => 'week', 'date' => '2026-11-18']);
+
+        $this->assertStringNotContainsString('<table', $html);
+        $this->assertStringContainsString('data-calendar-view="week"', $html);
+        $this->assertSame(5, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertStringContainsString('<h3 class="ml-1 text-lg font-semibold">16 Nov – 20 Nov 2026</h3>', $html);
+        foreach (['16', '17', '18', '19', '20'] as $day) {
+            $this->assertStringContainsString('href="/calendar?view=day&amp;date=2026-11-' . $day . '"', $html);
+        }
+        $this->assertStringContainsString('href="/calendar?view=week&amp;date=2026-11-11"', $html);
+        $this->assertStringContainsString('href="/calendar?view=week&amp;date=2026-11-25"', $html);
+        $this->assertStringContainsString('<span class="sr-only">Previous week</span>', $html);
+        $this->assertMatchesRegularExpression('/<a href="\/calendar\?view=week"[^>]*data-nav="today"/', $html);
+        $this->assertStringContainsString('bc-cal-cut-start', $html, 'The 07:30 standup is clipped at 08:00');
+        $this->assertStringContainsString('<ul class="bc-cal-allday">', $html);
+        $this->assertStringContainsString('<span class="bc-cal-meta">Kofi Mensah</span>', $html);
+        $this->assertStringContainsString('Upcoming', $html, 'The side panel stays');
+        $grid = substr($html, (int)strpos($html, '<section class="bc-cal'), (int)strpos($html, '<aside') - (int)strpos($html, '<section class="bc-cal'));
+        $this->assertStringNotContainsString('data-dnd', $grid, 'Read-only');
+    }
+
+    public function testDayView(): void
+    {
+        $html = $this->render(null, ['view' => 'day', 'date' => '2026-11-18']);
+
+        $this->assertStringContainsString('data-calendar-view="day"', $html);
+        $this->assertSame(5, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertMatchesRegularExpression('/Elena Sarto.*Kofi Mensah.*Ines Duarte.*Pavel Novak.*Noor Haddad/s', $html);
+        $this->assertStringContainsString('<h3 class="ml-1 text-lg font-semibold">Wednesday 18 November 2026</h3>', $html);
+        $this->assertStringContainsString('href="/calendar?view=day&amp;date=2026-11-17"', $html);
+        $this->assertStringContainsString('href="/calendar?view=day&amp;date=2026-11-19"', $html);
+        $this->assertStringContainsString('bc-cal-lanes-1', $html);
+        $this->assertStringNotContainsString('Unassigned', $html);
+
+        $allHands = $this->render(null, ['view' => 'day', 'date' => '2026-11-19']);
+        $this->assertStringContainsString('Unassigned', $allHands, 'The all-hands has no resource');
+    }
+
+    public function testInvalidQueryFallsBack(): void
+    {
+        $html = $this->render(null, ['view' => 'year', 'date' => 'nope', 'month' => '2026-13']);
+
+        $this->assertStringContainsString('<caption class="sr-only">November 2026</caption>', $html);
+        $this->assertMatchesRegularExpression('/aria-current="true"[^>]*data-view="month"/', $html);
+    }
+
+    public function testOldDataStillRenders(): void
+    {
+        $data = ScreenRegistry::data('calendar');
+        unset($data['resources'], $data['days'], $data['dayStart'], $data['dayEnd']);
+        $data['events'] = array_map(fn (array $e): array => array_diff_key($e, ['end' => true, 'resource' => true]), $data['events']);
+
+        $month = $this->render($data);
+        $this->assertStringContainsString('<caption class="sr-only">November 2026</caption>', $month);
+        $week = $this->render($data, ['view' => 'week', 'date' => '2026-11-18']);
+        $this->assertSame(5, substr_count($week, '<div class="bc-cal-col" role="group"'), 'Monday to Friday by default');
+        $day = $this->render($data, ['view' => 'day', 'date' => '2026-11-18']);
+        $this->assertSame(1, substr_count($day, '<div class="bc-cal-col" role="group"'), 'No resources: one column');
     }
 
     public function testSidePanelListsUpcomingAndLegend(): void
@@ -301,11 +382,19 @@ class CalendarScreenTest extends TestCase
         $html = $this->render($this->data([
             'categories' => ['<b>cat</b>' => '<i>Label</i>'],
             'events' => [
-                ['id' => 1, 'title' => '<script>alert(1)</script>', 'date' => '2026-11-20', 'time' => '<u>9</u>', 'category' => '<b>cat</b>'],
+                ['id' => 1, 'title' => '<script>alert(1)</script>', 'date' => '2026-11-20', 'time' => '09:00', 'category' => '<b>cat</b>', 'resource' => 'r'],
             ],
+            'resources' => ['r' => '<u>Res</u>'],
         ]));
+        $html .= $this->render($this->data([
+            'categories' => ['<b>cat</b>' => '<i>Label</i>'],
+            'events' => [
+                ['id' => 1, 'title' => '<script>alert(1)</script>', 'date' => '2026-11-20', 'time' => '09:00', 'category' => '<b>cat</b>', 'resource' => 'r'],
+            ],
+            'resources' => ['r' => '<u>Res</u>'],
+        ]), ['view' => 'week', 'date' => '2026-11-20']);
 
-        foreach (['<script>alert', '<i>Label', '<b>cat', '<u>9'] as $raw) {
+        foreach (['<script>alert', '<i>Label', '<b>cat', '<u>Res'] as $raw) {
             $this->assertStringNotContainsString($raw, $html);
         }
         $this->assertStringContainsString('&lt;script&gt;alert(1)', $html);
@@ -326,7 +415,7 @@ class CalendarScreenTest extends TestCase
 
         preg_match_all('/href="([^"]*)"/', $html, $matches);
         foreach ($matches[1] as $href) {
-            $this->assertMatchesRegularExpression('/^(#|\/calendar(\?month=\d{4}-\d{2})?$)/', $href, 'Unexpected link ' . $href);
+            $this->assertMatchesRegularExpression('/^(#|\/calendar\?view=(month|week|day)(&amp;date=\d{4}-\d{2}-\d{2})?)$/', $href, 'Unexpected link ' . $href);
         }
         $this->assertStringNotContainsString('<form', $html);
     }
@@ -360,7 +449,7 @@ class CalendarScreenTest extends TestCase
 
         $files = (new BakeScreenCommand())->renderFiles('calendar', 'Calendar', 'Blog');
         $this->assertStringContainsString("__d('Blog', 'New event')", $files['templates/Calendar/index.php']);
-        $this->assertStringContainsString("__d('Blog', '+{0} more', ", $files['templates/Calendar/index.php']);
-        $this->assertStringContainsString("__dn('Blog', '+{0} more event on {1}', '+{0} more events on {1}', ", $files['templates/Calendar/index.php']);
+        $this->assertStringContainsString("__d('Blog', 'Next week')", $files['templates/Calendar/index.php']);
+        $this->assertStringContainsString("__d('Blog', 'Previous day')", $files['templates/Calendar/index.php']);
     }
 }
