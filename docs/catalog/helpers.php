@@ -29,6 +29,7 @@ $groups = [
         'Flow' => ['Flow editor', 'Steps linked by connections on a canvas (React Flow, bundled with the plugin): drag, connect, add from a palette and edit in a side panel; a list without JavaScript.'],
     ],
     'Data display' => [
+        'Calendar' => ['Calendar', 'Month, week and day calendar views: hours as rows, a column per day in the week and per person or company in the day; no JavaScript needed.'],
         'Table' => ['Table', 'Tables from a column list and rows, with captions and sortable headers driven by the core PaginatorHelper.'],
         'TableToolbar' => ['Table toolbar', 'Bar above a table with a filter input, optional selects and actions. Accepts the controls of a ListFilter.'],
         'Pagination' => ['Pagination', 'Page links for paginated lists, with first, last, previous and next buttons, a counter and a previous/next only mode.'],

@@ -72,6 +72,7 @@ class CatalogBuilderTest extends TestCase
         $this->assertFileEquals(ROOT . '/webroot/css/basecoat-flow.css', $this->out . '/basecoat_theme/css/basecoat-flow.css');
         $this->assertFileEquals(ROOT . '/webroot/js/basecoat-flow.js', $this->out . '/basecoat_theme/js/basecoat-flow.js');
         $this->assertFileEquals(ROOT . '/webroot/js/basecoat-flow.LICENSES.txt', $this->out . '/basecoat_theme/js/basecoat-flow.LICENSES.txt');
+        $this->assertFileEquals(ROOT . '/webroot/css/basecoat-calendar.css', $this->out . '/basecoat_theme/css/basecoat-calendar.css');
     }
 
     public function testEveryPluginScriptIsCopied(): void

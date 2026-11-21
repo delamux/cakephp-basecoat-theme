@@ -17,7 +17,7 @@ classes, variants, sizes, attributes and string templates.
 demo dashboard built only with these helpers: <https://delamux.github.io/cakephp-basecoat-theme/>.
 
 - Theme: layouts (`default` dashboard with inset sidebar, `auth`, `error`), sidebar/user menu elements and flash elements.
-- 35 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
+- 36 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Calendar, Card, Chart,
   ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Flow, Form, Icon,
   Kbd, MemberList, MetricCard, NotificationList, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table,
   TableToolbar, Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
@@ -414,6 +414,70 @@ footer). The `notifications` bake screen uses them for its client-side behaviour
 shown by colour alone.
 Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
 
+### Calendar
+
+`CalendarHelper` renders calendar views on the server: a **month** table, a **week** with a column per
+weekday and a **day** with a column per resource (people, companies, rooms, anything). In the week and day
+views the hours run top to bottom as rows. They need no JavaScript and no inline styles: the layout
+classes (`bc-cal-*`) come from `webroot/css/basecoat-calendar.css`, which the helper adds to the `css`
+view block (`'assets' => false` to skip it).
+
+```php
+$events = [
+    ['id' => 1, 'title' => 'Kickoff, Quillon Studio', 'date' => '2026-11-18', 'time' => '10:00', 'end' => '11:00',
+        'resource' => 'kofi', 'category' => 'meeting', 'url' => ['action' => 'view', 1]],
+    ['id' => 2, 'title' => 'Fernway all-hands', 'date' => '2026-11-19', 'time' => null],   // all day
+];
+$dayUrl = fn (string $date): array => ['action' => 'index', '?' => ['view' => 'day', 'date' => $date]];
+
+echo $this->Calendar->week($events, [
+    'date' => '2026-11-18',             // the week containing this date
+    'today' => '2026-11-18',            // marks today's column (the helper never reads the clock)
+    'days' => [1, 2, 3, 4, 5],          // 0 = Sunday … 6 = Saturday, in column order
+    'start' => '08:00', 'end' => '20:00',
+    'resources' => ['kofi' => 'Kofi Mensah', 'ines' => 'Ines Duarte'],
+    'categories' => ['meeting' => 'Customer meeting'],
+    'dayUrl' => $dayUrl,                // the day headers open that day
+]);
+echo $this->Calendar->day($events, ['date' => '2026-11-18', 'resources' => [...]]);
+echo $this->Calendar->month($events, ['date' => '2026-11-18', 'dayUrl' => $dayUrl]);
+```
+
+**Events** (the same array for the three views; pass all you have, each view keeps the ones it shows):
+`id`, `title`, `date` (`Y-m-d`), `time` (`H:i` start, or `null` for all day), `end` (`H:i`, optional,
+`24:00` allowed; default one slot after `time`), `resource` (key of `resources`), `category` (key of
+`categories`) and `url` (string or routing array, `#` when absent). A malformed date or time, or an `end`
+not after `time`, throws an `InvalidArgumentException` naming the field.
+
+**Options** of `week()` / `day()`:
+
+| Option | Default | |
+| --- | --- | --- |
+| `date` | required | `Y-m-d`. Week: the week containing it, starting on `days[0]`. Day: that day. |
+| `today` | `null` | `Y-m-d`; its column header gets `aria-current="date"`. |
+| `days` | `[1,2,3,4,5,6,0]` | Week only. Weekdays 0–6 (0 = Sunday), no duplicates; the order is the column order. |
+| `start` / `end` | `'08:00'` / `'20:00'` | Visible hours, on a slot boundary; `end` may be `'24:00'`. |
+| `slot` | `30` | Minutes per row: `15`, `30` or `60`. |
+| `resources` | `[]` | `key => name`. Day: one column each, in order; events with no or an unknown resource go to a last "Unassigned" column. Week: the name is shown on the event. |
+| `categories` | `[]` | `key => label`. `meeting`, `deadline`, `release` and `team` have a colour, other keys a neutral one. |
+| `columnWidth` | `'md'` | `sm` (9rem), `md` (12rem) or `lg` (16rem): every column gets that width at least, and the grid scrolls sideways when they do not fit. |
+| `dayUrl` | `null` | `fn (string $date): string\|array`; links the week's day headers (and the month's day numbers and "+N more"). |
+| `label` | "Week of …" / "Schedule for …" | Accessible name of the grid. |
+| `class`, `attributes`, `assets` | | As in the other helpers. |
+
+**Layout rules.** Event times are rounded out to the slot for placement (09:10–09:40 fills 09:00–10:00
+with 30-minute slots) but the text shows the real times. Events crossing `start` or `end` are cut with a
+dashed edge; events wholly outside the hours are listed in the column header ("2 events outside hours",
+a `<details>`). Overlapping events sit side by side in up to four lanes; the rest go to a "+N more"
+`<details>` in the header, so every event stays reachable by keyboard. The hour column and the header row
+stay fixed while the grid scrolls (it scrolls inside its own box, up to 75% of the viewport high).
+
+**Month.** `month()` renders the `calendar` screen's table: whole weeks, Monday first, three chips a day
+and "+N more". Days are drop targets and chips are draggable with `basecoat-dnd.js` (see
+[Interactivity](#interactivity)); pass `'attributes' => ['data-endpoint' => …]` to save moves. Options:
+`date`, `today`, `categories`, `dayUrl`, `class`, `attributes`. Its chips use Tailwind classes, so a
+compiled Tailwind build must scan the plugin's `src/`.
+
 ### Flow editor
 
 `FlowHelper` renders a node editor (steps linked by connections) on
@@ -614,8 +678,9 @@ bin/cake bake screen users --force                     # overwrite existing file
     image notes.
   - `bookings` (`Bookings`): day schedule of classes per room and coach (one grid row per 30 minutes),
     previous / next day links (`?date=`) and a list view.
-  - `calendar` (`Calendar`): month calendar with categorised events, today marker, `?month=` navigation
-    and an upcoming list.
+  - `calendar` (`Calendar`): month, week and day views on the [Calendar helper](#calendar) (`?view=` and
+    `?date=`; `?month=` is still accepted): categorised events, hours as rows, a column per person in the
+    day view, week day headers that open the day, and an upcoming list.
   - `profile` (`Profile`): user profile with cover, details, skills, activity timeline, projects and a
     settings form, in tabs.
   - `onboarding` (`Onboarding`): five-step setup flow with a step indicator and no-JS navigation
@@ -656,7 +721,7 @@ the screen uses (all `BasecoatTheme.*`; `Form` is `BasecoatTheme.Form`):
 | `kanban` | `Board` | `PageHeader`, `Tabs`, `Table`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Icon` |
 | `notes` | `Notes` | `PageHeader`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `bookings` | `Bookings` | `PageHeader`, `Table`, `Badge`, `DropdownMenu`, `Button`, `EmptyState` |
-| `calendar` | `Calendar` | `PageHeader`, `Badge`, `Button` |
+| `calendar` | `Calendar` | `PageHeader`, `Calendar`, `Badge`, `Button` |
 | `profile` | `Profile` | `Tabs`, `Card`, `MetricCard`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `onboarding` | `Onboarding` | `Card`, `ChoiceCards`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `file-manager` | `Files` | `PageHeader`, `Breadcrumb`, `TableToolbar`, `Progress`, `Avatar`, `DropdownMenu`, `Button`, `EmptyState`, `Icon` |
@@ -1091,6 +1156,14 @@ gets filters and an *Export CSV* link: see
 
 Changes in this version that can affect existing apps:
 
+- **The `calendar` screen has week and day views** on the new `Calendar` helper. Re-bake it
+  (`bin/cake bake screen calendar --force`) to get them; its data gains `resources`, `days`, `dayStart`,
+  `dayEnd` and, per event, `end`, `resource` and an optional `url`. Old data still renders (the week falls
+  back to Monday–Friday 08:00–20:00, the day to one column). Navigation links are now
+  `?view=…&date=Y-m-d`; old `?month=Y-m` links still work. The month's drag messages and "+N more" strings
+  moved to the plugin's translation domain. Event times are now validated: a malformed `time` throws.
+- **New `Calendar` helper** (in `BasecoatHelpers::MAP`; apps that load helpers one by one add
+  `BasecoatTheme.Calendar`) and the plugin stylesheet `webroot/css/basecoat-calendar.css`.
 - **The `workflow` screen moved from sequential-workflow-designer to the new flow editor** (`FlowHelper`,
   React Flow bundled in the plugin). Breaking for apps that baked it before: its view variables are now
   `flow` + `palette` (were `definition` + `toolbox`), the hidden input is `flow` (was `definition`, with a
