@@ -55,6 +55,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### Flow editor bundle (`webroot/js/basecoat-flow.js`, `webroot/css/basecoat-flow.css`)
+
+`FlowHelper` ships a precompiled bundle (sources in `resources/flow/`) that contains these packages:
+
+| Package | License | Copyright |
+| --- | --- | --- |
+| `@xyflow/react`, `@xyflow/system` (React Flow) | MIT | © 2019-2025 webkid GmbH |
+| `react`, `react-dom`, `scheduler`, `use-sync-external-store` | MIT | © Meta Platforms, Inc. and affiliates |
+| `zustand` | MIT | © 2019 Paul Henschel |
+| `classcat` | MIT | © Jorge Bucaran |
+| `d3-color`, `d3-dispatch`, `d3-drag`, `d3-interpolate`, `d3-selection`, `d3-timer`, `d3-transition`, `d3-zoom` | ISC | © 2010-2026 Mike Bostock |
+| `d3-ease` | BSD-3-Clause | © 2010-2026 Mike Bostock, © 2001 Robert Penner |
+
+The exact versions and the **full license text of every package** are in
+`webroot/js/basecoat-flow.LICENSES.txt`, generated from the bundle by `resources/flow/build.mjs` (it ships
+next to the bundle). The minified bundle also keeps the packages' license comments.
+
 ## Loaded from a CDN at runtime (not bundled)
 
 These are referenced by URL (jsDelivr / cdnjs) and are not redistributed in this package.
@@ -64,7 +81,6 @@ These are referenced by URL (jsDelivr / cdnjs) and are not redistributed in this
 | Basecoat (`basecoat-css`) | `ThemeHelper`, default layout | MIT | © 2025 Ronan Berder |
 | Tailwind CSS (`@tailwindcss/browser`) | `ThemeHelper`, default layout | MIT | © Tailwind Labs, Inc. |
 | Chart.js | `ChartHelper` | MIT | © 2014-2024 Chart.js Contributors |
-| sequential-workflow-designer | `workflow` bake screen | MIT | © 2022 N4NO.com |
 | highlight.js | component catalog (docs only) | BSD-3-Clause | © 2006, Ivan Sagalaev |
 
 The full license texts ship with each package and are available at the URLs the plugin loads them from.

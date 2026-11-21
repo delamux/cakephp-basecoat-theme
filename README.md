@@ -17,8 +17,8 @@ classes, variants, sizes, attributes and string templates.
 demo dashboard built only with these helpers: <https://delamux.github.io/cakephp-basecoat-theme/>.
 
 - Theme: layouts (`default` dashboard with inset sidebar, `auth`, `error`), sidebar/user menu elements and flash elements.
-- 34 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
-  ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Form, Icon,
+- 35 helpers: Accordion, Alert, Avatar, Badge, Breadcrumb, Button, ButtonGroup, Card, Chart,
+  ChoiceCards, CommandMenu, Conversation, DateRangeField, Dialog, DropdownMenu, EmptyState, Flow, Form, Icon,
   Kbd, MemberList, MetricCard, NotificationList, PageHeader, Pagination, Progress, Sidebar, Skeleton, Table,
   TableToolbar, Tabs, Theme, Toast, Tooltip, WorkspaceSwitcher.
 - Ready-made screens: `bin/cake bake screen users` bakes a controller and a template you own (see
@@ -414,6 +414,107 @@ footer). The `notifications` bake screen uses them for its client-side behaviour
 shown by colour alone.
 Behaviour (command menu hotkey, date presets) lives in `webroot/js/basecoat-theme.js`, no inline JS.
 
+### Flow editor
+
+`FlowHelper` renders a node editor (steps linked by connections) on
+[React Flow](https://reactflow.dev) (`@xyflow/react`, MIT). React, React Flow and the plugin's editor code
+are **precompiled into `webroot/js/basecoat-flow.js` + `webroot/css/basecoat-flow.css`**: your app passes
+PHP arrays and writes no React; npm is only needed to change the bundle (see
+[Flow editor bundle](#flow-editor-bundle)).
+
+```php
+echo $this->Flow->editor([
+    'nodes' => [
+        ['id' => 'signed-up', 'type' => 'trigger', 'label' => 'Customer signed up', 'icon' => 'user-plus',
+            'position' => ['x' => 0, 'y' => 0], 'properties' => ['event' => 'customer.created']],
+        ['id' => 'plan', 'type' => 'condition', 'label' => 'Plan is Scale?', 'position' => ['x' => 0, 'y' => 150],
+            'properties' => ['condition' => 'plan = Scale'], 'outputs' => ['yes' => 'Yes', 'no' => 'No']],
+        ['id' => 'manager', 'type' => 'action', 'label' => 'Assign success manager', 'icon' => 'user-check',
+            'position' => ['x' => -160, 'y' => 320]],
+    ],
+    'edges' => [
+        ['source' => 'signed-up', 'target' => 'plan'],
+        ['source' => 'plan', 'output' => 'yes', 'target' => 'manager'],
+    ],
+], [
+    'name' => 'flow',                       // hidden input kept in sync (false: none)
+    'palette' => [['label' => 'Actions', 'items' => [
+        ['type' => 'action', 'label' => 'Send email', 'icon' => 'mail', 'properties' => ['to' => '', 'subject' => '']],
+    ]]],
+    'fields' => ['event' => 'Event', 'condition' => 'Condition', 'to' => 'Recipient', 'subject' => 'Subject'],
+]);
+```
+
+**Data.** `nodes`: `id` (unique), `type`, `label`, `position` (`x`, `y` in canvas pixels, required: there is
+no auto-layout), optional `icon` (an IconHelper name), `properties` (`key => string|int`, edited as text
+fields) and, for a condition, `outputs` (`key => label`, default yes / no).
+
+| `type` | Input | Outputs |
+| --- | --- | --- |
+| `trigger` | none (cannot be a target) | one |
+| `action` | one | one |
+| `condition` | one | one per `outputs` entry |
+
+`edges`: `source`, `target`, `output` (required when the source is a condition: one of its `outputs`
+keys; not allowed otherwise) and an optional `id` (default `source:output->target`). Each output leads to
+at most one step. An invalid flow (unknown type or icon, duplicate id, missing position, edge to an unknown
+node, into a trigger, to itself, or a second edge from the same output) throws `InvalidArgumentException`
+with a message naming the problem.
+
+**Options.** `name` (hidden input, default `flow`, `false` for none), `palette` (groups of `label` +
+`items`; an item is a node without `id` / `position`), `fields` (property labels in the side panel),
+`readonly` (inspect only: no palette, moving, connecting or editing), `label` (accessible name, default
+"Flow editor"), `i18n` (override any editor text: keys of `FlowHelper::texts()`), `assets` (default `true`:
+adds `BasecoatTheme.basecoat-flow` css / js to the `css` / `script` view blocks once per page; set `false`
+if your layout loads them), plus `class`, `attributes`, `templates` and `escape`. The helper config
+`kindIcons` sets the icon of a step without `icon` per type (`zap`, `circle-check`, `split`).
+
+**What it renders.** A `[data-flow-editor]` element with two `<script type="application/json">` data
+blocks (flow and configuration, never executed), a `<template data-flow-icons>` with the IconHelper SVGs
+(cloned by the bundle: no HTML parsing), the hidden input, a hidden canvas placeholder and the
+**no-JavaScript fallback**: the steps as an ordered list in reading order (breadth-first from the triggers,
+outputs in their order, then the unconnected steps top to bottom) with where each one leads. The bundle
+hides the fallback once the editor is mounted; if it fails, the list stays.
+
+**Editing.** Drag steps; connect an output handle to a step (drag, or click one handle then the other);
+select a step or connection and press Delete / Backspace; zoom and pan with the controls, the wheel or a
+pinch; the minimap is hidden on narrow containers. The **palette** adds a step after the selected one
+(inserted between it and its next step) or, dragged, where it is dropped. The **side panel** lists the
+steps in reading order (buttons that select and focus a step); with a step selected it edits its name and
+properties, has a **"Next step" select per output** (connect or disconnect without a pointer), "Delete
+step" and "All steps". The canvas follows the light / dark theme live (`.dark` on `<html>`).
+
+**Keyboard.** Tab reaches the palette, the steps on the canvas, the connections, the zoom controls and the
+panel. On a step: Enter / Space selects it, the arrow keys move it, Delete removes it, Escape cancels.
+Every step and connection has an accessible name ("Condition: Plan is Scale?", "Connection from Plan is
+Scale?, Yes, to Assign success manager"); adding, connecting and deleting are announced in a polite live
+region. All texts are translated (`basecoat_theme` domain), React Flow's own ones included.
+
+**Events and saving.** Every real change (not selecting or an unfinished drag) updates the hidden input
+with the flow as JSON (same shape as the PHP array, positions rounded) and dispatches
+`basecoat:flow-change` on the `[data-flow-editor]` element, bubbling, with `detail.flow` and
+`detail.action` (`add`, `connect`, `disconnect`, `delete`, `move`, `edit`, `change`):
+
+```js
+document.addEventListener('basecoat:flow-change', (event) => {
+  console.log(event.detail.action, event.detail.flow.nodes.length);
+});
+```
+
+Post the input with a normal form, or send `detail.flow` to your endpoint. Treat it as user input and
+validate it on the server.
+
+**JavaScript API.** `basecoat-flow.js` mounts every `[data-flow-editor]` on load and on `htmx:load`, and
+unmounts editors removed by htmx (`htmx:beforeCleanupElement`). For content added otherwise, call
+`window.BasecoatFlow.init(root)`; `window.BasecoatFlow.unmount(element)` unmounts one.
+
+**CSP and styling.** No inline script, no `style` attribute in the server HTML and no CDN: the files are
+served from your app (`/basecoat_theme/js/basecoat-flow.js`, through the view blocks, so HtmlHelper adds the
+CSP nonce). React sets positions through the CSSOM, which `style-src` without `'unsafe-inline'` allows.
+The stylesheet uses only `bc-flow-*` classes and the Basecoat tokens (`--card`, `--border`,
+`--primary`…), so no Tailwind class has to be generated for it; override the classes in your CSS to restyle
+it. The bundle is about 390 KB minified (about 120 KB gzipped), loaded only on pages that render the editor.
+
 ### Other components
 ```php
 echo $this->Avatar->render('Elena Sarto', ['src' => $user->avatar, 'size' => 'lg']);
@@ -514,10 +615,9 @@ bin/cake bake screen users --force                     # overwrite existing file
     (`?step=`).
   - `file-manager` (`Files`): storage overview, folders with breadcrumb (`?path=`), recent files as a
     grid or list, search and type filter.
-  - `workflow` (`Workflows`): automation editor built on
-    [sequential-workflow-designer](https://github.com/nocode-js/sequential-workflow-designer) (see
-    [Workflow screen](#workflow-screen)): drag-and-drop steps with if / else branches, a step editor and
-    the run history.
+  - `workflow` (`Workflows`): automation editor on the [flow editor](#flow-editor) (React Flow, bundled
+    with the plugin; see [Workflow screen](#workflow-screen)): steps on a canvas with if / else branches,
+    a palette, a step panel and the run history.
 - `[<Controller>]`: controller name, default the screen's (see the list above); `team_inbox` and
   `TeamInbox` both give `TeamInboxController`.
 - `--list`: lists the screens with their description and exits.
@@ -553,7 +653,7 @@ the screen uses (all `BasecoatTheme.*`; `Form` is `BasecoatTheme.Form`):
 | `profile` | `Profile` | `Tabs`, `Card`, `MetricCard`, `Progress`, `Avatar`, `Badge`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `onboarding` | `Onboarding` | `Card`, `ChoiceCards`, `Button`, `EmptyState`, `Form`, `Icon` |
 | `file-manager` | `Files` | `PageHeader`, `Breadcrumb`, `TableToolbar`, `Progress`, `Avatar`, `DropdownMenu`, `Button`, `EmptyState`, `Icon` |
-| `workflow` | `Workflows` | `PageHeader`, `Table`, `Badge`, `Button`, `EmptyState` (plus `Html` for the assets) |
+| `workflow` | `Workflows` | `PageHeader`, `Flow`, `Table`, `Badge`, `Button` |
 
 Their strings use `__()` / `__n()` (`__d('<plugin>', …)` / `__dn('<plugin>', …)` with `--plugin`),
 like the CRUD bake templates.
@@ -584,49 +684,18 @@ the exact files the command writes.
 
 ### Workflow screen
 
-`bin/cake bake screen workflow` uses an external library,
-**[sequential-workflow-designer](https://github.com/nocode-js/sequential-workflow-designer)** 0.40.4
-(MIT, © N4NO.com; free edition only, no Pro features), restyled with the Basecoat tokens:
+`bin/cake bake screen workflow` renders its steps with [`$this->Flow->editor()`](#flow-editor): the
+canvas, the palette (`palette` view variable: groups Triggers / Actions / Logic in the sample) and the
+step panel come from the plugin's bundle, so the app needs no npm and loads nothing from a CDN.
 
-- **Assets:** the template adds the library from jsDelivr, pinned
-  (`sequential-workflow-designer@0.40.4`: `css/designer.css`, `css/designer-light.css`,
-  `css/designer-dark.css`, `dist/index.umd.js`), plus `BasecoatTheme.workflow` (`webroot/css/workflow.css`,
-  served at `/basecoat_theme/css/workflow.css`), through the view `css` / `script` blocks, so the default
-  layout prints them in `<head>` (HtmlHelper adds the CSP nonce). The CDN files carry Subresource
-  Integrity hashes (`integrity="sha384-…" crossorigin="anonymous"`): update them with the version. If your layout does not fetch these
-  blocks, add `<?= $this->fetch('css') ?>` and `<?= $this->fetch('script') ?>`. Self-host the files by
-  changing `$designerCdn` in the template.
-- **Mounting:** `webroot/js/basecoat-theme.js` (`pluginJs`) mounts the designer on
-  `[data-workflow-designer]`. It reads the definition and the configuration from two
-  `<script type="application/json">` data blocks (never executed). It keeps
-  `<input type="hidden" name="definition">` up to date with the JSON of the definition and re-creates
-  the designer in its `light` / `dark` theme when `.dark` changes on `<html>`, which resets the zoom, the
-  selection and the undo history (if the new one fails, the previous designer stays). Designers whose
-  container is removed (also `htmx:beforeCleanupElement`) are destroyed. The step editor and the workflow editor are Basecoat fields, built as
-  DOM with text set through `textContent`. `window.BasecoatTheme.initWorkflows(root)` mounts designers
-  added later (htmx content is handled).
-- **Data:** `definition` is the library's format (`properties`, `sequence`; steps with `id`,
-  `componentType` `task` or `switch` + `branches`, `type`, `name`, `properties`). `toolbox` lists the
-  step templates (groups Triggers / Actions / Logic in the sample). Labels of the step properties in the
-  editor come from the `fields` map in the template. "Save" and "Run test" are inert: the TODOs show how
-  to post the `definition` input to your own action.
-- **Without JavaScript** (or when the library fails to load or throws), the steps render as an ordered
-  list with a nested list per branch (labelled by the branch name). The canvas and the "Drag steps…" hint
-  (`data-workflow-hint`) stay `hidden`.
-- **Accessibility:** the canvas is a labelled region, but it is not keyboard-operable: adding or moving
-  steps needs a pointer (drag and drop), and steps on the canvas cannot take focus (library limitation).
-  The keyboard path is the editor panel: the workflow editor lists every step as a button that selects
-  it and opens its fields, "Back to workflow" returns, and Delete / Backspace remove the selected step
-  when the focus is not in a field or another control. `basecoat-theme.js` gives the library's toolbar,
-  toolbox header and editor toggle `role="button"`, `tabindex="0"`, a name and Enter / Space
-  activation. It also names the toolbox search field.
-- **CSP:** the library injects no `<style>` element, uses no `eval` and loads no images (the step
-  markers are CSS-coloured). It sets positions through CSSOM (`element.style`), which CSP allows. The one
-  exception is the ghost image while dragging a step: it is an `<svg>` with a `style` attribute (scale
-  transform). Under a `style-src` without `'unsafe-inline'` (or `'unsafe-hashes'`), the browser blocks
-  that attribute and logs a CSP violation on each drag. The drop still works, and the ghost is only drawn
-  unscaled and 10px off. The CDN host must be allowed in `script-src` / `style-src`
-  (`https://cdn.jsdelivr.net`), or self-host the files.
+- **Data:** `flow` (`nodes` + `edges`, see [Flow editor](#flow-editor)) and `palette` in the controller;
+  the labels of the step properties are the `fields` map in the template.
+- **Saving:** "Save" and "Run test" are inert. The editor keeps `<input type="hidden" name="flow">` up to
+  date with the JSON of the flow; the TODO in the template shows how to wrap the section in a form and
+  read it in your action with `json_decode($this->request->getData('flow'), true)`. Validate it again on
+  the server (ids, types, edges) before storing it.
+- **Without JavaScript** the steps render as an ordered list in reading order, each with where it leads
+  ("Yes: Assign success manager").
 
 ## Bake templates
 
@@ -873,9 +942,8 @@ Nothing the theme renders needs `'unsafe-inline'`, so it works under a strict CS
 - The dark-mode script and the Tailwind browser `@theme` style carry the request's nonce (`cspScriptNonce` /
   `cspStyleNonce`); HtmlHelper adds it to the scripts and stylesheets.
 - Charts, toasts and progress bars are initialized again in content swapped by htmx (`htmx:load`).
-- The `workflow` bake screen loads sequential-workflow-designer from jsDelivr; while a step is dragged the
-  library sets a `style` attribute on the drag ghost, blocked (and reported) under a strict `style-src`
-  (see [Workflow screen](#workflow-screen)).
+- The flow editor (`FlowHelper`, `workflow` bake screen) is served from the plugin and needs no inline
+  script or style attribute (see [Flow editor](#flow-editor)).
 - The interactivity scripts (`basecoat-dnd.js`, `basecoat-screens.js`) need no inline script or style
   attribute (see [CSP](#csp) under Interactivity).
 - Toast `action`/`cancel` buttons with an `onclick` key are inline JS: under a strict CSP use `url`, or `attributes`
@@ -943,6 +1011,29 @@ Dependency-free `node:test` tests for the pure helpers of `basecoat-dnd.js` and 
 (index math, class maps, collisions, filtering, step states). The scripts export them with
 `module.exports` when loaded by Node and do nothing else outside a browser.
 
+`tests/js/flow-model.test.js` covers the data functions of the flow editor
+(`resources/flow/src/model.js`).
+
+### Flow editor bundle
+
+Only needed to change the flow editor; apps and the PHP tests use the committed files.
+
+```bash
+npm --prefix resources/flow ci              # install the pinned versions (package-lock.json)
+npm --prefix resources/flow run build       # write the bundle
+npm --prefix resources/flow run check       # exit 1 if the committed files differ from a fresh build (CI)
+```
+
+- Sources: `resources/flow/src/` (`index.jsx` mounts the editors, `editor.jsx` the canvas, palette and
+  panel, `model.js` the data functions, `flow.css` the styles); `resources/flow/build.mjs` (esbuild).
+- `build` writes `webroot/js/basecoat-flow.js` (IIFE, minified, license comments kept),
+  `webroot/css/basecoat-flow.css` and `webroot/js/basecoat-flow.LICENSES.txt` (the license of every npm
+  package inside the bundle, generated from the build). Commit the three files with the source change.
+- `check` builds in memory and compares; CI runs it, so a source change without a rebuild fails.
+- Versions are exact in `package.json` (`@xyflow/react` 12.12.1, `react` / `react-dom` 19.2.9,
+  `esbuild` 0.28.2). To upgrade: change them, `npm install`, `run build`, test the catalog pages.
+- `resources/flow/` is excluded from Composer packages (`export-ignore`).
+
 ### Catalog: `composer docs` / `php bin/build-gh-pages`
 
 ```bash
@@ -992,6 +1083,17 @@ gets filters and an *Export CSV* link: see
 ## Upgrade notes
 
 Changes in this version that can affect existing apps:
+
+- **The `workflow` screen moved from sequential-workflow-designer to the new flow editor** (`FlowHelper`,
+  React Flow bundled in the plugin). Breaking for apps that baked it before: its view variables are now
+  `flow` + `palette` (were `definition` + `toolbox`), the hidden input is `flow` (was `definition`, with a
+  different JSON), and the CDN links are gone. Re-bake it (`bin/cake bake screen workflow --force`) and
+  convert stored definitions to `nodes` / `edges` with positions. Also removed: `webroot/css/workflow.css`
+  (`BasecoatTheme.workflow`) and `window.BasecoatTheme.initWorkflows` (use `window.BasecoatFlow.init`).
+- **New `Flow` helper** (in `BasecoatHelpers::MAP`; apps that load helpers one by one add
+  `BasecoatTheme.Flow`), new plugin files `webroot/js/basecoat-flow.js`, `webroot/css/basecoat-flow.css`
+  and `webroot/js/basecoat-flow.LICENSES.txt`, and the `split`, `user-check`, `list-plus`, `zap` and
+  `hourglass` icons. The catalog component pages now load the assets their examples add to the view blocks.
 
 - **New optional scripts and stylesheet.** `webroot/js/basecoat-dnd.js`, `webroot/js/basecoat-screens.js`
   and `webroot/css/interactivity.css` (see [Interactivity](#interactivity)); nothing loads them unless a
@@ -1053,12 +1155,8 @@ Changes in this version that can affect existing apps:
 - **Menu triggers use `ellipsis`** instead of `ellipsis-vertical`: the CRUD bake `index` template, the
   `users` screen, the sidebar user menu and the catalog examples. Re-bake or change the icon name if you
   want the new look; `ellipsis-vertical` is still available.
-- **New `workflow` bake screen** (sequential-workflow-designer, MIT, loaded from jsDelivr by the baked
-  template only): `basecoat-theme.js` now mounts `[data-workflow-designer]` elements when the library is
-  on the page (`window.BasecoatTheme.initWorkflows`), and watches the `class` of `<html>` to switch the
-  designer theme. Pages without the screen are unaffected. New plugin stylesheet `webroot/css/workflow.css`
-  (`BasecoatTheme.workflow`) and the `workflow` and `play` icons. The catalog build copies the plugin
-  stylesheets to `basecoat_theme/css/`.
+- **New `workflow` bake screen**, on the flow editor (see the first note), and the `workflow` and `play`
+  icons. The catalog build copies the plugin stylesheets to `basecoat_theme/css/`.
 - **`Button` `indicatorLabel`:** `''` renders no screen reader text for the indicator.
 - **`Pagination`:** the first/last icon links are named "First page" / "Last page"; Previous / Next
   text is `sr-only sm:not-sr-only` (was `hidden sm:block`), so screen readers always get it.
@@ -1069,6 +1167,7 @@ Changes in this version that can affect existing apps:
 
 ## License
 
-MIT. The Lucide icon paths bundled in `IconHelper` are ISC licensed; Basecoat, Tailwind CSS, Chart.js,
-sequential-workflow-designer and highlight.js are loaded from CDNs, not bundled. See
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for authors and license texts.
+MIT. Bundled third-party code: the Lucide icon paths in `IconHelper` (ISC) and, in the flow editor
+bundle, React, React Flow and their dependencies (MIT / ISC / BSD-3-Clause; full texts in
+`webroot/js/basecoat-flow.LICENSES.txt`). Basecoat, Tailwind CSS, Chart.js and highlight.js are loaded from
+CDNs, not bundled. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
