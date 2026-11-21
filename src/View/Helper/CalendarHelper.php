@@ -457,6 +457,65 @@ class CalendarHelper extends AbstractComponentHelper
     }
 
     /**
+     * Day view: a column per resource (plus "Unassigned" when an event has no known resource), hours
+     * as rows. Without resources, one column for the day.
+     *
+     * @param array<int, array<string, mixed>> $events Events.
+     * @param array<string, mixed> $options Options.
+     * @return string
+     * @throws \InvalidArgumentException For an invalid option or event.
+     */
+    public function day(array $events, array $options = []): string
+    {
+        $opts = $this->gridOptions($options);
+        $date = $opts['date'];
+        $events = array_values(array_filter($this->events($events, $opts['slot']), fn (array $e): bool => $e['date'] === $date));
+        $current = $date === $opts['today'];
+        $day = new Date($date);
+
+        $columns = [];
+        if (!$opts['resources']) {
+            $columns[] = [
+                'id' => $date,
+                'label' => h($day->i18nFormat('EEEE d MMMM')),
+                'current' => $current,
+                'events' => $events,
+            ];
+        } else {
+            $byResource = [];
+            $unassigned = [];
+            foreach ($events as $event) {
+                if ($event['resource'] !== null && isset($opts['resources'][$event['resource']])) {
+                    $byResource[$event['resource']][] = $event;
+                } else {
+                    $unassigned[] = $event;
+                }
+            }
+            $index = 0;
+            foreach ($opts['resources'] as $key => $name) {
+                $columns[] = [
+                    // Resource keys may hold any character: the column id is its position
+                    'id' => 'r' . $index++,
+                    'label' => h($name),
+                    'current' => false,
+                    'events' => $byResource[$key] ?? [],
+                ];
+            }
+            if ($unassigned) {
+                $columns[] = [
+                    'id' => 'unassigned',
+                    'label' => h(__d('basecoat_theme', 'Unassigned')),
+                    'current' => false,
+                    'events' => $unassigned,
+                ];
+            }
+        }
+        $label = $opts['label'] ?? __d('basecoat_theme', 'Schedule for {0}', $day->i18nFormat('EEEE d MMMM y'));
+
+        return $this->timeGrid($columns, $opts, 'day', $label, $options);
+    }
+
+    /**
      * Dates of the week columns, in `days` order.
      *
      * The week starts on `days[0]`: it is the 7 days from the latest date on or before `$date` that

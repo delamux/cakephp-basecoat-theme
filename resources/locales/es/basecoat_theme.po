@@ -257,3 +257,9 @@ msgid "{0} event outside hours"
 msgid_plural "{0} events outside hours"
 msgstr[0] "{0} evento fuera de horario"
 msgstr[1] "{0} eventos fuera de horario"
+
+msgid "Unassigned"
+msgstr "Sin asignar"
+
+msgid "Schedule for {0}"
+msgstr "Agenda del {0}"

@@ -256,3 +256,9 @@ msgid "{0} event outside hours"
 msgid_plural "{0} events outside hours"
 msgstr[0] ""
 msgstr[1] ""
+
+msgid "Unassigned"
+msgstr ""
+
+msgid "Schedule for {0}"
+msgstr ""

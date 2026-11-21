@@ -288,4 +288,92 @@ class CalendarHelperTest extends HelperTestCase
         }
         $this->assertStringNotContainsString('.bc-cal-row-97', $css);
     }
+
+    /**
+     * Column (by header text) that contains a title, or null.
+     */
+    private function columnOf(string $html, string $title): ?string
+    {
+        foreach (explode('<div class="bc-cal-col"', $html) as $column) {
+            if (str_contains($column, $title) && preg_match('#<div class="bc-cal-head[^"]*" id="[^"]+"[^>]*>(.*?)</div>#s', $column, $m)) {
+                return strip_tags($m[1]);
+            }
+        }
+
+        return null;
+    }
+
+    public function testDayColumnsAreResources(): void
+    {
+        $html = $this->helper()->day([
+            $this->ev(1, '2026-11-18', '09:00', '10:00', ['resource' => 'kofi', 'category' => 'meeting']),
+            $this->ev(2, '2026-11-18', '11:00', '12:00', ['resource' => 'ana']),
+        ], [
+            'date' => '2026-11-18',
+            'resources' => ['ana' => 'Ana Costa', 'kofi' => 'Kofi Mensah', 'noor' => 'Noor Haddad'],
+            'categories' => ['meeting' => 'Customer meeting'],
+        ]);
+
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-day bc-cal-w-md" aria-label="Schedule for Wednesday 18 November 2026" data-calendar-view="day" data-calendar-date="2026-11-18">', $html);
+        $this->assertSame(3, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertMatchesRegularExpression('#Ana Costa.*Kofi Mensah.*Noor Haddad#s', $html);
+        $this->assertSame('Kofi Mensah', $this->columnOf($html, 'Event 1'));
+        $this->assertSame('Ana Costa', $this->columnOf($html, 'Event 2'));
+        $this->assertStringNotContainsString('<a href="/', strstr($html, '<ol', true) ?: '', 'Resource headers are not links');
+        $this->assertStringNotContainsString('data-dnd', $html, 'Day is read-only');
+    }
+
+    public function testUnassignedOnlyWhenNeeded(): void
+    {
+        $options = ['date' => '2026-11-18', 'resources' => ['ana' => 'Ana Costa', 'kofi' => 'Kofi Mensah']];
+        $known = $this->helper()->day([$this->ev(1, '2026-11-18', '09:00', null, ['resource' => 'ana'])], $options);
+        $this->assertStringNotContainsString('Unassigned', $known);
+        $this->assertSame(2, substr_count($known, '<div class="bc-cal-col" role="group"'));
+
+        $html = $this->helper()->day([
+            $this->ev(1, '2026-11-18', '09:00', null, ['resource' => 'ghost']),
+            $this->ev(2, '2026-11-18', '10:00'),
+        ], $options);
+        $this->assertSame(3, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertMatchesRegularExpression('#Kofi Mensah.*Unassigned#s', $html, 'Last column');
+        $this->assertSame('Unassigned', $this->columnOf($html, 'Event 1'));
+        $this->assertSame('Unassigned', $this->columnOf($html, 'Event 2'));
+    }
+
+    public function testDayWithoutResources(): void
+    {
+        $html = $this->helper()->day([$this->ev(1, '2026-11-18', '09:00')], ['date' => '2026-11-18', 'today' => '2026-11-18']);
+        $this->assertSame(1, substr_count($html, '<div class="bc-cal-col" role="group"'));
+        $this->assertSame('Wednesday 18 November', $this->columnOf($html, 'Event 1'));
+        $this->assertSame(1, substr_count($html, 'aria-current="date"'));
+    }
+
+    public function testDayShowsOnlyThatDate(): void
+    {
+        $html = $this->helper()->day([
+            $this->ev(1, '2026-11-18', '09:00'),
+            $this->ev(2, '2026-11-19', '09:00'),
+            $this->ev(3, '2026-11-17', null),
+        ], ['date' => '2026-11-18']);
+        $this->assertStringContainsString('Event 1', $html);
+        $this->assertStringNotContainsString('Event 2', $html);
+        $this->assertStringNotContainsString('Event 3', $html);
+        $this->assertStringNotContainsString('bc-cal-allday', $html);
+    }
+
+    public function testDayMetaIsCategory(): void
+    {
+        $html = $this->helper()->day([
+            $this->ev(1, '2026-11-18', '09:00', '10:00', ['title' => 'Kickoff', 'resource' => 'kofi', 'category' => 'meeting']),
+        ], ['date' => '2026-11-18', 'resources' => ['kofi' => 'Kofi <M>'], 'categories' => ['meeting' => 'Customer meeting']]);
+
+        $this->assertStringContainsString('<span class="bc-cal-title">Kickoff</span> <span class="bc-cal-meta">Customer meeting</span><span class="sr-only">, Wednesday 18 November, Kofi &lt;M&gt;</span>', $html);
+    }
+
+    public function testDayValidatesLikeTheWeek(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/slot/');
+        $this->helper()->day([], ['date' => '2026-11-18', 'slot' => 45]);
+    }
 }
