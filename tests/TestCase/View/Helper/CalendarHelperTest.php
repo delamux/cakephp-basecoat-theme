@@ -287,6 +287,11 @@ class CalendarHelperTest extends HelperTestCase
             $this->assertStringContainsString($rule, $css);
         }
         $this->assertStringNotContainsString('.bc-cal-row-97', $css);
+        // Columns have a definite width (otherwise no-wrap event text widens them under width:max-content)
+        $this->assertMatchesRegularExpression('/\.bc-cal-col\{[^}]*;width:var\(--bc-cal-col\)/', $css);
+        // sr-only text (absolute) stays inside the scroll box: events and the box are positioned
+        $this->assertMatchesRegularExpression('/\.bc-cal-event\{position:relative;/', $css);
+        $this->assertMatchesRegularExpression('/\.bc-cal-scroll\{position:relative;/', $css);
     }
 
     /**
