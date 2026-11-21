@@ -116,7 +116,7 @@ class CalendarHelperTest extends HelperTestCase
     {
         $html = $this->helper()->week([], ['date' => '2026-11-18', 'days' => [1, 2, 3, 4, 5]]);
 
-        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-md" aria-label="Week of Monday 16 November 2026" data-calendar-view="week" data-calendar-date="2026-11-18">', $html);
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-md" data-calendar-view="week" data-calendar-date="2026-11-18">', $html);
         $this->assertStringContainsString('<div class="bc-cal-scroll" role="region" tabindex="0" aria-label="Week of Monday 16 November 2026">', $html);
         $this->assertStringContainsString('<div class="bc-cal-times" aria-hidden="true">', $html);
         $this->assertSame(5, substr_count($html, '<div class="bc-cal-col" role="group"'));
@@ -138,7 +138,8 @@ class CalendarHelperTest extends HelperTestCase
     public function testColumnWidthLabelAndClass(): void
     {
         $html = $this->helper()->week([], ['date' => '2026-11-18', 'columnWidth' => 'sm', 'label' => 'Team week', 'class' => 'mt-4', 'data-x' => 'y']);
-        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-sm mt-4" aria-label="Team week" data-calendar-view="week" data-calendar-date="2026-11-18" data-x="y">', $html);
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-sm mt-4" data-calendar-view="week" data-calendar-date="2026-11-18" data-x="y">', $html);
+        $this->assertStringContainsString('<div class="bc-cal-scroll" role="region" tabindex="0" aria-label="Team week">', $html);
     }
 
     public function testEventPlacement(): void
@@ -251,11 +252,11 @@ class CalendarHelperTest extends HelperTestCase
         ]);
 
         $this->assertSame(1, substr_count($html, 'aria-current="date"'));
-        $this->assertMatchesRegularExpression('#<div class="bc-cal-head bc-cal-today" id="[^"]+" aria-current="date"><a href="/calendar\?view=day&amp;date=2026-11-18"><span aria-hidden="true">Wed 18</span><span class="sr-only">Wednesday 18 November</span></a>#', $html);
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-head bc-cal-today" aria-current="date"><span class="bc-cal-name" id="[^"]+"><a href="/calendar\?view=day&amp;date=2026-11-18"><span aria-hidden="true">Wed 18</span><span class="sr-only">Wednesday 18 November</span></a>#', $html);
         $this->assertStringContainsString('href="/calendar?view=day&amp;date=2026-11-16"', $html);
 
         $plain = $this->helper()->week([], ['date' => '2026-11-18', 'days' => [1]]);
-        $this->assertMatchesRegularExpression('#<div class="bc-cal-head" id="[^"]+"><span aria-hidden="true">Mon 16</span><span class="sr-only">Monday 16 November</span>#', $plain);
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-head"><span class="bc-cal-name" id="[^"]+"><span aria-hidden="true">Mon 16</span><span class="sr-only">Monday 16 November</span>#', $plain);
     }
 
     public function testIdsAreUniqueAcrossCalls(): void
@@ -300,7 +301,7 @@ class CalendarHelperTest extends HelperTestCase
     private function columnOf(string $html, string $title): ?string
     {
         foreach (explode('<div class="bc-cal-col"', $html) as $column) {
-            if (str_contains($column, $title) && preg_match('#<div class="bc-cal-head[^"]*" id="[^"]+"[^>]*>(.*?)</div>#s', $column, $m)) {
+            if (str_contains($column, $title) && preg_match('#<span class="bc-cal-name" id="[^"]+">(.*?)</span>(?:<details|</div>)#s', $column, $m)) {
                 return strip_tags($m[1]);
             }
         }
@@ -319,7 +320,8 @@ class CalendarHelperTest extends HelperTestCase
             'categories' => ['meeting' => 'Customer meeting'],
         ]);
 
-        $this->assertStringStartsWith('<section class="bc-cal bc-cal-day bc-cal-w-md" aria-label="Schedule for Wednesday 18 November 2026" data-calendar-view="day" data-calendar-date="2026-11-18">', $html);
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-day bc-cal-w-md" data-calendar-view="day" data-calendar-date="2026-11-18">', $html);
+        $this->assertStringContainsString('aria-label="Schedule for Wednesday 18 November 2026"', $html);
         $this->assertSame(3, substr_count($html, '<div class="bc-cal-col" role="group"'));
         $this->assertMatchesRegularExpression('#Ana Costa.*Kofi Mensah.*Noor Haddad#s', $html);
         $this->assertSame('Kofi Mensah', $this->columnOf($html, 'Event 1'));
@@ -417,5 +419,65 @@ class CalendarHelperTest extends HelperTestCase
     {
         $html = $this->helper()->month([['id' => 5, 'title' => 'Demo', 'date' => '2026-11-04', 'time' => '10:00', 'url' => '/events/5']], ['date' => '2026-11-01']);
         $this->assertStringContainsString('<a href="/events/5" class="flex min-w-0 items-center gap-1', $html);
+    }
+
+    public function testAcceptsCakeDateAndTimeValues(): void
+    {
+        $html = $this->helper()->week([
+            ['id' => 1, 'title' => 'From the ORM', 'date' => new \Cake\I18n\Date('2026-11-18'), 'time' => new \Cake\I18n\Time('09:00:00'), 'end' => '10:30:00'],
+            ['id' => 2, 'title' => 'DateTime', 'date' => new \Cake\I18n\DateTime('2026-11-19 00:00:00'), 'time' => '11:00:00', 'end' => new \DateTimeImmutable('2026-11-19 12:00:00')],
+        ], ['date' => new \Cake\I18n\Date('2026-11-18'), 'today' => new \DateTimeImmutable('2026-11-18')]);
+
+        $this->assertSame('bc-cal-event bc-cal-row-3 bc-cal-span-3 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($html, 'From the ORM'));
+        $this->assertStringContainsString('<span class="bc-cal-time">09:00–10:30</span>', $html);
+        $this->assertStringContainsString('<span class="bc-cal-time">11:00–12:00</span>', $html);
+        $this->assertStringContainsString('data-calendar-date="2026-11-18"', $html);
+        $this->assertSame(1, substr_count($html, 'aria-current="date"'));
+
+        $month = $this->helper()->month([['id' => 1, 'title' => 'X', 'date' => new \Cake\I18n\Date('2026-11-04'), 'time' => '10:00:00']], ['date' => new \Cake\I18n\Date('2026-11-04')]);
+        $this->assertStringContainsString('<span class="shrink-0 font-medium">10:00</span>', $month);
+    }
+
+    public function testTimeWithSecondsMustBeWholeMinutes(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/"time"/');
+        $this->helper()->week([['id' => 1, 'title' => 'X', 'date' => '2026-11-18', 'time' => '09:00:30']], ['date' => '2026-11-18']);
+    }
+
+    public function testErrorNamesTheTypeReceived(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/got int/');
+        $this->helper()->week([['id' => 1, 'title' => 'X', 'date' => 20261118, 'time' => null]], ['date' => '2026-11-18']);
+    }
+
+    public function testRegionIsNamedOnce(): void
+    {
+        $html = $this->helper()->week([], ['date' => '2026-11-18', 'label' => 'Team week']);
+        $this->assertSame(1, substr_count($html, 'aria-label="Team week"'), 'Only the scroll region carries the name');
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-md" data-calendar-view="week" data-calendar-date="2026-11-18">', $html);
+    }
+
+    public function testColumnNameIsTheHeaderLabelOnly(): void
+    {
+        $events = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $events[] = $this->ev($i, '2026-11-18', '09:00', '10:00');
+        }
+        $events[] = $this->ev(9, '2026-11-18', '06:00', '07:00');
+        $html = $this->helper()->week($events, ['date' => '2026-11-18', 'days' => [3]]);
+
+        $this->assertSame(1, preg_match('#<div class="bc-cal-col" role="group" aria-labelledby="([^"]+)">#', $html, $m));
+        $this->assertSame(1, preg_match('#id="' . preg_quote($m[1], '#') . '"[^>]*>(.*?)</span></span>#s', $html, $name));
+        $this->assertSame('Wed 18Wednesday 18 November', strip_tags($name[1] . '</span>'));
+        $this->assertStringNotContainsString('more', strip_tags($name[1]));
+    }
+
+    public function testHeaderSummariesStayOnOneLine(): void
+    {
+        $css = (string)file_get_contents(dirname(__DIR__, 4) . '/webroot/css/basecoat-calendar.css');
+        $this->assertMatchesRegularExpression('/\.bc-cal-head summary\{[^}]*white-space:nowrap[^}]*text-overflow:ellipsis/', $css);
+        $this->assertMatchesRegularExpression('/\.bc-cal-head details\+details,\.bc-cal-head details:has\(\+details\)\{max-width:calc\(50% - \.25rem\)\}/', $css);
     }
 }

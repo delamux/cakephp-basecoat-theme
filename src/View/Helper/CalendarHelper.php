@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace BasecoatTheme\View\Helper;
 
+use Cake\Chronos\ChronosDate;
+use Cake\Chronos\ChronosTime;
 use Cake\I18n\Date;
 use DateTimeImmutable;
+use DateTimeInterface;
 use InvalidArgumentException;
 use function Cake\Core\h;
 
@@ -323,7 +326,7 @@ class CalendarHelper extends AbstractComponentHelper
                 $items .= '<li class="' . implode(' ', $classes) . '">' . $this->eventLink($event, $opts, $view) . '</li>';
             }
 
-            $head = $column['label'];
+            $head = '<span class="bc-cal-name" id="' . h($id) . '">' . $column['label'] . '</span>';
             if ($overflow) {
                 $head .= $this->disclosure('bc-cal-more', __d('basecoat_theme', '+{0} more', count($overflow)), $overflow, $opts, $view);
             }
@@ -331,14 +334,14 @@ class CalendarHelper extends AbstractComponentHelper
                 $head .= $this->disclosure('bc-cal-outside', __dn('basecoat_theme', '{0} event outside hours', '{0} events outside hours', count($outside), count($outside)), $outside, $opts, $view);
             }
             $html .= '<div class="bc-cal-col" role="group" aria-labelledby="' . h($id) . '">'
-                . '<div class="bc-cal-head' . ($column['current'] ? ' bc-cal-today' : '') . '" id="' . h($id) . '"' . ($column['current'] ? ' aria-current="date"' : '') . '>' . $head . '</div>'
+                . '<div class="bc-cal-head' . ($column['current'] ? ' bc-cal-today' : '') . '"' . ($column['current'] ? ' aria-current="date"' : '') . '>' . $head . '</div>'
                 . ($allDay ? '<ul class="bc-cal-allday">' . $allDayItems . '</ul>' : '')
                 . '<ol class="bc-cal-body ' . self::ROWS[$rows] . ' ' . self::SLOT_CLASS[$opts['slot']] . '">' . $items . '</ol>'
                 . '</div>';
         }
 
+        // The scroll region inside carries the accessible name (once)
         $root = $this->rootAttributes(['bc-cal', self::VIEW_CLASS[$view], self::WIDTH_CLASS[$opts['columnWidth']]], [
-            'aria-label' => $label,
             'data-calendar-view' => $view,
             'data-calendar-date' => $opts['date'],
         ] + (array)($options['attributes'] ?? []) + $options, self::OPTION_KEYS);
@@ -491,12 +494,8 @@ class CalendarHelper extends AbstractComponentHelper
      */
     public function month(array $events, array $options = []): string
     {
-        $date = $options['date'] ?? null;
-        $first = (new Date($this->date(is_string($date) ? $date : '', 'date')->format('Y-m-01')));
-        $today = $options['today'] ?? null;
-        if ($today !== null) {
-            $this->date(is_string($today) ? $today : '', 'today');
-        }
+        $first = new Date($this->date($this->ymd($options['date'] ?? null, 'date'), 'date')->format('Y-m-01'));
+        $today = isset($options['today']) ? $this->ymd($options['today'], 'today') : null;
         $dayUrl = $options['dayUrl'] ?? null;
         if ($dayUrl !== null && !is_callable($dayUrl)) {
             throw new InvalidArgumentException('Calendar option "dayUrl" must be a callable or null.');
@@ -720,15 +719,8 @@ class CalendarHelper extends AbstractComponentHelper
         if (!in_array($options['columnWidth'], self::WIDTHS, true)) {
             throw new InvalidArgumentException('Calendar option "columnWidth" must be sm, md or lg.');
         }
-        $date = $options['date'] ?? null;
-        if (!is_string($date)) {
-            throw new InvalidArgumentException('Calendar option "date" (Y-m-d) is required.');
-        }
-        $this->date($date, 'date');
-        $today = $options['today'] ?? null;
-        if ($today !== null) {
-            $this->date(is_string($today) ? $today : '', 'today');
-        }
+        $date = $this->ymd($options['date'] ?? null, 'date');
+        $today = isset($options['today']) ? $this->ymd($options['today'], 'today') : null;
         if (isset($options['dayUrl']) && !is_callable($options['dayUrl'])) {
             throw new InvalidArgumentException('Calendar option "dayUrl" must be a callable or null.');
         }
@@ -770,8 +762,7 @@ class CalendarHelper extends AbstractComponentHelper
             if (!is_scalar($event['title'] ?? null)) {
                 throw new InvalidArgumentException(sprintf('%s needs a "title".', $where));
             }
-            $date = $event['date'] ?? null;
-            $this->date(is_string($date) ? $date : '', $where . ' "date"');
+            $date = $this->ymd($event['date'] ?? null, $where . ' "date"');
             $time = $event['time'] ?? null;
             $from = $to = null;
             if ($time !== null) {
@@ -826,6 +817,26 @@ class CalendarHelper extends AbstractComponentHelper
     }
 
     /**
+     * A date as a validated `Y-m-d` string: strings as given, Cake / PHP date objects formatted.
+     *
+     * @param mixed $value Date.
+     * @param string $field Name for the error message.
+     * @return string
+     */
+    protected function ymd(mixed $value, string $field): string
+    {
+        if ($value instanceof DateTimeInterface || $value instanceof ChronosDate) {
+            return $value->format('Y-m-d');
+        }
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf('%s must be a Y-m-d date, got %s.', $this->field($field), get_debug_type($value)));
+        }
+        $this->date($value, $field);
+
+        return $value;
+    }
+
+    /**
      * Parses a `Y-m-d` date.
      *
      * @param string $value Date.
@@ -843,7 +854,7 @@ class CalendarHelper extends AbstractComponentHelper
     }
 
     /**
-     * Minutes since midnight of an `H:i` time (`24:00` allowed).
+     * Minutes since midnight of an `H:i` time (`24:00` allowed; also `H:i:00` and time objects).
      *
      * @param mixed $value Time.
      * @param string $field Name for the error message.
@@ -851,6 +862,12 @@ class CalendarHelper extends AbstractComponentHelper
      */
     protected function minutes(mixed $value, string $field): int
     {
+        if ($value instanceof DateTimeInterface || $value instanceof ChronosTime) {
+            $value = $value->format('H:i');
+        } elseif (is_string($value) && preg_match('/^(\d\d:\d\d):00$/', $value, $m)) {
+            // TIME columns come as H:i:s; whole minutes only
+            $value = $m[1];
+        }
         if (!is_string($value) || !preg_match('/^(?:([01]\d|2[0-3]):([0-5]\d)|24:00)$/', $value, $m)) {
             throw new InvalidArgumentException(sprintf('%s must be an H:i time (00:00 to 24:00).', $this->field($field)));
         }

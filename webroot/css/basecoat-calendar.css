@@ -20,14 +20,17 @@
 .bc-cal-col{flex:1 0 var(--bc-cal-col);width:var(--bc-cal-col);min-width:var(--bc-cal-col);border-right:1px solid var(--border)}
 .bc-cal-col:last-child{border-right:0}
 .bc-cal-head{position:sticky;top:0;z-index:2;box-sizing:border-box;height:var(--bc-cal-head);display:flex;flex-wrap:wrap;align-content:center;column-gap:.5rem;row-gap:.125rem;padding:.25rem .5rem;background:var(--background);border-bottom:1px solid var(--border);font-size:.875rem;line-height:1.25rem;font-weight:500}
-.bc-cal-head>a,.bc-cal-head>span[aria-hidden]{flex-basis:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bc-cal-head>a{color:inherit;text-decoration:none;border-radius:.25rem}
-.bc-cal-head>a:hover{text-decoration:underline;text-underline-offset:2px}
-.bc-cal-head>a:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.bc-cal-name{flex-basis:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-cal-name a{color:inherit;text-decoration:none;border-radius:.25rem}
+.bc-cal-name a:hover{text-decoration:underline;text-underline-offset:2px}
+.bc-cal-name a:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
 .bc-cal-today{color:var(--primary)}
 .bc-cal-col:has(>.bc-cal-today)>.bc-cal-body{background-color:color-mix(in oklab,var(--primary) 5%,transparent)}
-.bc-cal-head details{position:relative;font-size:.75rem;line-height:1rem;font-weight:400}
-.bc-cal-head summary{cursor:pointer;color:var(--muted-foreground);border-radius:.25rem;list-style-position:inside}
+.bc-cal-head{flex-wrap:wrap}
+.bc-cal-head details{position:relative;min-width:0;max-width:100%;font-size:.75rem;line-height:1rem;font-weight:400}
+.bc-cal-head details+details,.bc-cal-head details:has(+details){max-width:calc(50% - .25rem)}
+.bc-cal-head summary{display:block;cursor:pointer;color:var(--muted-foreground);border-radius:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-cal-head summary::-webkit-details-marker{display:none}
 .bc-cal-head summary:hover{color:var(--foreground)}
 .bc-cal-head summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 .bc-cal-head details>ul{position:absolute;z-index:5;top:calc(100% + .25rem);left:0;box-sizing:border-box;width:max-content;min-width:12rem;max-width:18rem;margin:0;padding:.25rem;list-style:none;display:flex;flex-direction:column;gap:.25rem;background:var(--popover,var(--background));color:var(--popover-foreground,var(--foreground));border:1px solid var(--border);border-radius:.5rem;box-shadow:0 8px 24px -8px rgb(0 0 0 / .25)}
