@@ -7,7 +7,7 @@ use InvalidArgumentException;
 use function Cake\Core\h;
 
 /**
- * Inline SVG icons (Lucide, ISC license) used by the Basecoat components.
+ * Inline SVG icons (Lucide, ISC license; see THIRD-PARTY-NOTICES.md) used by the Basecoat components.
  *
  * ```
  * echo $this->Icon->render('circle-check');

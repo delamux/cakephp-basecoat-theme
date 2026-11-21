@@ -1069,5 +1069,6 @@ Changes in this version that can affect existing apps:
 
 ## License
 
-MIT. Basecoat (MIT) and Lucide icons (ISC) belong to their authors. The `workflow` bake screen loads
-sequential-workflow-designer (MIT, © N4NO.com) from jsDelivr; it is not bundled with this plugin.
+MIT. The Lucide icon paths bundled in `IconHelper` are ISC licensed; Basecoat, Tailwind CSS, Chart.js,
+sequential-workflow-designer and highlight.js are loaded from CDNs, not bundled. See
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for authors and license texts.
