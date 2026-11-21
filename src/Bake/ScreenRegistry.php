@@ -216,7 +216,7 @@ final class ScreenRegistry
             ],
             'workflow' => [
                 'title' => 'Workflow',
-                'description' => 'Automation editor: drag-and-drop step designer with branches, a step editor and the run history.',
+                'description' => 'Automation editor: steps on a canvas with branches, a step panel and the run history.',
                 'controller' => 'Workflows',
                 'path' => $dir . 'workflow',
                 'icon' => 'workflow',

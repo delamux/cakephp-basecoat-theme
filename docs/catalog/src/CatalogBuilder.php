@@ -96,8 +96,9 @@ final class CatalogBuilder
             $blocks = '';
             $charts = false;
             $idCounters = [];
+            $assets = [];
             foreach ($helper['examples'] as $example) {
-                $preview = $this->runExample($example, $idCounters);
+                $preview = $this->runExample($example, $idCounters, $assets);
                 $charts = $charts || ($example->preview && str_contains($preview, 'data-basecoat-chart'));
                 $blocks .= $this->renderTemplate($this->view(), 'example', [
                     'example' => $example,
@@ -110,7 +111,7 @@ final class CatalogBuilder
                 'entry' => $helper['entry'],
                 'examples' => $blocks,
             ]);
-            $this->write($outDir, $path, $this->renderLayout($path, $helper['entry']['title'], $content, $menu($path), $charts));
+            $this->write($outDir, $path, $this->renderLayout($path, $helper['entry']['title'], $content, $menu($path), $charts, implode("\n", array_unique($assets))));
             $pages[] = $path;
         }
 
@@ -289,15 +290,24 @@ final class CatalogBuilder
      *
      * @param \BasecoatTheme\Docs\ExampleFile $example Example.
      * @param array<string, array<string, int>> $idCounters Id counters by helper alias (read and updated).
+     * @param array<string> $assets Tags of the `css` / `script` view blocks of previewed examples (appended).
      * @return string
      * @throws \RuntimeException When the example throws or emits any PHP error.
      */
-    private function runExample(ExampleFile $example, array &$idCounters): string
+    private function runExample(ExampleFile $example, array &$idCounters, array &$assets = []): string
     {
         $view = $this->view();
         $this->seedIdCounters($view, $idCounters);
         $html = $this->evaluateStrict($view, $example->path, sprintf('Example `%s`', $example->path));
         $idCounters = $this->readIdCounters($view);
+        // Assets a previewed example put in the view blocks (FlowHelper adds its bundle there).
+        foreach ($example->preview ? ['css', 'script'] : [] as $block) {
+            foreach (preg_split('/\R/', trim($view->fetch($block))) ?: [] as $tag) {
+                if ($tag !== '') {
+                    $assets[] = $tag;
+                }
+            }
+        }
 
         return $html;
     }
@@ -428,9 +438,10 @@ final class CatalogBuilder
      * @param string $content Page content.
      * @param array<array<string, mixed>> $menu Sidebar menu.
      * @param bool $charts Whether the page needs Chart.js.
+     * @param string $pageAssets Tags the examples added to the `css` / `script` view blocks (e.g. FlowHelper).
      * @return string
      */
-    private function renderLayout(string $path, string $title, string $content, array $menu, bool $charts): string
+    private function renderLayout(string $path, string $title, string $content, array $menu, bool $charts, string $pageAssets = ''): string
     {
         $html = $this->renderTemplate($this->view(), 'layout', [
             'title' => $title,
@@ -439,6 +450,7 @@ final class CatalogBuilder
             'brand' => $this->brand(),
             'charts' => $charts,
             'catalogAssets' => $this->catalogAssets(),
+            'pageAssets' => $pageAssets,
         ]);
 
         return $this->relativize($html, substr_count($path, '/'));
@@ -745,7 +757,7 @@ final class CatalogBuilder
      * Copies the catalog assets and the plugin scripts to `assets/` (`pluginJs` is `/assets/basecoat-theme.js`),
      * every plugin script also to `basecoat_theme/js/` and the plugin stylesheets to `basecoat_theme/css/`:
      * their plugin asset URLs (`$this->Html->script('BasecoatTheme.basecoat-dnd')`,
-     * `$this->Html->css('BasecoatTheme.workflow')`), made relative to each page like every root-relative URL.
+     * `$this->Html->css('BasecoatTheme.basecoat-flow')`), made relative to each page like every root-relative URL.
      *
      * @param string $outDir Output directory.
      * @return void
@@ -756,7 +768,8 @@ final class CatalogBuilder
         foreach (array_merge(glob(self::ASSETS . '*') ?: [], $scripts) as $file) {
             $this->write($outDir, 'assets/' . basename($file), (string)file_get_contents($file));
         }
-        foreach ($scripts as $file) {
+        // Plugin scripts and their license files (basecoat-flow.LICENSES.txt ships next to the bundle)
+        foreach (array_merge($scripts, glob(self::PLUGIN_JS . '*.LICENSES.txt') ?: []) as $file) {
             $this->write($outDir, 'basecoat_theme/js/' . basename($file), (string)file_get_contents($file));
         }
         foreach (glob(self::PLUGIN_CSS . '*.css') ?: [] as $file) {

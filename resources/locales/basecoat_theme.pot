@@ -134,3 +134,111 @@ msgid "{0} new"
 msgid_plural "{0} new"
 msgstr[0] ""
 msgstr[1] ""
+
+msgid "Flow editor"
+msgstr ""
+
+msgid "Trigger"
+msgstr ""
+
+msgid "Action"
+msgstr ""
+
+msgid "Condition"
+msgstr ""
+
+msgid "Add a step"
+msgstr ""
+
+msgid "Drag a step onto the canvas, or press it to add it after the selected step."
+msgstr ""
+
+msgid "Steps"
+msgstr ""
+
+msgid "Choose a step to edit it."
+msgstr ""
+
+msgid "No steps yet. Add one from the palette."
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Next step"
+msgstr ""
+
+msgid "Next step: {output}"
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "Delete step"
+msgstr ""
+
+msgid "All steps"
+msgstr ""
+
+msgid "{label} added."
+msgstr ""
+
+msgid "{label} deleted."
+msgstr ""
+
+msgid "{source} now leads to {target}."
+msgstr ""
+
+msgid "{source} no longer leads to another step."
+msgstr ""
+
+msgid "Flow canvas"
+msgstr ""
+
+msgid "Connection from {source} to {target}"
+msgstr ""
+
+msgid "Connection from {source}, {output}, to {target}"
+msgstr ""
+
+msgid "Press enter or space to select a step. Press delete to remove it and escape to cancel."
+msgstr ""
+
+msgid "Press enter or space to select a step. You can then use the arrow keys to move it. Press delete to remove it and escape to cancel."
+msgstr ""
+
+msgid "Moved the selected step {direction}. New position, x: {x}, y: {y}"
+msgstr ""
+
+msgid "Press enter or space to select a connection. You can then press delete to remove it or escape to cancel."
+msgstr ""
+
+msgid "Canvas controls"
+msgstr ""
+
+msgid "Zoom in"
+msgstr ""
+
+msgid "Zoom out"
+msgstr ""
+
+msgid "Fit view"
+msgstr ""
+
+msgid "Toggle interactivity"
+msgstr ""
+
+msgid "Mini map"
+msgstr ""
+
+msgid "Connection point"
+msgstr ""
+
+msgid "No steps yet."
+msgstr ""
+
+msgid "Press enter or space to select a step and see its details."
+msgstr ""
+
+msgid "Press enter or space to select a connection."
+msgstr ""

@@ -1,7 +1,7 @@
 {#
 /**
  * BasecoatTheme bake template: `workflow` screen (`bin/cake bake screen workflow`).
- * Reads the view variables of data.php (workflow, definition, toolbox, runs).
+ * Reads the view variables of data.php (workflow, flow, palette, runs).
  * Twig variables used: `namespace`, `useDomain` and `plugin` (strings use `__d('<plugin>', ...)`
  * under `--plugin`, `__()` otherwise, as bake's CRUD templates). The rest is the PHP view.
  */
@@ -9,109 +9,21 @@
 {% set t = useDomain ? "__d('" ~ plugin ~ "', " : "__(" %}
 <?php
 /**
- * Workflow: an automation edited with sequential-workflow-designer (MIT), restyled with the
- * Basecoat tokens, plus its run history.
+ * Workflow: an automation edited on a canvas (FlowHelper, React Flow bundled by the plugin), plus its
+ * run history.
  *
- * The designer is mounted by the plugin script (webroot/js/basecoat-theme.js) on
- * `[data-workflow-designer]`: it reads the two JSON data blocks, follows the light / dark theme and
- * keeps the hidden `definition` input up to date. Without JavaScript (or if the library does not
- * load) the steps stay readable as the ordered list below the canvas.
+ * `$this->Flow->editor()` adds the editor files (`BasecoatTheme.basecoat-flow` css / js) to the view
+ * blocks and keeps the hidden `flow` input up to date (JSON with the same shape as `$flow`). Without
+ * JavaScript the steps stay readable as an ordered list.
  *
  * @var \{{ namespace }}\View\AppView $this
  * @var array<string, mixed> $workflow id, name, description, status (active|draft), updated.
- * @var array<string, mixed> $definition properties (name, description) and sequence: steps with id,
- *   componentType (task|switch), type, name, properties (key => string|int) and, for a switch,
- *   branches (branch name => steps).
- * @var array<int, array<string, mixed>> $toolbox Groups: name, steps (step templates without id).
+ * @var array<string, mixed> $flow nodes (id, type trigger|action|condition, label, icon, position x / y,
+ *   properties, outputs for a condition) and edges (source, output, target).
+ * @var array<int, array<string, mixed>> $palette Groups: label, items (step templates without id / position).
  * @var array<int, array<string, mixed>> $runs Runs: id, started, trigger, status (succeeded|failed|running), duration.
  */
 $this->assign('title', {{ t|raw }}'Workflow'));
-
-// sequential-workflow-designer, pinned (MIT, https://github.com/nocode-js/sequential-workflow-designer).
-// Self-host these files if your CSP does not allow cdn.jsdelivr.net.
-$designerCdn = 'https://cdn.jsdelivr.net/npm/sequential-workflow-designer@0.40.4/';
-// Subresource Integrity: the browser refuses a file whose hash differs (update both together).
-$designerFiles = [
-    'css/designer.css' => 'sha384-znKw/3SWPAtj2LiGZbohpsI01kjYMBozYyhnEUy2w6MQ7kdGULnxSQose0aOKPE+',
-    'css/designer-light.css' => 'sha384-ynKYR4zBohyZJlrnw8zqv0qjsKdOrBkQx9qPFf3y2YxfkOmzDEwhd0T6+fJlaaVg',
-    'css/designer-dark.css' => 'sha384-tayoa0t5i831+FzkRTMJdr/mj9MQkLo/na3qp6UZOHDYHmRlnWz2Wd9jBXyEQ7jy',
-];
-foreach ($designerFiles as $file => $integrity) {
-    $this->Html->css($designerCdn . $file, ['block' => true, 'integrity' => $integrity, 'crossorigin' => 'anonymous']);
-}
-$this->Html->css('BasecoatTheme.workflow', ['block' => true]);
-$this->Html->script($designerCdn . 'dist/index.umd.js', [
-    'block' => true,
-    'defer' => true,
-    'integrity' => 'sha384-lP7E6/vUWEwkA8P1HktX9/Sf2VfTZlQn22nHKd2NaKjdKaUcDLQ9CGc7Z9q3nbsv',
-    'crossorigin' => 'anonymous',
-]);
-
-// The designer expects objects for `properties` and `branches`, also when they are empty.
-$prepare = function (array $steps) use (&$prepare): array {
-    foreach ($steps as $index => $step) {
-        $step['properties'] = (object)($step['properties'] ?? []);
-        if (isset($step['branches'])) {
-            $branches = [];
-            foreach ((array)$step['branches'] as $name => $branch) {
-                $branches[$name] = $prepare((array)$branch);
-            }
-            $step['branches'] = (object)$branches;
-        }
-        $steps[$index] = $step;
-    }
-
-    return $steps;
-};
-$json = fn (mixed $value): string => (string)json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
-$definitionJson = $json([
-    'properties' => (object)($definition['properties'] ?? []),
-    'sequence' => $prepare($definition['sequence'] ?? []),
-]);
-$config = [
-    'toolbox' => array_map(fn (array $group): array => [
-        'name' => $group['name'],
-        'steps' => $prepare($group['steps'] ?? []),
-    ], $toolbox),
-    // Labels of the step properties in the step editor (property key => label).
-    'fields' => [
-        'event' => {{ t|raw }}'Event'),
-        'to' => {{ t|raw }}'Recipient'),
-        'subject' => {{ t|raw }}'Subject'),
-        'condition' => {{ t|raw }}'Condition'),
-        'assignee' => {{ t|raw }}'Assignee'),
-        'list' => {{ t|raw }}'List'),
-        'days' => {{ t|raw }}'Days'),
-        'title' => {{ t|raw }}'Task title'),
-    ],
-    // Texts of the designer (its i18n keys) and of the editors built by basecoat-theme.js.
-    'i18n' => [
-        'toolbox.title' => {{ t|raw }}'Toolbox'),
-        'toolbox.search' => {{ t|raw }}'Search steps'),
-        'controlBar.resetView' => {{ t|raw }}'Reset view'),
-        'controlBar.zoomIn' => {{ t|raw }}'Zoom in'),
-        'controlBar.zoomOut' => {{ t|raw }}'Zoom out'),
-        'controlBar.undo' => {{ t|raw }}'Undo'),
-        'controlBar.redo' => {{ t|raw }}'Redo'),
-        'controlBar.turnOnOffDragAndDrop' => {{ t|raw }}'Turn drag and drop on or off'),
-        'controlBar.deleteSelectedStep' => {{ t|raw }}'Delete selected step'),
-        'contextMenu.select' => {{ t|raw }}'Select'),
-        'contextMenu.unselect' => {{ t|raw }}'Unselect'),
-        'contextMenu.delete' => {{ t|raw }}'Delete'),
-        'contextMenu.duplicate' => {{ t|raw }}'Duplicate'),
-        'contextMenu.resetView' => {{ t|raw }}'Reset view'),
-        'smartEditor.toggle' => {{ t|raw }}'Toggle editor'),
-        'editor.workflow' => {{ t|raw }}'Workflow'),
-        'editor.name' => {{ t|raw }}'Name'),
-        'editor.description' => {{ t|raw }}'Description'),
-        'editor.steps' => {{ t|raw }}'Steps'),
-        'editor.stepsHint' => {{ t|raw }}'Choose a step to edit it.'),
-        'editor.noSteps' => {{ t|raw }}'Drag a step from the toolbox onto the canvas.'),
-        'editor.step' => {{ t|raw }}'Step'),
-        'editor.stepName' => {{ t|raw }}'Step name'),
-        'editor.back' => {{ t|raw }}'Back to workflow'),
-    ],
-];
 
 $statusLabels = ['active' => {{ t|raw }}'Active'), 'draft' => {{ t|raw }}'Draft')];
 $status = (string)($workflow['status'] ?? 'draft');
@@ -120,33 +32,6 @@ $runStatuses = [
     'failed' => [{{ t|raw }}'Failed'), 'destructive'],
     'running' => [{{ t|raw }}'Running'), 'outline'],
 ];
-
-// The steps as an ordered list (nested lists for the branches): shown without JavaScript and
-// hidden by basecoat-theme.js once the designer is mounted.
-$branchCount = 0;
-$stepList = function (array $steps, ?string $labelledBy = null) use (&$stepList, &$branchCount): string {
-    $html = '<ol class="flex flex-col gap-2" data-workflow-steps' . ($labelledBy ? ' aria-labelledby="' . h($labelledBy) . '"' : '') . '>';
-    foreach ($steps as $step) {
-        $html .= '<li class="rounded-lg border bg-background p-3 text-sm" data-step-type="' . h((string)($step['type'] ?? '')) . '">'
-            . '<span class="font-medium">' . h((string)($step['name'] ?? '')) . '</span>';
-        if (!empty($step['branches'])) {
-            $html .= '<ul class="mt-3 grid gap-3 sm:grid-cols-2" data-workflow-branches>';
-            foreach ((array)$step['branches'] as $branch => $branchSteps) {
-                $branchId = 'workflow-branch-' . ++$branchCount;
-                $html .= '<li class="flex flex-col gap-2 rounded-lg bg-muted/50 p-2">'
-                    . '<span id="' . $branchId . '" class="text-muted-foreground text-xs font-medium uppercase">' . h((string)$branch) . '</span>'
-                    . ($branchSteps
-                        ? $stepList((array)$branchSteps, $branchId)
-                        : '<p class="text-muted-foreground text-xs">' . h({{ t|raw }}'No steps in this branch')) . '</p>')
-                    . '</li>';
-            }
-            $html .= '</ul>';
-        }
-        $html .= '</li>';
-    }
-
-    return $html . '</ol>';
-};
 
 $runRows = array_map(function (array $run) use ($runStatuses): array {
     [$label, $variant] = $runStatuses[$run['status']] ?? [(string)$run['status'], 'outline'];
@@ -169,33 +54,33 @@ $runRows = array_map(function (array $run) use ($runStatuses): array {
             // TODO: "Run test" starts a test run: wire it to a POST action of your controller
             // (e.g. $this->Form->postButton(..., ['action' => 'test', $workflow['id']])).
             $this->Button->render({{ t|raw }}'Run test'), ['icon' => 'play', 'variant' => 'outline']),
-            // TODO: "Save" posts the `definition` input below: wrap the designer section in
-            // $this->Form->create(null, ['url' => ['action' => 'edit', $workflow['id']]]) ... $this->Form->end()
-            // and make this a submit button with the form attribute.
+            // TODO: "Save" posts the hidden `flow` input of the editor (JSON: nodes and edges): wrap the
+            // steps section in $this->Form->create(null, ['id' => 'workflow-form', 'url' => ['action' => 'edit',
+            // $workflow['id']]]) ... $this->Form->end() and make this a submit button with 'form' => 'workflow-form'.
+            // The controller reads it with json_decode($this->request->getData('flow'), true).
             $this->Button->render({{ t|raw }}'Save'), ['icon' => 'save']),
         ],
     ]) ?>
 
-    <section class="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card" data-workflow-designer aria-labelledby="workflow-steps-title">
-        <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-4 py-3">
+    <section class="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card" aria-labelledby="workflow-steps-title">
+        <header class="border-b px-4 py-3">
             <h3 id="workflow-steps-title" class="font-semibold"><?= h({{ t|raw }}'Steps')) ?></h3>
-            <?php // Shown by basecoat-theme.js once the designer is mounted (meaningless in the plain list). ?>
-            <p class="text-muted-foreground text-sm" data-workflow-hint hidden><?= h({{ t|raw }}'Drag steps from the toolbox and select a step to edit it.')) ?></p>
         </header>
-        <script type="application/json" data-workflow-definition><?= $definitionJson ?></script>
-        <script type="application/json" data-workflow-config><?= $json($config) ?></script>
-        <input type="hidden" name="definition" value="<?= h($definitionJson) ?>" data-workflow-input>
-        <div class="workflow-canvas" data-workflow-canvas role="region" aria-label="<?= h({{ t|raw }}'Workflow designer')) ?>" hidden></div>
-        <div class="p-4" data-workflow-fallback>
-            <?php if (!empty($definition['sequence'])) : ?>
-                <?= $stepList($definition['sequence']) ?>
-            <?php else : ?>
-                <?= $this->EmptyState->render({{ t|raw }}'No steps yet'), [
-                    'description' => {{ t|raw }}'Add a trigger to start this workflow.'),
-                    'icon' => 'workflow',
-                ]) ?>
-            <?php endif; ?>
-        </div>
+        <?= $this->Flow->editor($flow, [
+            'label' => {{ t|raw }}'Workflow editor'),
+            'palette' => $palette,
+            // Labels of the step properties in the side panel (property key => label).
+            'fields' => [
+                'event' => {{ t|raw }}'Event'),
+                'to' => {{ t|raw }}'Recipient'),
+                'subject' => {{ t|raw }}'Subject'),
+                'condition' => {{ t|raw }}'Condition'),
+                'assignee' => {{ t|raw }}'Assignee'),
+                'list' => {{ t|raw }}'List'),
+                'days' => {{ t|raw }}'Days'),
+                'title' => {{ t|raw }}'Task title'),
+            ],
+        ]) ?>
     </section>
 
     <section class="flex min-w-0 flex-col gap-3" aria-labelledby="workflow-runs-title">

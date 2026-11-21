@@ -135,3 +135,111 @@ msgid "{0} new"
 msgid_plural "{0} new"
 msgstr[0] "{0} nuevo"
 msgstr[1] "{0} nuevos"
+
+msgid "Flow editor"
+msgstr "Editor de flujo"
+
+msgid "Trigger"
+msgstr "Disparador"
+
+msgid "Action"
+msgstr "Acción"
+
+msgid "Condition"
+msgstr "Condición"
+
+msgid "Add a step"
+msgstr "Añadir un paso"
+
+msgid "Drag a step onto the canvas, or press it to add it after the selected step."
+msgstr "Arrastra un paso al lienzo o púlsalo para añadirlo después del paso seleccionado."
+
+msgid "Steps"
+msgstr "Pasos"
+
+msgid "Choose a step to edit it."
+msgstr "Elige un paso para editarlo."
+
+msgid "No steps yet. Add one from the palette."
+msgstr "Todavía no hay pasos. Añade uno desde la paleta."
+
+msgid "Name"
+msgstr "Nombre"
+
+msgid "Next step"
+msgstr "Siguiente paso"
+
+msgid "Next step: {output}"
+msgstr "Siguiente paso: {output}"
+
+msgid "None"
+msgstr "Ninguno"
+
+msgid "Delete step"
+msgstr "Eliminar paso"
+
+msgid "All steps"
+msgstr "Todos los pasos"
+
+msgid "{label} added."
+msgstr "{label} añadido."
+
+msgid "{label} deleted."
+msgstr "{label} eliminado."
+
+msgid "{source} now leads to {target}."
+msgstr "{source} ahora lleva a {target}."
+
+msgid "{source} no longer leads to another step."
+msgstr "{source} ya no lleva a otro paso."
+
+msgid "Flow canvas"
+msgstr "Lienzo del flujo"
+
+msgid "Connection from {source} to {target}"
+msgstr "Conexión de {source} a {target}"
+
+msgid "Connection from {source}, {output}, to {target}"
+msgstr "Conexión de {source}, {output}, a {target}"
+
+msgid "Press enter or space to select a step. Press delete to remove it and escape to cancel."
+msgstr "Pulsa Intro o Espacio para seleccionar un paso. Pulsa Supr para eliminarlo y Escape para cancelar."
+
+msgid "Press enter or space to select a step. You can then use the arrow keys to move it. Press delete to remove it and escape to cancel."
+msgstr "Pulsa Intro o Espacio para seleccionar un paso. Después puedes moverlo con las flechas. Pulsa Supr para eliminarlo y Escape para cancelar."
+
+msgid "Moved the selected step {direction}. New position, x: {x}, y: {y}"
+msgstr "Paso seleccionado movido hacia {direction}. Nueva posición, x: {x}, y: {y}"
+
+msgid "Press enter or space to select a connection. You can then press delete to remove it or escape to cancel."
+msgstr "Pulsa Intro o Espacio para seleccionar una conexión. Después pulsa Supr para eliminarla o Escape para cancelar."
+
+msgid "Canvas controls"
+msgstr "Controles del lienzo"
+
+msgid "Zoom in"
+msgstr "Acercar"
+
+msgid "Zoom out"
+msgstr "Alejar"
+
+msgid "Fit view"
+msgstr "Ajustar a la vista"
+
+msgid "Toggle interactivity"
+msgstr "Activar o desactivar la interacción"
+
+msgid "Mini map"
+msgstr "Minimapa"
+
+msgid "Connection point"
+msgstr "Punto de conexión"
+
+msgid "No steps yet."
+msgstr "Todavía no hay pasos."
+
+msgid "Press enter or space to select a step and see its details."
+msgstr "Pulsa Intro o Espacio para seleccionar un paso y ver sus detalles."
+
+msgid "Press enter or space to select a connection."
+msgstr "Pulsa Intro o Espacio para seleccionar una conexión."

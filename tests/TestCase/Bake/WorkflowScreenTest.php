@@ -20,8 +20,6 @@ use function Cake\Core\h;
  */
 class WorkflowScreenTest extends TestCase
 {
-    private const VERSION = '0.40.4';
-
     private ?View $view = null;
 
     protected function setUp(): void
@@ -101,30 +99,15 @@ class WorkflowScreenTest extends TestCase
     }
 
     /**
-     * JSON of a `<script type="application/json" data-workflow-…>` block, decoded.
+     * JSON of a `<script type="application/json" data-flow-…>` block, decoded.
+     *
+     * @return array<string, mixed>
      */
-    private function jsonBlock(string $html, string $name): mixed
+    private function jsonBlock(string $html, string $name): array
     {
-        $this->assertSame(1, preg_match('#<script type="application/json" data-workflow-' . $name . '>(.*?)</script>#s', $html, $m), $name);
+        $this->assertSame(1, preg_match('#<script type="application/json" data-flow-' . $name . '>(.*?)</script>#s', $html, $m));
 
         return json_decode($m[1], true, 512, JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $steps
-     * @return list<array<string, mixed>>
-     */
-    private function flatten(array $steps): array
-    {
-        $all = [];
-        foreach ($steps as $step) {
-            $all[] = $step;
-            foreach ($step['branches'] ?? [] as $branch) {
-                $all = [...$all, ...$this->flatten($branch)];
-            }
-        }
-
-        return $all;
     }
 
     public function testRegistryEntry(): void
@@ -135,106 +118,63 @@ class WorkflowScreenTest extends TestCase
         $this->assertSame('Workflows', $screen['controller']);
         $this->assertSame('workflow', $screen['icon']);
         $this->assertSame(ROOT . '/templates/bake/Screen/workflow', $screen['path']);
-        $this->assertNotSame('', $screen['description']);
+        $this->assertStringContainsString('canvas', $screen['description']);
     }
 
     public function testSampleDataMatchesContract(): void
     {
         $data = ScreenRegistry::data('workflow');
 
-        $this->assertSame(['workflow', 'definition', 'toolbox', 'runs'], array_keys($data));
-        $this->assertSame(['properties', 'sequence'], array_keys($data['definition']));
-        $steps = $this->flatten($data['definition']['sequence']);
-        $this->assertCount(7, $steps);
-        $ids = array_column($steps, 'id');
-        $this->assertSame($ids, array_values(array_unique($ids)), 'Step ids are unique');
-        foreach ($steps as $step) {
-            $this->assertContains($step['componentType'], ['task', 'switch']);
-            $this->assertMatchesRegularExpression('/^[a-z][a-z0-9-]*$/', $step['type']);
-            $this->assertIsArray($step['properties']);
-        }
-        $switch = array_values(array_filter($steps, fn(array $s): bool => $s['componentType'] === 'switch'));
-        $this->assertCount(1, $switch);
-        $this->assertCount(2, $switch[0]['branches']);
-        $this->assertSame(['Triggers', 'Actions', 'Logic'], array_column($data['toolbox'], 'name'));
+        $this->assertSame(['workflow', 'flow', 'palette', 'runs'], array_keys($data));
+        $this->assertCount(7, $data['flow']['nodes']);
+        $this->assertCount(7, $data['flow']['edges']);
+        $this->assertSame(['trigger', 'action', 'condition', 'action', 'action', 'action', 'action'], array_column($data['flow']['nodes'], 'type'));
+        $this->assertSame(['Triggers', 'Actions', 'Logic'], array_column($data['palette'], 'label'));
         $this->assertGreaterThanOrEqual(4, count($data['runs']));
     }
 
-    public function testFallbackListRendersEveryStepWithBranches(): void
+    public function testEditorRendersTheFlowWithItsPaletteAndFieldLabels(): void
     {
         $data = ScreenRegistry::data('workflow');
         $html = $this->render();
 
-        $this->assertMatchesRegularExpression('/<div[^>]*data-workflow-fallback/', $html);
-        foreach ($this->flatten($data['definition']['sequence']) as $step) {
-            $this->assertStringContainsString('>' . h($step['name']) . '<', $html);
-        }
-        // Branches: a nested list per branch, named by the branch.
-        $this->assertMatchesRegularExpression('#<ol[^>]*data-workflow-steps[^>]*>.*<ul[^>]*data-workflow-branches[^>]*>.*Yes.*<ol[^>]*data-workflow-steps[^>]*>.*Assign success manager.*No.*Add to nurture list#s', $html);
-        $this->assertSame(substr_count($html, '<ol '), substr_count($html, '</ol>'));
-    }
-
-    public function testDefinitionDataBlockIsValidJsonEqualToTheData(): void
-    {
-        $data = ScreenRegistry::data('workflow');
-        $html = $this->render();
-
-        $this->assertSame($data['definition'], $this->jsonBlock($html, 'definition'));
+        $this->assertMatchesRegularExpression('/<div data-flow-editor="1" role="group" aria-label="Workflow editor" class="bc-flow-editor">/', $html);
+        $flow = $this->jsonBlock($html, 'data');
+        $this->assertSame(array_column($data['flow']['nodes'], 'id'), array_column($flow['nodes'], 'id'));
+        $this->assertSame(['x' => -160, 'y' => 470], $flow['nodes'][3]['position']);
         $config = $this->jsonBlock($html, 'config');
-        $this->assertSame($data['toolbox'], $config['toolbox']);
-        $this->assertSame('Toolbox', $config['i18n']['toolbox.title']);
-        $this->assertSame('Zoom in', $config['i18n']['controlBar.zoomIn']);
-        $this->assertSame('Step name', $config['i18n']['editor.stepName']);
-        $this->assertArrayHasKey('subject', $config['fields']);
+        $this->assertSame(['Triggers', 'Actions', 'Logic'], array_column($config['palette'], 'label'));
+        $this->assertSame('Recipient', $config['fields']['to']);
+        $this->assertStringContainsString('<input type="hidden" name="flow" value="', $html);
     }
 
-    public function testEmptyPropertiesAreJsonObjects(): void
+    public function testFallbackListsTheStepsInReadingOrder(): void
     {
-        $html = $this->render($this->data([
-            'definition' => ['properties' => [], 'sequence' => [
-                ['id' => 's1', 'componentType' => 'task', 'type' => 'task', 'name' => 'Only', 'properties' => []],
-            ]],
-            'toolbox' => [['name' => 'Logic', 'steps' => [
-                ['componentType' => 'switch', 'type' => 'if', 'name' => 'If', 'properties' => [], 'branches' => ['Yes' => [], 'No' => []]],
-            ]]],
-        ]));
-
-        $this->assertMatchesRegularExpression('#data-workflow-definition>\{"properties":\{\},"sequence":\[\{[^<]*"properties":\{\}\}\]\}</script>#', $html);
-        $this->assertStringContainsString('"branches":{"Yes":[],"No":[]}', $html);
-    }
-
-    public function testHiddenInputCarriesTheDefinition(): void
-    {
-        $data = ScreenRegistry::data('workflow');
         $html = $this->render();
+        preg_match_all('/<span class="bc-flow-fallback-label">([^<]+)<\/span>/', $html, $labels);
 
-        $this->assertSame(1, preg_match('/<input type="hidden" name="definition" value="([^"]*)" data-workflow-input>/', $html, $m));
-        $this->assertSame($data['definition'], json_decode(html_entity_decode($m[1], ENT_QUOTES), true));
+        $this->assertSame([
+            'Customer signed up',
+            'Send welcome email',
+            'Plan is Scale?',
+            'Assign success manager',
+            'Add to nurture list',
+            'Wait 3 days',
+            'Create follow-up task',
+        ], $labels[1]);
+        $this->assertStringContainsString('<li>Yes: Assign success manager</li><li>No: Add to nurture list</li>', $html);
     }
 
-    public function testAssetsArePinnedAndLoadedThroughViewBlocks(): void
+    public function testAssetsAreThePluginBundleInTheViewBlocks(): void
     {
         $html = $this->render();
         $css = $this->view->fetch('css');
         $script = $this->view->fetch('script');
 
-        $cdn = 'https://cdn.jsdelivr.net/npm/sequential-workflow-designer@' . self::VERSION . '/';
-        foreach (['css/designer.css', 'css/designer-light.css', 'css/designer-dark.css'] as $file) {
-            $this->assertMatchesRegularExpression('#<link rel="stylesheet" href="' . preg_quote($cdn . $file, '#') . '" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous"/?>#', $css);
-        }
-        $this->assertStringContainsString('href="/basecoat_theme/css/workflow.css"', $css);
-        $this->assertLessThan(strpos($css, 'workflow.css'), strpos($css, 'designer-dark.css'), 'The restyle loads after the library CSS');
-        $this->assertMatchesRegularExpression('#<script src="' . preg_quote($cdn, '#') . 'dist/index\.umd\.js" defer="defer" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous"></script>#', $script);
-        $this->assertStringNotContainsString('sequential-workflow-designer@', $html, 'Assets go to the blocks, not the content');
-    }
-
-    public function testCanvasIsALabelledRegionHiddenUntilTheDesignerMounts(): void
-    {
-        $html = $this->render();
-
-        $this->assertMatchesRegularExpression('/<div class="workflow-canvas" data-workflow-canvas role="region" aria-label="Workflow designer" hidden><\/div>/', $html);
-        $this->assertMatchesRegularExpression('/<section[^>]*data-workflow-designer[^>]*aria-labelledby="workflow-steps-title"/', $html);
-        $this->assertStringContainsString('id="workflow-steps-title"', $html);
+        $this->assertStringContainsString('href="/basecoat_theme/css/basecoat-flow.css"', $css);
+        $this->assertMatchesRegularExpression('#<script src="/basecoat_theme/js/basecoat-flow.js" defer="defer"></script>#', $script);
+        $this->assertStringNotContainsString('cdn.', $html . $css . $script, 'No CDN: the editor is bundled');
+        $this->assertStringNotContainsString('sequential', $html . $css . $script);
     }
 
     public function testHeaderShowsNameStatusAndInertActions(): void
@@ -248,6 +188,13 @@ class WorkflowScreenTest extends TestCase
 
         $draft = $this->render($this->data(['workflow' => ['status' => 'draft'] + ScreenRegistry::data('workflow')['workflow']]));
         $this->assertMatchesRegularExpression('/<span[^>]*class="badge[^"]*"[^>]*>\s*Draft\s*<\/span>/', $draft);
+    }
+
+    public function testSaveTodoExplainsHowToReadTheFlowInput(): void
+    {
+        $template = (new BakeScreenCommand())->renderFiles('workflow', 'Workflows')['templates/Workflows/index.php'];
+
+        $this->assertStringContainsString("json_decode(\$this->request->getData('flow'), true)", $template);
     }
 
     public function testRunHistoryTable(): void
@@ -266,15 +213,14 @@ class WorkflowScreenTest extends TestCase
         $this->assertMatchesRegularExpression('/<span class="badge" data-variant="destructive">Failed<\/span>/', $html);
     }
 
-    public function testEmptyDefinitionAndRuns(): void
+    public function testEmptyFlowAndRuns(): void
     {
-        $html = $this->render($this->data(['definition' => ['properties' => [], 'sequence' => []], 'runs' => []]));
+        $html = $this->render($this->data(['flow' => ['nodes' => [], 'edges' => []], 'runs' => []]));
 
-        $this->assertStringContainsString('No steps yet', $html);
+        $this->assertStringContainsString('No steps yet.', $html);
         $this->assertStringContainsString('No runs yet', $html);
-        $this->assertStringNotContainsString('data-workflow-steps', $html);
-        $this->assertSame(['properties' => [], 'sequence' => []], $this->jsonBlock($html, 'definition'));
-        $this->assertStringContainsString('data-workflow-canvas', $html, 'The designer still mounts to add the first step');
+        $this->assertSame(['nodes' => [], 'edges' => []], $this->jsonBlock($html, 'data'));
+        $this->assertStringContainsString('data-flow-canvas', $html, 'The editor still mounts to add the first step');
     }
 
     public function testEscapes(): void
@@ -282,11 +228,10 @@ class WorkflowScreenTest extends TestCase
         $evil = '</script><script>alert(1)</script>';
         $html = $this->render($this->data([
             'workflow' => ['id' => 1, 'name' => '<b>Flow</b>', 'description' => '<i>d</i>', 'status' => 'active', 'updated' => '<u>now</u>'],
-            'definition' => ['properties' => ['name' => $evil], 'sequence' => [
-                ['id' => 's1', 'componentType' => 'switch', 'type' => 'if', 'name' => $evil, 'properties' => ['x' => "'\"&"], 'branches' => [
-                    '<em>Yes</em>' => [['id' => 's2', 'componentType' => 'task', 'type' => 'task', 'name' => '<img src=x>', 'properties' => ['a' => 1]]],
-                ]],
-            ]],
+            'flow' => ['nodes' => [
+                ['id' => 's1', 'type' => 'condition', 'label' => $evil, 'position' => ['x' => 0, 'y' => 0], 'outputs' => ['y' => '<em>Yes</em>']],
+                ['id' => 's2', 'type' => 'action', 'label' => '<img src=x>', 'position' => ['x' => 0, 'y' => 150], 'properties' => ['a' => "'\"&"]],
+            ], 'edges' => [['source' => 's1', 'output' => 'y', 'target' => 's2']]],
             'runs' => [['id' => 'r1', 'started' => '<s>t</s>', 'trigger' => '<s>tr</s>', 'status' => '<x>', 'duration' => '<s>1</s>']],
         ]));
 
@@ -294,44 +239,17 @@ class WorkflowScreenTest extends TestCase
             $this->assertStringNotContainsString($raw, $html);
         }
         $this->assertSame(2, substr_count($html, '<script'), 'Only the two JSON data blocks');
-        $this->assertSame($evil, $this->jsonBlock($html, 'definition')['sequence'][0]['name']);
-    }
-
-    public function testInvalidUtf8IsSubstitutedInTheJson(): void
-    {
-        $html = $this->render($this->data([
-            'definition' => ['properties' => ['name' => "Bad \xB1 name"], 'sequence' => [
-                ['id' => 's1', 'componentType' => 'task', 'type' => 'task', 'name' => "Step \xC3\x28", 'properties' => []],
-            ]],
-        ]));
-
-        $definition = $this->jsonBlock($html, 'definition');
-        $this->assertSame("Bad \u{FFFD} name", $definition['properties']['name']);
-        $this->assertStringContainsString("\u{FFFD}", $definition['sequence'][0]['name']);
-        $this->assertMatchesRegularExpression('/<input type="hidden" name="definition" value="[^"]+" data-workflow-input>/', $html);
-    }
-
-    public function testBranchListsAreLabelledByTheirBranchAndTheHintWaitsForTheDesigner(): void
-    {
-        $html = $this->render();
-
-        foreach (['Yes', 'No'] as $branch) {
-            $this->assertSame(1, preg_match('#<span id="(workflow-branch-\d+)"[^>]*>' . $branch . '</span><ol [^>]*aria-labelledby="([^"]+)"#', $html, $m), $branch);
-            $this->assertSame($m[1], $m[2]);
-        }
-        $this->assertMatchesRegularExpression('/<p class="text-muted-foreground text-sm" data-workflow-hint hidden>Drag steps/', $html);
+        $this->assertSame($evil, $this->jsonBlock($html, 'data')['nodes'][0]['label']);
     }
 
     public function testNoInlineJsOrStyles(): void
     {
         $html = $this->render();
 
-        preg_match_all('/<script\b[^>]*>/', $html, $scripts);
-        $this->assertSame(['<script type="application/json" data-workflow-definition>', '<script type="application/json" data-workflow-config>'], $scripts[0]);
-        $this->assertStringNotContainsString('<style', $html);
-        $this->assertDoesNotMatchRegularExpression('/\sstyle=/i', $html);
-        $this->assertDoesNotMatchRegularExpression('/\son[a-z]+=/i', $html);
-        $this->assertStringNotContainsString('javascript:', $html);
+        $this->assertStringNotContainsString('style=', $html);
+        $this->assertDoesNotMatchRegularExpression('/\son[a-z]+=/', $html);
+        preg_match_all('/<script[^>]*>/', $html, $tags);
+        $this->assertSame(['<script type="application/json" data-flow-data>', '<script type="application/json" data-flow-config>'], $tags[0]);
     }
 
     public function testUniqueIds(): void
@@ -360,8 +278,8 @@ class WorkflowScreenTest extends TestCase
         $template = $files['templates/Workflows/index.php'];
 
         $this->assertStringContainsString("__d('Admin', 'Run test')", $template);
-        $this->assertStringContainsString("__d('Admin', 'Toolbox')", $template);
-        $this->assertStringContainsString("__d('Admin', 'No steps yet')", $template);
+        $this->assertStringContainsString("__d('Admin', 'Workflow editor')", $template);
+        $this->assertStringContainsString("__d('Admin', 'Recipient')", $template);
     }
 
     public function testDoesNotUseThirdPartyOrPlaceholderNames(): void
@@ -370,29 +288,5 @@ class WorkflowScreenTest extends TestCase
             . (string)file_get_contents(ROOT . '/templates/bake/Screen/workflow/template.twig');
 
         $this->assertDoesNotMatchRegularExpression('/Acme|Jane Doe|John Doe/', $source);
-    }
-
-    public function testPluginScriptMountsTheDesigner(): void
-    {
-        $js = (string)file_get_contents(ROOT . '/webroot/js/basecoat-theme.js');
-
-        $this->assertStringContainsString('[data-workflow-designer]', $js);
-        $this->assertStringContainsString('sequentialWorkflowDesigner', $js);
-        $this->assertStringContainsString('onDefinitionChanged', $js);
-        $this->assertStringNotContainsString('innerHTML', $js, 'Editors build DOM with textContent');
-        $this->assertStringContainsString('htmx:beforeCleanupElement', $js, 'Designers of removed content are destroyed');
-        $this->assertStringContainsString('[data-workflow-hint]', $js, 'The hint is shown once mounted');
-        $this->assertStringContainsString("input.value !== '' ? Number(input.value)", $js, 'An emptied number field stays empty');
-    }
-
-    public function testRestyleMapsBothDesignerThemesToBasecoatTokens(): void
-    {
-        $css = (string)file_get_contents(ROOT . '/webroot/css/workflow.css');
-
-        $this->assertStringContainsString('.sqd-theme-light', $css);
-        $this->assertStringContainsString('.sqd-theme-dark', $css);
-        foreach (['--background', '--foreground', '--muted', '--border', '--primary', '--radius'] as $token) {
-            $this->assertStringContainsString('var(' . $token, $css);
-        }
     }
 }

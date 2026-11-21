@@ -1,0 +1,19 @@
+{
+  "name": "basecoat-flow",
+  "private": true,
+  "description": "Source of webroot/js/basecoat-flow.js and webroot/css/basecoat-flow.css (React Flow editor of BasecoatTheme). Only plugin developers need this; apps use the compiled files.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check"
+  },
+  "dependencies": {
+    "@xyflow/react": "12.12.1",
+    "react": "19.2.9",
+    "react-dom": "19.2.9"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

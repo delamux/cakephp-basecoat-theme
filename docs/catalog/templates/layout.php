@@ -11,6 +11,7 @@
  * @var array{name: string, url: string, icon: string} $brand Brand link.
  * @var bool $charts Whether Chart.js is needed.
  * @var string $catalogAssets Highlight.js and catalog CSS/JS tags.
+ * @var string $pageAssets Tags the examples of this page added to the view blocks.
  */
 $header = sprintf(
     '<a href="%s" class="flex items-center gap-2 px-2 py-1.5 text-base font-semibold">%s<span>%s</span></a>',
@@ -27,6 +28,7 @@ $header = sprintf(
     <title><?= h($title) ?> · CakePHP Basecoat Theme</title>
     <?= $this->Theme->head(['charts' => $charts]) ?>
     <?= $catalogAssets ?>
+    <?= $pageAssets ?>
 </head>
 <body class="bg-sidebar font-sans antialiased">
 <?= $this->Sidebar->render($menu, ['label' => 'Catalog navigation', 'header' => $header]) ?>
