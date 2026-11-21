@@ -19,6 +19,7 @@ final class BasecoatHelpers
         'Breadcrumb' => 'BasecoatTheme.Breadcrumb',
         'Button' => 'BasecoatTheme.Button',
         'ButtonGroup' => 'BasecoatTheme.ButtonGroup',
+        'Calendar' => 'BasecoatTheme.Calendar',
         'Card' => 'BasecoatTheme.Card',
         'Chart' => 'BasecoatTheme.Chart',
         'ChoiceCards' => 'BasecoatTheme.ChoiceCards',
