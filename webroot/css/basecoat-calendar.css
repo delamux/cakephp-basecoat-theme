@@ -1,0 +1,361 @@
+/*
+ * BasecoatTheme calendar: week and day grids of CalendarHelper (bc-cal-* classes).
+ * Built on the Basecoat tokens (--background, --border, --muted, --primary...), light and dark.
+ * Positions are classes (rows, spans, lanes) so the HTML needs no inline style (strict CSP).
+ */
+.bc-cal{--bc-cal-row:2.5rem;--bc-cal-head:3.5rem;--bc-cal-allday:3.75rem;--bc-cal-times:3.75rem;--bc-cal-col:12rem;display:block;width:100%;min-width:0;border:1px solid var(--border);border-radius:var(--radius,.625rem);background:var(--background);color:var(--foreground)}
+.bc-cal-w-sm{--bc-cal-col:9rem}
+.bc-cal-w-md{--bc-cal-col:12rem}
+.bc-cal-w-lg{--bc-cal-col:16rem}
+.bc-cal .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+.bc-cal-scroll{position:relative;overflow:auto;max-height:min(75vh,56rem);border-radius:inherit;overscroll-behavior-x:contain}
+.bc-cal-scroll:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.bc-cal-grid{display:flex;width:max-content;min-width:100%}
+.bc-cal-times{position:sticky;left:0;z-index:3;flex:0 0 var(--bc-cal-times);background:var(--background);border-right:1px solid var(--border)}
+.bc-cal-corner{position:sticky;top:0;z-index:4;height:var(--bc-cal-head);background:var(--background);border-bottom:1px solid var(--border)}
+.bc-cal-allday-label{box-sizing:border-box;height:var(--bc-cal-allday);padding:.375rem .5rem;font-size:.75rem;line-height:1rem;text-align:right;color:var(--muted-foreground);border-bottom:1px solid var(--border)}
+.bc-cal-hours{display:grid}
+.bc-cal-hour{padding:0 .5rem;font-size:.75rem;line-height:1rem;text-align:right;color:var(--muted-foreground);font-variant-numeric:tabular-nums;transform:translateY(-.5rem)}
+.bc-cal-hour.bc-cal-row-1{transform:none;padding-top:.125rem}
+.bc-cal-col{flex:1 0 var(--bc-cal-col);width:var(--bc-cal-col);min-width:var(--bc-cal-col);border-right:1px solid var(--border)}
+.bc-cal-col:last-child{border-right:0}
+.bc-cal-head{position:sticky;top:0;z-index:2;box-sizing:border-box;height:var(--bc-cal-head);display:flex;flex-wrap:wrap;align-content:center;column-gap:.5rem;row-gap:.125rem;padding:.25rem .5rem;background:var(--background);border-bottom:1px solid var(--border);font-size:.875rem;line-height:1.25rem;font-weight:500}
+.bc-cal-name{flex-basis:100%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-cal-name a{color:inherit;text-decoration:none;border-radius:.25rem}
+.bc-cal-name a:hover{text-decoration:underline;text-underline-offset:2px}
+.bc-cal-name a:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+.bc-cal-today{color:var(--primary)}
+.bc-cal-col:has(>.bc-cal-today)>.bc-cal-body{background-color:color-mix(in oklab,var(--primary) 5%,transparent)}
+.bc-cal-head{flex-wrap:wrap}
+.bc-cal-head details{position:relative;min-width:0;max-width:100%;font-size:.75rem;line-height:1rem;font-weight:400}
+.bc-cal-head details+details,.bc-cal-head details:has(+details){max-width:calc(50% - .25rem)}
+.bc-cal-head summary{display:block;cursor:pointer;color:var(--muted-foreground);border-radius:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-cal-head summary::-webkit-details-marker{display:none}
+.bc-cal-head summary:hover{color:var(--foreground)}
+.bc-cal-head summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.bc-cal-head details>ul{position:absolute;z-index:5;top:calc(100% + .25rem);left:0;box-sizing:border-box;width:max-content;min-width:12rem;max-width:18rem;margin:0;padding:.25rem;list-style:none;display:flex;flex-direction:column;gap:.25rem;background:var(--popover,var(--background));color:var(--popover-foreground,var(--foreground));border:1px solid var(--border);border-radius:.5rem;box-shadow:0 8px 24px -8px rgb(0 0 0 / .25)}
+.bc-cal-allday{box-sizing:border-box;height:var(--bc-cal-allday);margin:0;padding:.25rem;list-style:none;display:flex;flex-direction:column;gap:.125rem;overflow-y:auto;border-bottom:1px solid var(--border)}
+.bc-cal-body{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));margin:0;padding:0;list-style:none;--bc-cal-line:var(--border);--bc-cal-line-soft:color-mix(in oklab,var(--border) 45%,transparent)}
+.bc-cal-slot-60{background-image:linear-gradient(to bottom,var(--bc-cal-line) 1px,transparent 1px);background-size:100% var(--bc-cal-row)}
+.bc-cal-slot-30{background-image:linear-gradient(to bottom,var(--bc-cal-line) 1px,transparent 1px),linear-gradient(to bottom,var(--bc-cal-line-soft) 1px,transparent 1px);background-size:100% calc(var(--bc-cal-row) * 2),100% var(--bc-cal-row)}
+.bc-cal-slot-15{background-image:linear-gradient(to bottom,var(--bc-cal-line) 1px,transparent 1px),linear-gradient(to bottom,var(--bc-cal-line-soft) 1px,transparent 1px);background-size:100% calc(var(--bc-cal-row) * 4),100% var(--bc-cal-row)}
+.bc-cal-event{position:relative;grid-column:1 / -1;box-sizing:border-box;min-width:0;margin:1px 2px;overflow:hidden;border:1px solid var(--bc-cal-bd);border-radius:.375rem;background:var(--bc-cal-bg);color:var(--bc-cal-fg);font-size:.75rem;line-height:1rem}
+.bc-cal-allday .bc-cal-event,.bc-cal-head .bc-cal-event{margin:0;flex:none}
+.bc-cal-event a{display:block;box-sizing:border-box;height:100%;padding:.125rem .375rem;color:inherit;text-decoration:none;overflow:hidden;overflow-wrap:anywhere}
+.bc-cal-event a:hover .bc-cal-title{text-decoration:underline;text-underline-offset:2px}
+.bc-cal-event a:focus-visible{outline:2px solid var(--ring);outline-offset:-2px;border-radius:.375rem}
+.bc-cal-time{font-weight:600;font-variant-numeric:tabular-nums}
+.bc-cal-title{font-weight:500}
+.bc-cal-meta{opacity:.8}
+.bc-cal-span-1 a,.bc-cal-allday a,.bc-cal-head .bc-cal-event a{white-space:nowrap;text-overflow:ellipsis}
+.bc-cal-cut-start{border-top-style:dashed;border-top-left-radius:0;border-top-right-radius:0}
+.bc-cal-cut-end{border-bottom-style:dashed;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.bc-cal-c-none{--bc-cal-bg:var(--muted);--bc-cal-fg:var(--foreground);--bc-cal-bd:var(--border)}
+.bc-cal-c-meeting{--bc-cal-bg:oklch(0.932 0.032 255.585);--bc-cal-fg:oklch(0.379 0.146 265.522);--bc-cal-bd:oklch(0.809 0.105 251.813)}
+.bc-cal-c-deadline{--bc-cal-bg:oklch(0.936 0.032 17.717);--bc-cal-fg:oklch(0.396 0.141 25.723);--bc-cal-bd:oklch(0.808 0.114 19.571)}
+.bc-cal-c-release{--bc-cal-bg:oklch(0.962 0.044 156.743);--bc-cal-fg:oklch(0.393 0.095 152.535);--bc-cal-bd:oklch(0.871 0.15 154.449)}
+.bc-cal-c-team{--bc-cal-bg:oklch(0.962 0.059 95.617);--bc-cal-fg:oklch(0.414 0.112 45.904);--bc-cal-bd:oklch(0.879 0.169 91.605)}
+.dark .bc-cal-c-meeting{--bc-cal-bg:oklch(0.282 0.091 267.935);--bc-cal-fg:oklch(0.882 0.059 254.128);--bc-cal-bd:oklch(0.424 0.199 265.638)}
+.dark .bc-cal-c-deadline{--bc-cal-bg:oklch(0.258 0.092 26.042);--bc-cal-fg:oklch(0.885 0.062 18.334);--bc-cal-bd:oklch(0.444 0.177 26.899)}
+.dark .bc-cal-c-release{--bc-cal-bg:oklch(0.266 0.065 152.934);--bc-cal-fg:oklch(0.925 0.084 155.995);--bc-cal-bd:oklch(0.448 0.119 151.328)}
+.dark .bc-cal-c-team{--bc-cal-bg:oklch(0.279 0.077 45.635);--bc-cal-fg:oklch(0.924 0.12 95.746);--bc-cal-bd:oklch(0.473 0.137 46.201)}
+/* Lanes: overlapping events side by side on the 12-column body grid */
+.bc-cal-lanes-1.bc-cal-lane-1{grid-column:1 / 13}
+.bc-cal-lanes-2.bc-cal-lane-1{grid-column:1 / 7}
+.bc-cal-lanes-2.bc-cal-lane-2{grid-column:7 / 13}
+.bc-cal-lanes-3.bc-cal-lane-1{grid-column:1 / 5}
+.bc-cal-lanes-3.bc-cal-lane-2{grid-column:5 / 9}
+.bc-cal-lanes-3.bc-cal-lane-3{grid-column:9 / 13}
+.bc-cal-lanes-4.bc-cal-lane-1{grid-column:1 / 4}
+.bc-cal-lanes-4.bc-cal-lane-2{grid-column:4 / 7}
+.bc-cal-lanes-4.bc-cal-lane-3{grid-column:7 / 10}
+.bc-cal-lanes-4.bc-cal-lane-4{grid-column:10 / 13}
+/* Rows, spans and row counts: one row per slot, up to 96 (15 minutes over 24 hours) */
+.bc-cal-row-1{grid-row-start:1}
+.bc-cal-row-2{grid-row-start:2}
+.bc-cal-row-3{grid-row-start:3}
+.bc-cal-row-4{grid-row-start:4}
+.bc-cal-row-5{grid-row-start:5}
+.bc-cal-row-6{grid-row-start:6}
+.bc-cal-row-7{grid-row-start:7}
+.bc-cal-row-8{grid-row-start:8}
+.bc-cal-row-9{grid-row-start:9}
+.bc-cal-row-10{grid-row-start:10}
+.bc-cal-row-11{grid-row-start:11}
+.bc-cal-row-12{grid-row-start:12}
+.bc-cal-row-13{grid-row-start:13}
+.bc-cal-row-14{grid-row-start:14}
+.bc-cal-row-15{grid-row-start:15}
+.bc-cal-row-16{grid-row-start:16}
+.bc-cal-row-17{grid-row-start:17}
+.bc-cal-row-18{grid-row-start:18}
+.bc-cal-row-19{grid-row-start:19}
+.bc-cal-row-20{grid-row-start:20}
+.bc-cal-row-21{grid-row-start:21}
+.bc-cal-row-22{grid-row-start:22}
+.bc-cal-row-23{grid-row-start:23}
+.bc-cal-row-24{grid-row-start:24}
+.bc-cal-row-25{grid-row-start:25}
+.bc-cal-row-26{grid-row-start:26}
+.bc-cal-row-27{grid-row-start:27}
+.bc-cal-row-28{grid-row-start:28}
+.bc-cal-row-29{grid-row-start:29}
+.bc-cal-row-30{grid-row-start:30}
+.bc-cal-row-31{grid-row-start:31}
+.bc-cal-row-32{grid-row-start:32}
+.bc-cal-row-33{grid-row-start:33}
+.bc-cal-row-34{grid-row-start:34}
+.bc-cal-row-35{grid-row-start:35}
+.bc-cal-row-36{grid-row-start:36}
+.bc-cal-row-37{grid-row-start:37}
+.bc-cal-row-38{grid-row-start:38}
+.bc-cal-row-39{grid-row-start:39}
+.bc-cal-row-40{grid-row-start:40}
+.bc-cal-row-41{grid-row-start:41}
+.bc-cal-row-42{grid-row-start:42}
+.bc-cal-row-43{grid-row-start:43}
+.bc-cal-row-44{grid-row-start:44}
+.bc-cal-row-45{grid-row-start:45}
+.bc-cal-row-46{grid-row-start:46}
+.bc-cal-row-47{grid-row-start:47}
+.bc-cal-row-48{grid-row-start:48}
+.bc-cal-row-49{grid-row-start:49}
+.bc-cal-row-50{grid-row-start:50}
+.bc-cal-row-51{grid-row-start:51}
+.bc-cal-row-52{grid-row-start:52}
+.bc-cal-row-53{grid-row-start:53}
+.bc-cal-row-54{grid-row-start:54}
+.bc-cal-row-55{grid-row-start:55}
+.bc-cal-row-56{grid-row-start:56}
+.bc-cal-row-57{grid-row-start:57}
+.bc-cal-row-58{grid-row-start:58}
+.bc-cal-row-59{grid-row-start:59}
+.bc-cal-row-60{grid-row-start:60}
+.bc-cal-row-61{grid-row-start:61}
+.bc-cal-row-62{grid-row-start:62}
+.bc-cal-row-63{grid-row-start:63}
+.bc-cal-row-64{grid-row-start:64}
+.bc-cal-row-65{grid-row-start:65}
+.bc-cal-row-66{grid-row-start:66}
+.bc-cal-row-67{grid-row-start:67}
+.bc-cal-row-68{grid-row-start:68}
+.bc-cal-row-69{grid-row-start:69}
+.bc-cal-row-70{grid-row-start:70}
+.bc-cal-row-71{grid-row-start:71}
+.bc-cal-row-72{grid-row-start:72}
+.bc-cal-row-73{grid-row-start:73}
+.bc-cal-row-74{grid-row-start:74}
+.bc-cal-row-75{grid-row-start:75}
+.bc-cal-row-76{grid-row-start:76}
+.bc-cal-row-77{grid-row-start:77}
+.bc-cal-row-78{grid-row-start:78}
+.bc-cal-row-79{grid-row-start:79}
+.bc-cal-row-80{grid-row-start:80}
+.bc-cal-row-81{grid-row-start:81}
+.bc-cal-row-82{grid-row-start:82}
+.bc-cal-row-83{grid-row-start:83}
+.bc-cal-row-84{grid-row-start:84}
+.bc-cal-row-85{grid-row-start:85}
+.bc-cal-row-86{grid-row-start:86}
+.bc-cal-row-87{grid-row-start:87}
+.bc-cal-row-88{grid-row-start:88}
+.bc-cal-row-89{grid-row-start:89}
+.bc-cal-row-90{grid-row-start:90}
+.bc-cal-row-91{grid-row-start:91}
+.bc-cal-row-92{grid-row-start:92}
+.bc-cal-row-93{grid-row-start:93}
+.bc-cal-row-94{grid-row-start:94}
+.bc-cal-row-95{grid-row-start:95}
+.bc-cal-row-96{grid-row-start:96}
+.bc-cal-span-1{grid-row-end:span 1}
+.bc-cal-span-2{grid-row-end:span 2}
+.bc-cal-span-3{grid-row-end:span 3}
+.bc-cal-span-4{grid-row-end:span 4}
+.bc-cal-span-5{grid-row-end:span 5}
+.bc-cal-span-6{grid-row-end:span 6}
+.bc-cal-span-7{grid-row-end:span 7}
+.bc-cal-span-8{grid-row-end:span 8}
+.bc-cal-span-9{grid-row-end:span 9}
+.bc-cal-span-10{grid-row-end:span 10}
+.bc-cal-span-11{grid-row-end:span 11}
+.bc-cal-span-12{grid-row-end:span 12}
+.bc-cal-span-13{grid-row-end:span 13}
+.bc-cal-span-14{grid-row-end:span 14}
+.bc-cal-span-15{grid-row-end:span 15}
+.bc-cal-span-16{grid-row-end:span 16}
+.bc-cal-span-17{grid-row-end:span 17}
+.bc-cal-span-18{grid-row-end:span 18}
+.bc-cal-span-19{grid-row-end:span 19}
+.bc-cal-span-20{grid-row-end:span 20}
+.bc-cal-span-21{grid-row-end:span 21}
+.bc-cal-span-22{grid-row-end:span 22}
+.bc-cal-span-23{grid-row-end:span 23}
+.bc-cal-span-24{grid-row-end:span 24}
+.bc-cal-span-25{grid-row-end:span 25}
+.bc-cal-span-26{grid-row-end:span 26}
+.bc-cal-span-27{grid-row-end:span 27}
+.bc-cal-span-28{grid-row-end:span 28}
+.bc-cal-span-29{grid-row-end:span 29}
+.bc-cal-span-30{grid-row-end:span 30}
+.bc-cal-span-31{grid-row-end:span 31}
+.bc-cal-span-32{grid-row-end:span 32}
+.bc-cal-span-33{grid-row-end:span 33}
+.bc-cal-span-34{grid-row-end:span 34}
+.bc-cal-span-35{grid-row-end:span 35}
+.bc-cal-span-36{grid-row-end:span 36}
+.bc-cal-span-37{grid-row-end:span 37}
+.bc-cal-span-38{grid-row-end:span 38}
+.bc-cal-span-39{grid-row-end:span 39}
+.bc-cal-span-40{grid-row-end:span 40}
+.bc-cal-span-41{grid-row-end:span 41}
+.bc-cal-span-42{grid-row-end:span 42}
+.bc-cal-span-43{grid-row-end:span 43}
+.bc-cal-span-44{grid-row-end:span 44}
+.bc-cal-span-45{grid-row-end:span 45}
+.bc-cal-span-46{grid-row-end:span 46}
+.bc-cal-span-47{grid-row-end:span 47}
+.bc-cal-span-48{grid-row-end:span 48}
+.bc-cal-span-49{grid-row-end:span 49}
+.bc-cal-span-50{grid-row-end:span 50}
+.bc-cal-span-51{grid-row-end:span 51}
+.bc-cal-span-52{grid-row-end:span 52}
+.bc-cal-span-53{grid-row-end:span 53}
+.bc-cal-span-54{grid-row-end:span 54}
+.bc-cal-span-55{grid-row-end:span 55}
+.bc-cal-span-56{grid-row-end:span 56}
+.bc-cal-span-57{grid-row-end:span 57}
+.bc-cal-span-58{grid-row-end:span 58}
+.bc-cal-span-59{grid-row-end:span 59}
+.bc-cal-span-60{grid-row-end:span 60}
+.bc-cal-span-61{grid-row-end:span 61}
+.bc-cal-span-62{grid-row-end:span 62}
+.bc-cal-span-63{grid-row-end:span 63}
+.bc-cal-span-64{grid-row-end:span 64}
+.bc-cal-span-65{grid-row-end:span 65}
+.bc-cal-span-66{grid-row-end:span 66}
+.bc-cal-span-67{grid-row-end:span 67}
+.bc-cal-span-68{grid-row-end:span 68}
+.bc-cal-span-69{grid-row-end:span 69}
+.bc-cal-span-70{grid-row-end:span 70}
+.bc-cal-span-71{grid-row-end:span 71}
+.bc-cal-span-72{grid-row-end:span 72}
+.bc-cal-span-73{grid-row-end:span 73}
+.bc-cal-span-74{grid-row-end:span 74}
+.bc-cal-span-75{grid-row-end:span 75}
+.bc-cal-span-76{grid-row-end:span 76}
+.bc-cal-span-77{grid-row-end:span 77}
+.bc-cal-span-78{grid-row-end:span 78}
+.bc-cal-span-79{grid-row-end:span 79}
+.bc-cal-span-80{grid-row-end:span 80}
+.bc-cal-span-81{grid-row-end:span 81}
+.bc-cal-span-82{grid-row-end:span 82}
+.bc-cal-span-83{grid-row-end:span 83}
+.bc-cal-span-84{grid-row-end:span 84}
+.bc-cal-span-85{grid-row-end:span 85}
+.bc-cal-span-86{grid-row-end:span 86}
+.bc-cal-span-87{grid-row-end:span 87}
+.bc-cal-span-88{grid-row-end:span 88}
+.bc-cal-span-89{grid-row-end:span 89}
+.bc-cal-span-90{grid-row-end:span 90}
+.bc-cal-span-91{grid-row-end:span 91}
+.bc-cal-span-92{grid-row-end:span 92}
+.bc-cal-span-93{grid-row-end:span 93}
+.bc-cal-span-94{grid-row-end:span 94}
+.bc-cal-span-95{grid-row-end:span 95}
+.bc-cal-span-96{grid-row-end:span 96}
+.bc-cal-rows-1{grid-template-rows:repeat(1,var(--bc-cal-row))}
+.bc-cal-rows-2{grid-template-rows:repeat(2,var(--bc-cal-row))}
+.bc-cal-rows-3{grid-template-rows:repeat(3,var(--bc-cal-row))}
+.bc-cal-rows-4{grid-template-rows:repeat(4,var(--bc-cal-row))}
+.bc-cal-rows-5{grid-template-rows:repeat(5,var(--bc-cal-row))}
+.bc-cal-rows-6{grid-template-rows:repeat(6,var(--bc-cal-row))}
+.bc-cal-rows-7{grid-template-rows:repeat(7,var(--bc-cal-row))}
+.bc-cal-rows-8{grid-template-rows:repeat(8,var(--bc-cal-row))}
+.bc-cal-rows-9{grid-template-rows:repeat(9,var(--bc-cal-row))}
+.bc-cal-rows-10{grid-template-rows:repeat(10,var(--bc-cal-row))}
+.bc-cal-rows-11{grid-template-rows:repeat(11,var(--bc-cal-row))}
+.bc-cal-rows-12{grid-template-rows:repeat(12,var(--bc-cal-row))}
+.bc-cal-rows-13{grid-template-rows:repeat(13,var(--bc-cal-row))}
+.bc-cal-rows-14{grid-template-rows:repeat(14,var(--bc-cal-row))}
+.bc-cal-rows-15{grid-template-rows:repeat(15,var(--bc-cal-row))}
+.bc-cal-rows-16{grid-template-rows:repeat(16,var(--bc-cal-row))}
+.bc-cal-rows-17{grid-template-rows:repeat(17,var(--bc-cal-row))}
+.bc-cal-rows-18{grid-template-rows:repeat(18,var(--bc-cal-row))}
+.bc-cal-rows-19{grid-template-rows:repeat(19,var(--bc-cal-row))}
+.bc-cal-rows-20{grid-template-rows:repeat(20,var(--bc-cal-row))}
+.bc-cal-rows-21{grid-template-rows:repeat(21,var(--bc-cal-row))}
+.bc-cal-rows-22{grid-template-rows:repeat(22,var(--bc-cal-row))}
+.bc-cal-rows-23{grid-template-rows:repeat(23,var(--bc-cal-row))}
+.bc-cal-rows-24{grid-template-rows:repeat(24,var(--bc-cal-row))}
+.bc-cal-rows-25{grid-template-rows:repeat(25,var(--bc-cal-row))}
+.bc-cal-rows-26{grid-template-rows:repeat(26,var(--bc-cal-row))}
+.bc-cal-rows-27{grid-template-rows:repeat(27,var(--bc-cal-row))}
+.bc-cal-rows-28{grid-template-rows:repeat(28,var(--bc-cal-row))}
+.bc-cal-rows-29{grid-template-rows:repeat(29,var(--bc-cal-row))}
+.bc-cal-rows-30{grid-template-rows:repeat(30,var(--bc-cal-row))}
+.bc-cal-rows-31{grid-template-rows:repeat(31,var(--bc-cal-row))}
+.bc-cal-rows-32{grid-template-rows:repeat(32,var(--bc-cal-row))}
+.bc-cal-rows-33{grid-template-rows:repeat(33,var(--bc-cal-row))}
+.bc-cal-rows-34{grid-template-rows:repeat(34,var(--bc-cal-row))}
+.bc-cal-rows-35{grid-template-rows:repeat(35,var(--bc-cal-row))}
+.bc-cal-rows-36{grid-template-rows:repeat(36,var(--bc-cal-row))}
+.bc-cal-rows-37{grid-template-rows:repeat(37,var(--bc-cal-row))}
+.bc-cal-rows-38{grid-template-rows:repeat(38,var(--bc-cal-row))}
+.bc-cal-rows-39{grid-template-rows:repeat(39,var(--bc-cal-row))}
+.bc-cal-rows-40{grid-template-rows:repeat(40,var(--bc-cal-row))}
+.bc-cal-rows-41{grid-template-rows:repeat(41,var(--bc-cal-row))}
+.bc-cal-rows-42{grid-template-rows:repeat(42,var(--bc-cal-row))}
+.bc-cal-rows-43{grid-template-rows:repeat(43,var(--bc-cal-row))}
+.bc-cal-rows-44{grid-template-rows:repeat(44,var(--bc-cal-row))}
+.bc-cal-rows-45{grid-template-rows:repeat(45,var(--bc-cal-row))}
+.bc-cal-rows-46{grid-template-rows:repeat(46,var(--bc-cal-row))}
+.bc-cal-rows-47{grid-template-rows:repeat(47,var(--bc-cal-row))}
+.bc-cal-rows-48{grid-template-rows:repeat(48,var(--bc-cal-row))}
+.bc-cal-rows-49{grid-template-rows:repeat(49,var(--bc-cal-row))}
+.bc-cal-rows-50{grid-template-rows:repeat(50,var(--bc-cal-row))}
+.bc-cal-rows-51{grid-template-rows:repeat(51,var(--bc-cal-row))}
+.bc-cal-rows-52{grid-template-rows:repeat(52,var(--bc-cal-row))}
+.bc-cal-rows-53{grid-template-rows:repeat(53,var(--bc-cal-row))}
+.bc-cal-rows-54{grid-template-rows:repeat(54,var(--bc-cal-row))}
+.bc-cal-rows-55{grid-template-rows:repeat(55,var(--bc-cal-row))}
+.bc-cal-rows-56{grid-template-rows:repeat(56,var(--bc-cal-row))}
+.bc-cal-rows-57{grid-template-rows:repeat(57,var(--bc-cal-row))}
+.bc-cal-rows-58{grid-template-rows:repeat(58,var(--bc-cal-row))}
+.bc-cal-rows-59{grid-template-rows:repeat(59,var(--bc-cal-row))}
+.bc-cal-rows-60{grid-template-rows:repeat(60,var(--bc-cal-row))}
+.bc-cal-rows-61{grid-template-rows:repeat(61,var(--bc-cal-row))}
+.bc-cal-rows-62{grid-template-rows:repeat(62,var(--bc-cal-row))}
+.bc-cal-rows-63{grid-template-rows:repeat(63,var(--bc-cal-row))}
+.bc-cal-rows-64{grid-template-rows:repeat(64,var(--bc-cal-row))}
+.bc-cal-rows-65{grid-template-rows:repeat(65,var(--bc-cal-row))}
+.bc-cal-rows-66{grid-template-rows:repeat(66,var(--bc-cal-row))}
+.bc-cal-rows-67{grid-template-rows:repeat(67,var(--bc-cal-row))}
+.bc-cal-rows-68{grid-template-rows:repeat(68,var(--bc-cal-row))}
+.bc-cal-rows-69{grid-template-rows:repeat(69,var(--bc-cal-row))}
+.bc-cal-rows-70{grid-template-rows:repeat(70,var(--bc-cal-row))}
+.bc-cal-rows-71{grid-template-rows:repeat(71,var(--bc-cal-row))}
+.bc-cal-rows-72{grid-template-rows:repeat(72,var(--bc-cal-row))}
+.bc-cal-rows-73{grid-template-rows:repeat(73,var(--bc-cal-row))}
+.bc-cal-rows-74{grid-template-rows:repeat(74,var(--bc-cal-row))}
+.bc-cal-rows-75{grid-template-rows:repeat(75,var(--bc-cal-row))}
+.bc-cal-rows-76{grid-template-rows:repeat(76,var(--bc-cal-row))}
+.bc-cal-rows-77{grid-template-rows:repeat(77,var(--bc-cal-row))}
+.bc-cal-rows-78{grid-template-rows:repeat(78,var(--bc-cal-row))}
+.bc-cal-rows-79{grid-template-rows:repeat(79,var(--bc-cal-row))}
+.bc-cal-rows-80{grid-template-rows:repeat(80,var(--bc-cal-row))}
+.bc-cal-rows-81{grid-template-rows:repeat(81,var(--bc-cal-row))}
+.bc-cal-rows-82{grid-template-rows:repeat(82,var(--bc-cal-row))}
+.bc-cal-rows-83{grid-template-rows:repeat(83,var(--bc-cal-row))}
+.bc-cal-rows-84{grid-template-rows:repeat(84,var(--bc-cal-row))}
+.bc-cal-rows-85{grid-template-rows:repeat(85,var(--bc-cal-row))}
+.bc-cal-rows-86{grid-template-rows:repeat(86,var(--bc-cal-row))}
+.bc-cal-rows-87{grid-template-rows:repeat(87,var(--bc-cal-row))}
+.bc-cal-rows-88{grid-template-rows:repeat(88,var(--bc-cal-row))}
+.bc-cal-rows-89{grid-template-rows:repeat(89,var(--bc-cal-row))}
+.bc-cal-rows-90{grid-template-rows:repeat(90,var(--bc-cal-row))}
+.bc-cal-rows-91{grid-template-rows:repeat(91,var(--bc-cal-row))}
+.bc-cal-rows-92{grid-template-rows:repeat(92,var(--bc-cal-row))}
+.bc-cal-rows-93{grid-template-rows:repeat(93,var(--bc-cal-row))}
+.bc-cal-rows-94{grid-template-rows:repeat(94,var(--bc-cal-row))}
+.bc-cal-rows-95{grid-template-rows:repeat(95,var(--bc-cal-row))}
+.bc-cal-rows-96{grid-template-rows:repeat(96,var(--bc-cal-row))}

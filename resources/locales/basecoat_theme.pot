@@ -242,3 +242,49 @@ msgstr ""
 
 msgid "Press enter or space to select a connection."
 msgstr ""
+
+msgid "Week of {0}"
+msgstr ""
+
+msgid "All day"
+msgstr ""
+
+msgid "+{0} more"
+msgstr ""
+
+msgid "{0} event outside hours"
+msgid_plural "{0} events outside hours"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Unassigned"
+msgstr ""
+
+msgid "Schedule for {0}"
+msgstr ""
+
+msgid "Press Space to pick up. Use the arrow keys to move (left and right change the day), Space or Enter to drop, Escape to cancel."
+msgstr ""
+
+msgid "Picked up {label}. {container}, position {position} of {total}."
+msgstr ""
+
+msgid "{container}, position {position} of {total}."
+msgstr ""
+
+msgid "Dropped {label}. {container}, position {position} of {total}."
+msgstr ""
+
+msgid "Cancelled. {label} is back in {container}, position {position} of {total}."
+msgstr ""
+
+msgid "Could not save the change. {label} was moved back."
+msgstr ""
+
+msgid "Today"
+msgstr ""
+
+msgid "+{0} more event on {1}"
+msgid_plural "+{0} more events on {1}"
+msgstr[0] ""
+msgstr[1] ""

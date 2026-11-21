@@ -243,3 +243,49 @@ msgstr "Pulsa Intro o Espacio para seleccionar un paso y ver sus detalles."
 
 msgid "Press enter or space to select a connection."
 msgstr "Pulsa Intro o Espacio para seleccionar una conexión."
+
+msgid "Week of {0}"
+msgstr "Semana del {0}"
+
+msgid "All day"
+msgstr "Todo el día"
+
+msgid "+{0} more"
+msgstr "+{0} más"
+
+msgid "{0} event outside hours"
+msgid_plural "{0} events outside hours"
+msgstr[0] "{0} evento fuera de horario"
+msgstr[1] "{0} eventos fuera de horario"
+
+msgid "Unassigned"
+msgstr "Sin asignar"
+
+msgid "Schedule for {0}"
+msgstr "Agenda del {0}"
+
+msgid "Press Space to pick up. Use the arrow keys to move (left and right change the day), Space or Enter to drop, Escape to cancel."
+msgstr "Pulsa Espacio para coger. Usa las flechas para mover (izquierda y derecha cambian el día), Espacio o Intro para soltar y Escape para cancelar."
+
+msgid "Picked up {label}. {container}, position {position} of {total}."
+msgstr "Has cogido {label}. {container}, posición {position} de {total}."
+
+msgid "{container}, position {position} of {total}."
+msgstr "{container}, posición {position} de {total}."
+
+msgid "Dropped {label}. {container}, position {position} of {total}."
+msgstr "Has soltado {label}. {container}, posición {position} de {total}."
+
+msgid "Cancelled. {label} is back in {container}, position {position} of {total}."
+msgstr "Cancelado. {label} vuelve a {container}, posición {position} de {total}."
+
+msgid "Could not save the change. {label} was moved back."
+msgstr "No se pudo guardar el cambio. {label} ha vuelto a su sitio."
+
+msgid "Today"
+msgstr "Hoy"
+
+msgid "+{0} more event on {1}"
+msgid_plural "+{0} more events on {1}"
+msgstr[0] "+{0} evento más el {1}"
+msgstr[1] "+{0} eventos más el {1}"
