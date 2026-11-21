@@ -236,3 +236,9 @@ msgstr ""
 
 msgid "No steps yet."
 msgstr ""
+
+msgid "Press enter or space to select a step and see its details."
+msgstr ""
+
+msgid "Press enter or space to select a connection."
+msgstr ""

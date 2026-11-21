@@ -466,8 +466,9 @@ with a message naming the problem.
 `readonly` (inspect only: no palette, moving, connecting or editing), `label` (accessible name, default
 "Flow editor"), `i18n` (override any editor text: keys of `FlowHelper::texts()`), `assets` (default `true`:
 adds `BasecoatTheme.basecoat-flow` css / js to the `css` / `script` view blocks once per page; set `false`
-if your layout loads them), plus `class`, `attributes`, `templates` and `escape`. The helper config
-`kindIcons` sets the icon of a step without `icon` per type (`zap`, `circle-check`, `split`).
+if your layout loads them), plus `class`, `escape` and any other key as an HTML attribute of the root
+(also as an `attributes` array). `templates`, `classes` and `kindIcons` (the icon of a step without
+`icon`, per type: `zap`, `circle-check`, `split`) are helper config, set with `addHelper()` / `setConfig()`.
 
 **What it renders.** A `[data-flow-editor]` element with two `<script type="application/json">` data
 blocks (flow and configuration, never executed), a `<template data-flow-icons>` with the IconHelper SVGs
@@ -479,13 +480,16 @@ hides the fallback once the editor is mounted; if it fails, the list stays.
 **Editing.** Drag steps; connect an output handle to a step (drag, or click one handle then the other);
 select a step or connection and press Delete / Backspace; zoom and pan with the controls, the wheel or a
 pinch; the minimap is hidden on narrow containers. The **palette** adds a step after the selected one
-(inserted between it and its next step) or, dragged, where it is dropped. The **side panel** lists the
+(inserted between it and its next step; after a condition, on its first free output, or on its first
+output when all lead somewhere) or, dragged, where it is dropped. Selection is single: one step or one
+connection at a time. The **side panel** lists the
 steps in reading order (buttons that select and focus a step); with a step selected it edits its name and
 properties, has a **"Next step" select per output** (connect or disconnect without a pointer), "Delete
 step" and "All steps". The canvas follows the light / dark theme live (`.dark` on `<html>`).
 
 **Keyboard.** Tab reaches the palette, the steps on the canvas, the connections, the zoom controls and the
-panel. On a step: Enter / Space selects it, the arrow keys move it, Delete removes it, Escape cancels.
+panel. On a step: Enter / Space selects it, the arrow keys move it, Delete / Backspace removes it (only while the
+focus is on the canvas, never from a button or field elsewhere), Escape cancels.
 Every step and connection has an accessible name ("Condition: Plan is Scale?", "Connection from Plan is
 Scale?, Yes, to Assign success manager"); adding, connecting and deleting are announced in a polite live
 region. All texts are translated (`basecoat_theme` domain), React Flow's own ones included.
@@ -506,7 +510,10 @@ validate it on the server.
 
 **JavaScript API.** `basecoat-flow.js` mounts every `[data-flow-editor]` on load and on `htmx:load`, and
 unmounts editors removed by htmx (`htmx:beforeCleanupElement`). For content added otherwise, call
-`window.BasecoatFlow.init(root)`; `window.BasecoatFlow.unmount(element)` unmounts one.
+`window.BasecoatFlow.init(root)`; `window.BasecoatFlow.unmount(element)` unmounts one and shows its list
+again. An editor that fails to mount keeps its list and is not retried. The bundle itself must already be
+on the page: an htmx partial rendered without the layout does not print the `css` / `script` blocks, so
+load `BasecoatTheme.basecoat-flow` (css and js) in the layout of pages that swap editors in.
 
 **CSP and styling.** No inline script, no `style` attribute in the server HTML and no CDN: the files are
 served from your app (`/basecoat_theme/js/basecoat-flow.js`, through the view blocks, so HtmlHelper adds the

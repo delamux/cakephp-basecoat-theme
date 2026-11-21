@@ -188,6 +188,18 @@ class FlowHelperTest extends HelperTestCase
         $this->assertSame('', $this->View->fetch('script'));
     }
 
+    public function testAttributesOptionIsMergedAndConfigKeysAreNotAttributes(): void
+    {
+        $html = (new FlowHelper($this->View))->editor($this->flow(), [
+            'attributes' => ['data-x' => '1'],
+            'templates' => ['editor' => '<section>{{data}}</section>'],
+            'classes' => ['fallback' => 'x'],
+        ]);
+
+        $this->assertStringStartsWith('<div data-flow-editor="1" role="group" aria-label="Flow editor" data-x="1" class="bc-flow-editor">', $html);
+        $this->assertDoesNotMatchRegularExpression('/\s(attributes|templates|classes)=/', $html);
+    }
+
     public function testRootOptions(): void
     {
         $html = (new FlowHelper($this->View))->editor($this->flow(), ['class' => 'mt-4', 'data-turbo' => 'false', 'label' => 'Onboarding']);
@@ -208,13 +220,20 @@ class FlowHelperTest extends HelperTestCase
             'unknown type' => [['nodes' => [['type' => 'loop'] + $a]], '`type` must be one of trigger, action, condition'],
             'missing id' => [['nodes' => [['id' => ''] + $a]], 'needs a non-empty `id`'],
             'duplicate id' => [['nodes' => [$a, $a]], '`a` is used twice'],
-            'missing position' => [['nodes' => [['position' => null] + $a]], 'needs a `position` with numeric `x` and `y`'],
+            'missing position' => [['nodes' => [['position' => null] + $a]], 'needs a `position` with finite numeric `x` and `y`'],
             'unknown icon' => [['nodes' => [['icon' => 'no-such-icon'] + $a]], 'unknown icon `no-such-icon`'],
             'unknown target' => [['nodes' => [$a], 'edges' => [['source' => 'a', 'target' => 'zz']]], 'target `zz` is not a node'],
             'self loop' => [['nodes' => [$b], 'edges' => [['source' => 'b', 'target' => 'b']]], 'connects `b` to itself'],
             'into a trigger' => [['nodes' => [$a, $b], 'edges' => [['source' => 'b', 'target' => 'a']]], 'trigger `a` cannot be a target'],
             'condition without output' => [['nodes' => [$c, $b], 'edges' => [['source' => 'c', 'target' => 'b']]], '`output` must be one of the outputs of `c` (yes, no)'],
             'output on an action' => [['nodes' => [$a, $b], 'edges' => [['source' => 'a', 'output' => 'yes', 'target' => 'b']]], '`a` has no named outputs'],
+            'duplicate edge id' => [
+                ['nodes' => [$a, $b, ['id' => 'd'] + $b], 'edges' => [['id' => 'e', 'source' => 'a', 'target' => 'b'], ['id' => 'e', 'source' => 'b', 'target' => 'd']]],
+                'Flow edge id `e` is used twice',
+            ],
+            'infinite position' => [['nodes' => [['position' => ['x' => '1e400', 'y' => 0]] + $a]], 'finite numeric `x` and `y`'],
+            'array label' => [['nodes' => [['label' => ['x']] + $a]], '`label` must be a string'],
+            'array property' => [['nodes' => [['properties' => ['to' => ['x']]] + $a]], 'property `to` must be a string or a number'],
             'two edges from one output' => [
                 ['nodes' => [$a, $b, ['id' => 'd'] + $b], 'edges' => [['source' => 'a', 'target' => 'b'], ['source' => 'a', 'target' => 'd']]],
                 'the output of `a` already leads to another step',

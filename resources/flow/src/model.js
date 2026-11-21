@@ -41,6 +41,8 @@ export const toReactFlow = (flow) => {
       properties: isObject(node.properties) ? { ...node.properties } : {},
     };
     if (kind === 'condition') data.outputs = outputsOf({ type: kind, outputs: node.outputs });
+    // Properties given as numbers stay numbers when edited as text.
+    data.numeric = Object.keys(data.properties).filter((key) => typeof data.properties[key] === 'number');
     const position = isObject(node.position) ? node.position : {};
     return {
       id: String(node.id),

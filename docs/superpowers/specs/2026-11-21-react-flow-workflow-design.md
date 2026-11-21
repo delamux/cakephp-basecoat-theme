@@ -60,7 +60,7 @@ Everything must be documented (README, catalog, upgrade notes).
    files differ.
 4. Editor behaviour (bundle):
    - Mounts every `[data-flow-editor]` on DOMContentLoaded, `htmx:load` and
-     `window.BasecoatTheme.initFlows(root)`; unmounts removed containers. Mount failure leaves the
+     `window.BasecoatFlow.init(root)` (not on `window.BasecoatTheme`: basecoat-theme.js skips its setup when that object already exists); unmounts removed containers. Mount failure leaves the
      fallback visible.
    - Custom nodes styled with plugin CSS classes (no runtime Tailwind classes): icon, label, type;
      handles per type; condition outputs labelled.
@@ -101,7 +101,7 @@ invented); runtime-generated Tailwind classes.
 
 | Approach | Trade-off | Decision |
 | --- | --- | --- |
-| React Flow, precompiled bundle in the plugin | ~150 KB on the workflow page only; ~300 lines of JSX to maintain | **Chosen** |
+| React Flow, precompiled bundle in the plugin | ~390 KB minified / ~120 KB gzipped, on pages with the editor only; ~300 lines of JSX to maintain | **Chosen** |
 | React Flow via CDN + import map | Inline import map conflicts with strict CSP | Rejected |
 | Svelte Flow compiled | Smaller, less mature | Rejected |
 | `@xyflow/system` only | Not meant for standalone use; we would rewrite the editor | Rejected |

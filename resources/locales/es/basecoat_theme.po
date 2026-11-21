@@ -237,3 +237,9 @@ msgstr "Punto de conexión"
 
 msgid "No steps yet."
 msgstr "Todavía no hay pasos."
+
+msgid "Press enter or space to select a step and see its details."
+msgstr "Pulsa Intro o Espacio para seleccionar un paso y ver sus detalles."
+
+msgid "Press enter or space to select a connection."
+msgstr "Pulsa Intro o Espacio para seleccionar una conexión."

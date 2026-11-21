@@ -46,7 +46,9 @@ use function Cake\Core\h;
  * - `label`: Accessible name of the editor (default "Flow editor").
  * - `i18n`: Overrides of the editor texts (keys of texts()).
  * - `assets`: Add the bundle to the `css` / `script` view blocks (default true).
- * - `class`, `attributes`, `templates`, `escape` as every component.
+ * - `class`, `escape`, and any other key as an HTML attribute of the root element (also given as an
+ *   `attributes` array). `templates`, `classes` and `kindIcons` are helper config (`addHelper()` /
+ *   `setConfig()`), as for every component.
  *
  * Changes dispatch `basecoat:flow-change` on the root element (`detail.flow`, `detail.action`).
  *
@@ -139,7 +141,9 @@ class FlowHelper extends AbstractComponentHelper
             'data-flow-editor' => true,
             'role' => 'group',
             'aria-label' => (string)($options['label'] ?? __d('basecoat_theme', 'Flow editor')),
-        ] + $options, ['name', 'palette', 'fields', 'readonly', 'label', 'i18n', 'assets']);
+        ] + (array)($options['attributes'] ?? []) + $options, [
+            'name', 'palette', 'fields', 'readonly', 'label', 'i18n', 'assets', 'attributes', 'templates', 'classes',
+        ]);
 
         return $this->renderTemplate('editor', $attributes, [
             'data' => $this->formatTemplate('data', ['content' => $this->json($data)]),
@@ -195,6 +199,8 @@ class FlowHelper extends AbstractComponentHelper
             'node.a11yDescription.keyboardDisabled' => __d('basecoat_theme', 'Press enter or space to select a step. You can then use the arrow keys to move it. Press delete to remove it and escape to cancel.'),
             'node.a11yDescription.ariaLiveMessage' => __d('basecoat_theme', 'Moved the selected step {direction}. New position, x: {x}, y: {y}'),
             'edge.a11yDescription.default' => __d('basecoat_theme', 'Press enter or space to select a connection. You can then press delete to remove it or escape to cancel.'),
+            'node.a11yDescription.readonly' => __d('basecoat_theme', 'Press enter or space to select a step and see its details.'),
+            'edge.a11yDescription.readonly' => __d('basecoat_theme', 'Press enter or space to select a connection.'),
             'controls.ariaLabel' => __d('basecoat_theme', 'Canvas controls'),
             'controls.zoomIn.ariaLabel' => __d('basecoat_theme', 'Zoom in'),
             'controls.zoomOut.ariaLabel' => __d('basecoat_theme', 'Zoom out'),
@@ -246,7 +252,11 @@ class FlowHelper extends AbstractComponentHelper
         if (!is_string($type) || !in_array($type, self::KINDS, true)) {
             throw new InvalidArgumentException(sprintf('%s: `type` must be one of %s.', $what, implode(', ', self::KINDS)));
         }
-        $out = ['type' => $type, 'label' => (string)($step['label'] ?? '')];
+        $label = $step['label'] ?? '';
+        if (!is_scalar($label)) {
+            throw new InvalidArgumentException(sprintf('%s: `label` must be a string.', $what));
+        }
+        $out = ['type' => $type, 'label' => (string)$label];
         if (!empty($step['icon'])) {
             $icon = (string)$step['icon'];
             if (!$this->Icon->has($icon)) {
@@ -260,18 +270,30 @@ class FlowHelper extends AbstractComponentHelper
         }
         if ($positioned) {
             $position = $step['position'] ?? null;
-            if (!is_array($position) || !is_numeric($position['x'] ?? null) || !is_numeric($position['y'] ?? null)) {
-                throw new InvalidArgumentException(sprintf('%s needs a `position` with numeric `x` and `y`.', $what));
+            if (
+                !is_array($position) || !is_numeric($position['x'] ?? null) || !is_numeric($position['y'] ?? null)
+                || !is_finite((float)$position['x']) || !is_finite((float)$position['y'])
+            ) {
+                throw new InvalidArgumentException(sprintf('%s needs a `position` with finite numeric `x` and `y`.', $what));
             }
             $out['position'] = ['x' => $position['x'] + 0, 'y' => $position['y'] + 0];
         }
         $properties = [];
         foreach ((array)($step['properties'] ?? []) as $key => $value) {
+            if ($value !== null && !is_scalar($value) || (is_float($value) && !is_finite($value))) {
+                throw new InvalidArgumentException(sprintf('%s: property `%s` must be a string or a number.', $what, $key));
+            }
             $properties[(string)$key] = is_int($value) || is_float($value) ? $value : (string)$value;
         }
         $out['properties'] = (object)$properties;
         if ($type === 'condition') {
-            $outputs = array_map('strval', (array)($step['outputs'] ?? []));
+            $outputs = [];
+            foreach ((array)($step['outputs'] ?? []) as $key => $outputLabel) {
+                if (!is_scalar($outputLabel)) {
+                    throw new InvalidArgumentException(sprintf('%s: output `%s` needs a text label.', $what, $key));
+                }
+                $outputs[(string)$key] = (string)$outputLabel;
+            }
             $out['outputs'] = (object)($outputs ?: [
                 'yes' => __d('basecoat_theme', 'Yes'),
                 'no' => __d('basecoat_theme', 'No'),
@@ -292,6 +314,7 @@ class FlowHelper extends AbstractComponentHelper
     {
         $out = [];
         $used = [];
+        $ids = [];
         foreach (array_values($edges) as $index => $edge) {
             if (!is_array($edge)) {
                 throw new InvalidArgumentException(sprintf('Flow edge #%d must be an array.', $index));
@@ -337,6 +360,10 @@ class FlowHelper extends AbstractComponentHelper
             $id = isset($edge['id']) && $edge['id'] !== ''
                 ? (string)$edge['id']
                 : $source . ($output !== null ? ':' . $output : '') . '->' . $target;
+            if (isset($ids[$id])) {
+                throw new InvalidArgumentException(sprintf('Flow edge id `%s` is used twice.', $id));
+            }
+            $ids[$id] = true;
             $item = ['id' => $id, 'source' => $source];
             if ($output !== null) {
                 $item['output'] = $output;
@@ -513,9 +540,10 @@ class FlowHelper extends AbstractComponentHelper
      */
     protected function json(mixed $value): string
     {
-        return (string)json_encode(
+        return json_encode(
             $value,
-            JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE,
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR,
         );
     }
 }

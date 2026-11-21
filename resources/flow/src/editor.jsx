@@ -219,11 +219,12 @@ function Panel({ nodes, edges, selected, onSelect, onDeselect, onEdit, onConnect
             id={`${id}-p-${key}`}
             className="input"
             value={value === null || value === undefined ? '' : String(value)}
-            inputMode={typeof value === 'number' ? 'numeric' : undefined}
+            inputMode={(data.numeric || []).includes(key) ? 'decimal' : undefined}
             readOnly={readonly}
             onChange={(event) => {
               const text = event.target.value;
-              const next = typeof value === 'number' && /^-?\d+(\.\d+)?$/.test(text) ? Number(text) : text;
+              const numeric = (data.numeric || []).includes(key);
+              const next = numeric && /^-?\d+(\.\d+)?$/.test(text.trim()) ? Number(text) : text;
               onEdit(selected.id, { properties: { ...data.properties, [key]: next } });
             }}
           />
@@ -252,9 +253,9 @@ export function Editor({ initial, config, icons, input, container }) {
 
   const [nodes, setNodes] = useState(() => initial.nodes.map((node) => ({ ...node, ariaLabel: ariaLabel(node) })));
   const [edges, setEdges] = useState(initial.edges);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState({ text: '', count: 0 });
   const colorMode = useColorMode();
-  const { screenToFlowPosition, setCenter, getZoom } = useReactFlow();
+  const { screenToFlowPosition, setCenter, getZoom, deleteElements } = useReactFlow();
   const headingRef = useRef(null);
   const last = useRef(serialize(initial.nodes, initial.edges));
   const action = useRef('change');
@@ -268,7 +269,8 @@ export function Editor({ initial, config, icons, input, container }) {
   }, [config.palette]);
 
   const labelOf = (id) => (nodes.find((node) => node.id === id) || { data: { label: id } }).data.label;
-  const announce = (text) => setStatus(text);
+  // The same text twice (e.g. "Send email added." again) must still be read: alternate a zero-width space.
+  const announce = (text) => setStatus((current) => ({ text, count: current.count + 1 }));
 
   // Every real change (not selection, measuring or an unfinished drag): hidden input + event.
   useEffect(() => {
@@ -319,17 +321,16 @@ export function Editor({ initial, config, icons, input, container }) {
     action.current = 'add';
     setNodes((current) => [...current.map((n) => (n.selected ? { ...n, selected: false } : n)), node]);
     if (after && node.data.kind !== 'trigger') {
+      // A condition: its first free output, or its first output when all lead somewhere.
       const keys = Object.keys(outputsOf(after));
-      const output = keys.length ? keys.find((key) => !targetOf(edges, after.id, key)) : null;
-      if (output !== undefined) {
-        const previous = targetOf(edges, after.id, output);
-        setEdges((current) => {
-          let next = connect(current, after.id, output, id);
-          // Inserted between two steps: the new step leads to the old next one.
-          if (previous) next = connect(next, id, Object.keys(outputsOf(node))[0] || null, previous);
-          return next;
-        });
-      }
+      const output = keys.length ? (keys.find((key) => !targetOf(edges, after.id, key)) || keys[0]) : null;
+      const previous = targetOf(edges, after.id, output);
+      setEdges((current) => {
+        let next = connect(current, after.id, output, id);
+        // Inserted between two steps: the new step leads to the old next one.
+        if (previous) next = connect(next, id, Object.keys(outputsOf(node))[0] || null, previous);
+        return next;
+      });
     }
     announce(t('status.added', { label: node.data.label }));
   };
@@ -342,6 +343,7 @@ export function Editor({ initial, config, icons, input, container }) {
     const node = nodes.find((n) => n.id === id);
     if (!node) return;
     setNodes((current) => current.map((n) => (n.selected === (n.id === id) ? n : { ...n, selected: n.id === id })));
+    setEdges((current) => current.map((e) => (e.selected ? { ...e, selected: false } : e)));
     const width = (node.measured && node.measured.width) || 0;
     const height = (node.measured && node.measured.height) || 0;
     setCenter(node.position.x + width / 2, node.position.y + height / 2, { zoom: getZoom(), duration: 200 });
@@ -366,6 +368,18 @@ export function Editor({ initial, config, icons, input, container }) {
     setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
     announce(t('status.deleted', { label }));
     window.requestAnimationFrame(() => headingRef.current && headingRef.current.focus());
+  };
+
+  // Delete / Backspace only when the focus is on the canvas (React Flow's own key listener is page-wide).
+  const onCanvasKeyDown = (event) => {
+    if (readonly || (event.key !== 'Delete' && event.key !== 'Backspace')) return;
+    const target = event.target;
+    if (!(target instanceof Element) || target.closest('input, select, textarea, [contenteditable]')) return;
+    const selectedNodes = nodes.filter((node) => node.selected);
+    const selectedEdges = edges.filter((edge) => edge.selected);
+    if (!selectedNodes.length && !selectedEdges.length) return;
+    event.preventDefault();
+    deleteElements({ nodes: selectedNodes, edges: selectedEdges });
   };
 
   const onDrop = (event) => {
@@ -399,18 +413,22 @@ export function Editor({ initial, config, icons, input, container }) {
   const ariaLabelConfig = useMemo(() => {
     if (!config.ariaLabels || typeof config.ariaLabels !== 'object') return undefined;
     const labels = { ...config.ariaLabels };
+    if (readonly) {
+      ['node.a11yDescription.default', 'node.a11yDescription.keyboardDisabled'].forEach((key) => { labels[key] = labels['node.a11yDescription.readonly'] || labels[key]; });
+      labels['edge.a11yDescription.default'] = labels['edge.a11yDescription.readonly'] || labels['edge.a11yDescription.default'];
+    }
     const live = labels['node.a11yDescription.ariaLiveMessage'];
     if (typeof live === 'string') {
       labels['node.a11yDescription.ariaLiveMessage'] = (vars) => live.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
     }
     return labels;
-  }, [config.ariaLabels]);
+  }, [config.ariaLabels, readonly]);
 
   return (
     <Ctx.Provider value={context}>
       <div className="bc-flow" data-readonly={readonly ? 'true' : undefined}>
         {!readonly && templates.length > 0 && <Palette templates={templates} onAdd={(item) => addStep(item)} />}
-        <div className="bc-flow-canvas" role="region" aria-label={t('canvas.label')}>
+        <div className="bc-flow-canvas" role="region" aria-label={t('canvas.label')} onKeyDown={onCanvasKeyDown}>
           <ReactFlow
             nodes={nodes}
             edges={labelledEdges}
@@ -426,7 +444,9 @@ export function Editor({ initial, config, icons, input, container }) {
             nodesDraggable={!readonly}
             nodesConnectable={!readonly}
             edgesReconnectable={false}
-            deleteKeyCode={readonly ? null : ['Backspace', 'Delete']}
+            deleteKeyCode={null}
+            multiSelectionKeyCode={null}
+            selectionKeyCode={null}
             defaultEdgeOptions={{ type: 'smoothstep' }}
             fitView
             fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
@@ -451,7 +471,7 @@ export function Editor({ initial, config, icons, input, container }) {
           onConnectOutput={connectOutput}
           onDelete={remove}
         />
-        <p className="bc-flow-sr" aria-live="polite">{status}</p>
+        <p className="bc-flow-sr" aria-live="polite">{status.text}{status.count % 2 ? '\u200b' : ''}</p>
       </div>
     </Ctx.Provider>
   );

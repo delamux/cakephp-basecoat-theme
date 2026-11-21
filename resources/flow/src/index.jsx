@@ -20,16 +20,22 @@ import { toReactFlow } from './model.js';
     }
   };
 
+  // Unmounts an editor and shows the server-rendered list again.
   const unmount = (container) => {
     const root = roots.get(container);
     if (!root) return;
     roots.delete(container);
     root.unmount();
     delete container.dataset.flowMounted;
+    const canvas = container.querySelector('[data-flow-canvas]');
+    const fallback = container.querySelector('[data-flow-fallback]');
+    if (canvas) canvas.hidden = true;
+    if (fallback) fallback.hidden = false;
   };
 
   const mount = (container) => {
-    if (roots.has(container)) return;
+    // A failed editor is not retried (it would fail and flicker on every htmx:load).
+    if (roots.has(container) || container.dataset.flowFailed === 'true') return;
     const data = parse(container.querySelector('script[data-flow-data]'));
     const config = parse(container.querySelector('script[data-flow-config]')) || {};
     const canvas = container.querySelector('[data-flow-canvas]');
@@ -41,6 +47,7 @@ import { toReactFlow } from './model.js';
 
     const fail = (error) => {
       console.error('[BasecoatTheme] Flow editor error', error);
+      container.dataset.flowFailed = 'true';
       window.setTimeout(() => {
         unmount(container);
         canvas.hidden = true;

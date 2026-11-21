@@ -111,3 +111,10 @@ test('serialize ignores runtime state (selection, measuring)', async () => {
   const touched = nodes.map((n) => ({ ...n, selected: true, measured: { width: 240, height: 60 } }));
   assert.equal(m.serialize(touched, edges), before);
 });
+
+test('toReactFlow remembers which properties are numbers', async () => {
+  const m = await load();
+  const { nodes } = m.toReactFlow({ nodes: [{ id: 'w', type: 'action', properties: { days: 3, to: 'Ana', n: '4' } }] });
+  assert.deepEqual(nodes[0].data.numeric, ['days']);
+  assert.equal('numeric' in m.fromReactFlow(nodes, []).nodes[0], false, 'Runtime only, not saved');
+});
