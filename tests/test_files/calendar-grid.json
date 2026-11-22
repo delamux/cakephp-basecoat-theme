@@ -1,0 +1,26 @@
+{
+    "events": [
+        {"id": 1, "title": "Support standup", "date": "2026-11-16", "time": "07:30", "end": "09:00", "resource": "noor", "category": "team"},
+        {"id": 2, "title": "Invoice run", "date": "2026-11-17", "time": "13:00", "end": "14:30", "resource": "ines", "category": "deadline"},
+        {"id": 3, "title": "Billing sync", "date": "2026-11-18", "time": "10:00", "end": "11:00", "resource": "kofi", "category": "meeting", "url": "/events/3"},
+        {"id": 4, "title": "Roadmap workshop", "date": "2026-11-18", "time": "10:30", "end": "12:00", "resource": "elena", "category": "team"},
+        {"id": 5, "title": "All-hands", "date": "2026-11-18", "time": null, "category": "team"},
+        {"id": 6, "title": "Release notes", "date": "2026-11-18", "time": "14:00", "end": "16:00", "resource": "pavel", "category": "release"},
+        {"id": 7, "title": "Late call", "date": "2026-11-18", "time": "19:00", "end": "21:00", "resource": "kofi"},
+        {"id": 8, "title": "Night window", "date": "2026-11-18", "time": "22:00", "end": "23:00", "resource": "pavel"},
+        {"id": 9, "title": "Plants delivery", "date": "2026-11-18", "time": "13:00", "end": "13:30"},
+        {"id": 10, "title": "Overlap A", "date": "2026-11-18", "time": "10:00", "end": "11:00", "resource": "ghost"},
+        {"id": 11, "title": "Overlap B", "date": "2026-11-18", "time": "10:00", "end": "11:00", "resource": "ines"},
+        {"id": 12, "title": "Overlap C", "date": "2026-11-18", "time": "10:00", "end": "11:00", "resource": "ines"},
+        {"id": 13, "title": "Overlap D", "date": "2026-11-18", "time": "10:15", "end": "10:45", "resource": "ines"},
+        {"id": 14, "title": "Short", "date": "2026-11-20", "time": "09:10", "end": "09:25", "resource": "elena", "category": "other"}
+    ],
+    "options": {
+        "date": "2026-11-18",
+        "today": "2026-11-18",
+        "start": "08:00",
+        "end": "20:00",
+        "resources": {"elena": "Elena Sarto", "kofi": "Kofi Mensah", "ines": "Ines Duarte", "pavel": "Pavel Novak", "noor": "Noor Haddad"},
+        "categories": {"meeting": "Customer meeting", "deadline": "Deadline", "release": "Release", "team": "Team"}
+    }
+}

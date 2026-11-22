@@ -1,0 +1,46 @@
+schema: spec-driven
+
+# Project context: shown to the AI when it creates proposals, designs, specs and tasks.
+context: |
+  Project: delamux/cakephp-basecoat-theme — a public CakePHP 5 theme plugin for Basecoat UI (the shadcn/ui
+  look, no React). Every Basecoat component has its own View Helper (36 helpers: Calendar, Dialog,
+  DropdownMenu, Form, Table...), configurable with classes, variants, sizes, attributes and string
+  templates. It also ships layouts, elements, bake templates and screens (`bin/cake bake screen`), and two
+  optional vanilla JS scripts: webroot/js/basecoat-dnd.js (drag and drop: lists, kanban, 2D slot grids,
+  resize, keyboard, live-region announcements, cancelable `basecoat:*` events, optional JSON POST to a
+  same-origin `data-endpoint` with CSRF) and webroot/js/basecoat-screens.js.
+
+  Requirements: PHP 8.2+, CakePHP ^5.0, Basecoat 1.1.0 markup (`data-variant` / `data-size` API). Zero
+  build step by default. Consumers include the new-crossfit gym app (CakePHP 5.4, strict CSP with nonces,
+  htmx 2).
+
+  Rules for every change: progressive enhancement (markup works without JS: links, GET/POST forms; scripts
+  read `data-*` hooks); no inline JS and no inline `style` attributes (CSP); accessible markup (labels,
+  aria, keyboard model, announcements); backwards compatible by default (new behaviour behind an option,
+  existing output unchanged when the option is off); i18n through `__d('basecoat_theme', ...)` with the
+  locales in resources/locales; README section and the component catalog (`composer docs`) updated with
+  every helper change.
+
+  Tests: PHPUnit (`composer test`) for helpers and bake, `node --test tests/js/*.test.js` (`composer
+  test-js`) for the scripts. TDD for every behaviour. Conventional commits.
+
+  Key docs: README.md (helper reference, drag and drop hooks, events, endpoints and CSRF),
+  docs/superpowers/specs/*-design.md (earlier designs, e.g. 2026-11-21-calendar-week-day-design.md),
+  THIRD-PARTY-NOTICES.md.
+
+  Language: write every artifact (proposal, design, specs, tasks) in English, like the rest of the repo.
+
+rules:
+  proposal:
+    - State whether the change is backwards compatible; any change to existing output must be opt-in.
+    - Name the consumers affected (e.g. new-crossfit) and what they must do to adopt it.
+    - Include a "Non-goals" section.
+  design:
+    - Describe the markup contract (data-* hooks, classes, events) and how it degrades without JS.
+    - Call out CSP constraints (no inline JS/CSS) and accessibility (keyboard, announcements).
+  specs:
+    - Scenarios state the helper options or the user action and the exact rendered hooks or events.
+  tasks:
+    - Start each behaviour with a failing test (PHPUnit for PHP, node --test for JS).
+    - Include README, catalog (`composer docs`) and locale updates.
+    - Finish with `composer test` and `composer test-js` green.

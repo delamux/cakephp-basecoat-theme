@@ -37,6 +37,8 @@
  *   Overlapping items are allowed: they get [data-dnd-collision] and the overlap is announced.
  *     data-dnd-row-text='["06:00", "06:30", …]'  text of each row boundary (rows + 1 entries) and
  *     data-dnd-col-text='["Room A", …]'          text of each column, for BOUND TEXT and {start}/{end}
+ *     data-dnd-col-values='["2026-11-16", …]'    value of each column (a date, a resource key): with
+ *                                 data-dnd-row-text, grid events and POSTs get slot: {start, end, column}
  *
  * BOUND TEXT (both modes, optional): after every placement change (also on revert and cancel)
  *   [data-dnd-text="key"] inside the item, and inside the elements matched by the item's
@@ -67,7 +69,8 @@
  *
  * EVENTS (bubbling, cancelable, dispatched on the item after a drop; preventDefault() reverts):
  *   basecoat:move   list: {mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}
- *                   grid: {mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}
+ *                   grid: {mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions,
+ *                          slot: {start, end, column} (only with data-dnd-row-text and data-dnd-col-values)}
  *   basecoat:resize grid: same detail as a grid move (span changed)
  *   basecoat:move-error after a failed or refused POST (detail of the move + {status, reason:
  *                   'response'|'origin'}); the change was reverted.
@@ -75,7 +78,7 @@
  *   only same-origin http(s) URLs are used: anything else is refused with console.error, the change is
  *   reverted and basecoat:move-error fires with reason 'origin'): the change is POSTed as JSON
  *   (list: {action: 'move', id, from, to, index, fromIndex}; grid: {action: 'move'|'resize', id, grid,
- *   row, col, span}) with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken">, or the
+ *   row, col, span, slot?}) with X-CSRF-Token (data-csrf-token on an ancestor, <meta name="csrfToken">, or the
  *   page's input[name=_csrfToken]). Non-2xx or network error -> revert + "failed" announcement; a list
  *   item goes back next to its old neighbours (other items may have moved meanwhile).
  * STATE ATTRIBUTES (style them; webroot/css/interactivity.css does): [data-dnd-dragging] on the item,
@@ -171,6 +174,19 @@
       row: String(p.row + 1),
       span: String(p.span),
     };
+  };
+
+  /**
+   * Values of a grid placement for apps (e.g. a calendar): {start, end} from the row boundary texts and
+   * {column} from the column values; null when either list is missing or does not cover the placement.
+   */
+  const slotValues = (rowText, colValues, p) => {
+    if (!Array.isArray(rowText) || !Array.isArray(colValues)) return null;
+    const start = rowText[p.row];
+    const end = rowText[p.row + p.span];
+    const column = colValues[p.col];
+    if (start === undefined || end === undefined || column === undefined || start === null || end === null || column === null) return null;
+    return { start: String(start), end: String(end), column: String(column) };
   };
 
   /**
@@ -290,7 +306,7 @@
     };
   };
 
-  const pure = { clamp, insertionIndex, insertionIndex2d, format, fillTemplate, parseAttrBindings, revertIndex, postJson, commitChange, createJsonCache, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed, placementText, compareKeys };
+  const pure = { clamp, slotValues, insertionIndex, insertionIndex2d, format, fillTemplate, parseAttrBindings, revertIndex, postJson, commitChange, createJsonCache, splitClasses, mapClasses, swapClasses, mapSize, clampPlacement, overlaps, collisions, resolveEndpoint, edgeSpeed, placementText, compareKeys };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   // Loaded twice? Keep the first instance (delegated listeners registered once).
@@ -648,6 +664,12 @@
       const hits = markCollisions(container, item);
       detail = { mode: 'grid', item, id: idOf(item), grid: container, row: now.row, col: now.col, span: now.span, from: before.placement, collisions: hits };
       payload = { action: moved ? 'move' : 'resize', id: idOf(item), grid: idOf(container), row: now.row, col: now.col, span: now.span };
+      // data-dnd-row-text + data-dnd-col-values: the target slot as values (calendar: times and date / resource)
+      const slot = slotValues(parseJson(container.getAttribute('data-dnd-row-text')), parseJson(container.getAttribute('data-dnd-col-values')), now);
+      if (slot) {
+        detail.slot = slot;
+        payload.slot = slot;
+      }
       names = [moved ? 'basecoat:move' : null, resized ? 'basecoat:resize' : null].filter(Boolean);
     } else {
       const index = itemsOf(container).indexOf(item);
