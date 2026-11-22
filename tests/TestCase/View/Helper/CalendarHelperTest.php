@@ -463,6 +463,249 @@ class CalendarHelperTest extends HelperTestCase
         $this->helper()->week([], ['date' => '2026-11-18', 'slot' => 7]);
     }
 
+    // ---------------------------------------------------------------- interactive week and day
+
+    /**
+     * Attributes of the first element with `$attr="$value"` (or of the grid body), as name => value.
+     *
+     * @return array<string, string>|null
+     */
+    private function attrsOf(string $html, string $needle): ?array
+    {
+        if (!preg_match('#<(?:div|a|span)\b([^>]*' . preg_quote($needle, '#') . '[^>]*)>#', $html, $m)) {
+            return null;
+        }
+        preg_match_all('#([\w:-]+)(?:="([^"]*)")?#', $m[1], $pairs, PREG_SET_ORDER);
+        $out = [];
+        foreach ($pairs as $pair) {
+            $out[$pair[1]] = html_entity_decode($pair[2] ?? '', ENT_QUOTES);
+        }
+
+        return $out;
+    }
+
+    /**
+     * The grid item (opening tag attributes) of an event, found by its data-id.
+     *
+     * @return array<string, string>|null
+     */
+    private function item(string $html, string $id): ?array
+    {
+        return $this->attrsOf($html, 'data-id="' . $id . '"');
+    }
+
+    public function testInteractiveWeekGrid(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-17', '07:30', '08:15', ['title' => 'Yoga']),
+        ], ['date' => '2026-11-18', 'start' => '07:00', 'end' => '09:00', 'slot' => 15, 'interactive' => ['move' => true]]);
+
+        $grid = $this->attrsOf($html, 'data-dnd-grid');
+        $this->assertNotNull($grid);
+        $this->assertSame('bc-cal-grid-body bc-cal-rows-8 bc-cal-slot-15', $grid['class']);
+        $this->assertSame('8', $grid['data-dnd-rows']);
+        $this->assertSame('7', $grid['data-dnd-cols']);
+        $this->assertSame('row', $grid['data-dnd-resize-axis']);
+        $this->assertSame(['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30', '08:45', '09:00'], json_decode($grid['data-dnd-row-text'], true));
+        $values = json_decode($grid['data-dnd-col-values'], true);
+        $this->assertSame('2026-11-16', $values[0]);
+        $this->assertSame(['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22'], $values);
+        $this->assertSame('Monday 16 November', json_decode($grid['data-dnd-col-text'], true)[0]);
+        $classes = json_decode($grid['data-dnd-classes'], true);
+        $this->assertSame('bc-cal-row-1', $classes['row'][0]);
+        $this->assertCount(8, $classes['row']);
+        $this->assertSame(['bc-cal-c-1', 'bc-cal-c-2', 'bc-cal-c-3', 'bc-cal-c-4', 'bc-cal-c-5', 'bc-cal-c-6', 'bc-cal-c-7'], $classes['col']);
+        $this->assertSame('bc-cal-span-8', $classes['span']['8']);
+        $this->assertCount(8, $classes['span']);
+        $this->assertStringContainsString('<div class="bc-cal-board bc-cal-cols-7">', $html);
+        $this->assertStringNotContainsString('<div class="bc-cal-col"', $html, 'One grid, no per-day columns');
+        $this->assertStringNotContainsString('style=', $html);
+
+        $item = $this->item($html, '1');
+        $this->assertNotNull($item);
+        $this->assertArrayHasKey('data-dnd-item', $item);
+        $this->assertSame(['2', '1', '3', 'press'], [$item['data-dnd-row'], $item['data-dnd-col'], $item['data-dnd-span'], $item['data-dnd-touch']]);
+        $this->assertSame('Yoga', $item['data-dnd-label']);
+        $this->assertSame('bc-cal-event bc-cal-row-3 bc-cal-span-3 bc-cal-c-2 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $item['class']);
+        // The link is the handle (one tab stop) and its times follow a move
+        $this->assertStringContainsString('<a href="#" data-dnd-handle=""><span class="bc-cal-time"><span data-dnd-text="start">07:30</span>–<span data-dnd-text="end">08:15</span></span> <span class="bc-cal-title">Yoga</span>', $html);
+        $this->assertStringNotContainsString('data-dnd-resize=', $html, 'No resize without the option');
+    }
+
+    public function testInteractiveKeepsHeaderPlacement(): void
+    {
+        $events = [
+            $this->ev(1, '2026-11-18', null, null, ['title' => 'Holiday']),
+            $this->ev(2, '2026-11-18', '06:00', '07:00', ['title' => 'Early']),
+        ];
+        for ($i = 3; $i <= 8; $i++) {
+            $events[] = $this->ev($i, '2026-11-18', '09:00', '10:00');
+        }
+        $html = $this->helper()->week($events, ['date' => '2026-11-18', 'days' => [2, 3], 'today' => '2026-11-18', 'interactive' => ['move' => true]]);
+
+        $this->assertStringContainsString('<div class="bc-cal-heads">', $html);
+        $this->assertSame(2, substr_count($html, '<ul class="bc-cal-allday">'));
+        $this->assertMatchesRegularExpression('#<ul class="bc-cal-allday"><li class="bc-cal-event bc-cal-c-none"><a href="\#"><span class="bc-cal-time">All day</span> <span class="bc-cal-title">Holiday</span>#', $html);
+        $this->assertStringContainsString('<details class="bc-cal-outside"><summary>1 event outside hours</summary>', $html);
+        $this->assertStringContainsString('<details class="bc-cal-more"><summary>+2 more</summary>', $html);
+        $this->assertNull($this->item($html, '1'));
+        $this->assertNull($this->item($html, '2'));
+        $this->assertNull($this->item($html, '8'), 'Overflow stays in the header');
+        $this->assertNotNull($this->item($html, '6'));
+        $this->assertSame(1, substr_count($html, 'aria-current="date"'));
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-head bc-cal-today" aria-current="date"><span class="bc-cal-name" id="bc-cal-1-2026-11-18">#', $html);
+    }
+
+    public function testInteractiveDayColumnsAreResources(): void
+    {
+        $html = $this->helper()->day([
+            $this->ev(1, '2026-11-24', '10:00', '11:00', ['resource' => 'a']),
+            $this->ev(2, '2026-11-24', '12:00', '13:00'),
+        ], ['date' => '2026-11-24', 'resources' => ['l' => 'Luis A.', 'a' => 'Ana B.'], 'interactive' => ['move' => true]]);
+
+        $grid = (array)$this->attrsOf($html, 'data-dnd-grid');
+        $this->assertSame('["l","a",""]', $grid['data-dnd-col-values']);
+        $this->assertSame(['Luis A.', 'Ana B.', 'Unassigned'], json_decode($grid['data-dnd-col-text'], true));
+        $this->assertSame('1', $this->item($html, '1')['data-dnd-col'] ?? null);
+        $this->assertSame('2', $this->item($html, '2')['data-dnd-col'] ?? null, 'Unassigned');
+        // The resource headers keep their ids (apps decorate them)
+        $this->assertMatchesRegularExpression('#<span class="bc-cal-name" id="[^"]*-r0">Luis A\.</span>.*<span class="bc-cal-name" id="[^"]*-r1">Ana B\.</span>.*<span class="bc-cal-name" id="[^"]*-unassigned">Unassigned</span>#s', $html);
+
+        $single = $this->helper()->day([], ['date' => '2026-11-24', 'interactive' => ['move' => true]]);
+        $this->assertSame('[""]', $this->attrsOf($single, 'data-dnd-grid')['data-dnd-col-values'] ?? null);
+    }
+
+    public function testInteractiveLanesAreWidthClasses(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '11:00'),
+            $this->ev(2, '2026-11-18', '09:30', '10:00'),
+        ], ['date' => '2026-11-18', 'interactive' => ['move' => true]]);
+
+        $this->assertSame('bc-cal-event bc-cal-row-3 bc-cal-span-4 bc-cal-c-3 bc-cal-lanes-2 bc-cal-lane-1 bc-cal-c-none', $this->item($html, '1')['class'] ?? null);
+        $this->assertSame('bc-cal-event bc-cal-row-4 bc-cal-span-1 bc-cal-c-3 bc-cal-lanes-2 bc-cal-lane-2 bc-cal-c-none', $this->item($html, '2')['class'] ?? null);
+        $css = (string)file_get_contents(dirname(__DIR__, 4) . '/webroot/css/basecoat-calendar.css');
+        $this->assertStringContainsString('.bc-cal-grid-body>.bc-cal-lanes-2{width:', $css);
+        $this->assertStringContainsString('.bc-cal-grid-body>.bc-cal-lanes-2.bc-cal-lane-2{margin-inline-start:', $css);
+        $this->assertStringContainsString('.bc-cal-grid-body>.bc-cal-c-32{grid-column:32}', $css);
+        $this->assertStringContainsString('.bc-cal-cols-32{--bc-cal-n:32}', $css);
+    }
+
+    public function testInteractiveResizeHandle(): void
+    {
+        $html = $this->helper()->week([$this->ev(1, '2026-11-18', '09:00', '10:00', ['title' => 'Yoga'])], [
+            'date' => '2026-11-18', 'interactive' => ['move' => true, 'resize' => true],
+        ]);
+        $this->assertMatchesRegularExpression('#data-id="1"[^>]*>.*?</a><span class="bc-cal-resize" data-dnd-resize="" aria-label="Change the end of Yoga" title="Change the end of Yoga"></span></div>#s', $html);
+        $this->assertStringContainsString('data-dnd-i18n-grid-instructions="Press Space to pick up. Use the arrow keys to move (left and right change the column), Space or Enter to drop, Escape to cancel. Shift and the up and down arrows change the end."', $html);
+    }
+
+    public function testInteractiveSlotLinks(): void
+    {
+        $html = $this->helper()->day([], [
+            'date' => '2026-11-24',
+            'start' => '08:00',
+            'end' => '13:00',
+            'resources' => ['l' => 'Luis A.'],
+            'interactive' => ['slots' => true],
+            'slotUrl' => fn (string $date, string $time, ?string $resource): ?string => $time < '12:00' ? null : '/add?date=' . $date . '&start=' . $time . '&coach=' . $resource,
+        ]);
+        $slot = $this->attrsOf($html, 'data-dnd-label="Tuesday 24 November 12:00, Luis A."');
+        $this->assertNotNull($slot);
+        $this->assertSame('/add?date=2026-11-24&start=12:00&coach=l', $slot['href']);
+        $this->assertSame('Tuesday 24 November 12:00, Luis A.', $slot['aria-label']);
+        $this->assertSame(['8', '0'], [$slot['data-dnd-row'], $slot['data-dnd-col']]);
+        $this->assertArrayHasKey('data-dnd-slot', $slot);
+        $this->assertSame('bc-cal-slot bc-cal-row-9 bc-cal-c-1', $slot['class']);
+
+        $early = $this->attrsOf($html, 'data-dnd-label="Tuesday 24 November 10:00, Luis A."');
+        $this->assertNotNull($early);
+        $this->assertArrayNotHasKey('href', $early);
+        $this->assertMatchesRegularExpression('#<span class="bc-cal-slot bc-cal-row-5 bc-cal-c-1" data-dnd-slot=""#', $html);
+        $this->assertSame(10, substr_count($html, 'data-dnd-slot='), 'Every cell');
+
+        $week = $this->helper()->week([$this->ev(1, '2026-11-18', '09:00', '10:00')], [
+            'date' => '2026-11-18', 'days' => [3], 'start' => '09:00', 'end' => '10:00',
+            'interactive' => ['move' => true, 'slots' => true],
+            'slotUrl' => fn (string $date, string $time, ?string $resource): array => ['controller' => 'Events', 'action' => 'add', '?' => ['at' => $date . ' ' . $time, 'r' => (string)$resource]],
+        ]);
+        $this->assertStringContainsString('href="/events/add?at=2026-11-18+09%3A00&amp;r="', $week);
+        $this->assertStringContainsString('data-dnd-label="Wednesday 18 November 09:30"', $week);
+        $this->assertLessThan(strpos($week, 'class="bc-cal-slot'), strpos($week, 'data-id="1"'), 'Events come first (tab order); slots sit below them');
+
+        $plain = $this->helper()->week([], ['date' => '2026-11-18', 'days' => [3], 'start' => '09:00', 'end' => '10:00', 'interactive' => ['move' => true]]);
+        $this->assertSame(2, substr_count($plain, '<span class="bc-cal-slot'), 'Move only: drop targets without links');
+        $this->assertStringNotContainsString('<a class="bc-cal-slot', $plain);
+    }
+
+    public function testInteractiveLockedEvents(): void
+    {
+        $html = $this->helper()->week([
+            $this->ev(1, '2026-11-18', '09:00', '10:00', ['locked' => true, 'title' => 'Past']),
+            $this->ev(2, '2026-11-18', '11:00', '12:00'),
+        ], ['date' => '2026-11-18', 'interactive' => ['move' => true, 'resize' => true]]);
+
+        $this->assertMatchesRegularExpression('#<div class="bc-cal-event bc-cal-row-3 bc-cal-span-2 bc-cal-c-3 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none"><a href="\#"><span class="bc-cal-time">09:00–10:00</span> <span class="bc-cal-title">Past</span>.*?</a></div>#', $html);
+        $this->assertSame(1, substr_count($html, 'data-dnd-item'));
+        $this->assertSame(1, substr_count($html, 'data-dnd-resize='));
+        $this->assertNotNull($this->item($html, '2'));
+    }
+
+    public function testEventAttributes(): void
+    {
+        $options = [
+            'date' => '2026-11-18',
+            'eventAttributes' => fn (array $event): array => $event['id'] === 5
+                ? ['data-menu' => 'class-' . $event['id'], 'onclick' => 'x()', 'ONmouseover' => 'y()', 'style' => 'color:red', 'hx-get' => '/m?a=1&b=2', 'href' => '/evil']
+                : [],
+        ];
+        $events = [$this->ev(5, '2026-11-18', '09:00', '10:00', ['url' => '/events/5']), $this->ev(6, '2026-11-18', '11:00', '12:00')];
+        foreach ([$this->helper()->week($events, $options), $this->helper()->week($events, $options + ['interactive' => ['move' => true]])] as $html) {
+            $this->assertMatchesRegularExpression('#<a href="/events/5"(?: data-dnd-handle="")? data-menu="class-5" hx-get="/m\?a=1&amp;b=2">#', $html);
+            $this->assertStringNotContainsString('onclick', $html);
+            $this->assertStringNotContainsStringIgnoringCase('onmouseover', $html);
+            $this->assertStringNotContainsString('color:red', $html);
+            $this->assertStringNotContainsString('/evil', $html);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    #[DataProvider('badInteractiveOptions')]
+    public function testBadInteractiveOptionsThrow(array $options, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+        $this->helper()->day([], $options + ['date' => '2026-11-18']);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>, 1: string}>
+     */
+    public static function badInteractiveOptions(): array
+    {
+        $many = [];
+        for ($i = 0; $i < 33; $i++) {
+            $many['r' . $i] = 'R' . $i;
+        }
+
+        return [
+            'not an array' => [['interactive' => 'yes'], 'Calendar option "interactive" must be an array'],
+            'unknown key' => [['interactive' => ['drag' => true]], 'Calendar option "interactive" takes move, resize and slots'],
+            'resize without move' => [['interactive' => ['resize' => true]], 'Calendar option "interactive" needs "move" for "resize"'],
+            'slots without slotUrl' => [['interactive' => ['slots' => true]], 'Calendar option "slotUrl" must be a callable with interactive "slots"'],
+            'eventAttributes' => [['eventAttributes' => 'nope'], 'Calendar option "eventAttributes" must be a callable or null'],
+            'too many columns' => [['interactive' => ['move' => true], 'resources' => $many], 'The interactive calendar shows at most 32 columns'],
+        ];
+    }
+
+    public function testInteractiveOptionsAreNotAttributes(): void
+    {
+        $html = $this->helper()->week([], ['date' => '2026-11-18', 'interactive' => ['move' => true, 'slots' => true], 'slotUrl' => fn (): string => '/x', 'eventAttributes' => fn (): array => []]);
+        $this->assertStringStartsWith('<section class="bc-cal bc-cal-week bc-cal-w-md" data-calendar-view="week" data-calendar-date="2026-11-18">', $html);
+    }
+
     public function testMonthDayUrlLinksTheDayNumber(): void
     {
         $html = $this->helper()->month([], [

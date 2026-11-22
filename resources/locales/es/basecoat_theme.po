@@ -289,3 +289,33 @@ msgid "+{0} more event on {1}"
 msgid_plural "+{0} more events on {1}"
 msgstr[0] "+{0} evento más el {1}"
 msgstr[1] "+{0} eventos más el {1}"
+
+msgid "Change the end of {0}"
+msgstr "Cambiar el final de {0}"
+
+msgid "Press Space to pick up. Use the arrow keys to move (left and right change the column), Space or Enter to drop, Escape to cancel."
+msgstr "Pulsa Espacio para coger. Usa las flechas para mover (izquierda y derecha cambian de columna), Espacio o Intro para soltar, Escape para cancelar."
+
+msgid "Press Space to pick up. Use the arrow keys to move (left and right change the column), Space or Enter to drop, Escape to cancel. Shift and the up and down arrows change the end."
+msgstr "Pulsa Espacio para coger. Usa las flechas para mover (izquierda y derecha cambian de columna), Espacio o Intro para soltar, Escape para cancelar. Mayúsculas y las flechas arriba y abajo cambian el final."
+
+msgid "Picked up {label}. {slot}."
+msgstr "Has cogido {label}. {slot}."
+
+msgid "{slot}."
+msgstr "{slot}."
+
+msgid "Dropped {label}. {slot}."
+msgstr "Has soltado {label}. {slot}."
+
+msgid "Cancelled. {label} is back at {slot}."
+msgstr "Cancelado. {label} vuelve a {slot}."
+
+msgid "{label}: {start}–{end}."
+msgstr "{label}: {start}–{end}."
+
+msgid "Overlaps {others}."
+msgstr "Se solapa con {others}."
+
+msgid "{label} is still being saved."
+msgstr "{label} todavía se está guardando."

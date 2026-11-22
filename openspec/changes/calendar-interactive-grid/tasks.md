@@ -6,13 +6,13 @@
 
 ## 2. Interactive grid (PHP)
 
-- [ ] 2.1 Failing test → green: `interactive.move` renders the single `data-dnd-grid` body with rows, cols, class maps, row texts, column texts and column values (week: dates; day: resource keys plus "" for Unassigned)
-- [ ] 2.2 Failing test → green: timed, unlocked events become `data-dnd-item` with 0-based row, col, span and `data-dnd-touch="press"`; all-day, outside-hours and overflow events keep today's header placement
-- [ ] 2.3 Failing test → green: overlapping events keep their lane as width classes in the single grid
-- [ ] 2.4 Failing test → green: `interactive.resize` adds the labelled `data-dnd-resize` handle
-- [ ] 2.5 Failing test → green: `interactive.slots` + `slotUrl` render slot links (label with day, resource and time) and non-link slots when `slotUrl` returns null; slots below events
-- [ ] 2.6 Failing test → green: `locked` events render without dnd hooks
-- [ ] 2.7 Failing test → green: `eventAttributes` merges attributes into event links, refusing `on*` and `style`
+- [x] 2.1 Failing test → green: `interactive.move` renders the single `data-dnd-grid` body with rows, cols, class maps, row texts, column texts and column values (week: dates; day: resource keys plus "" for Unassigned)
+- [x] 2.2 Failing test → green: timed, unlocked events become `data-dnd-item` with 0-based row, col, span and `data-dnd-touch="press"`; all-day, outside-hours and overflow events keep today's header placement
+- [x] 2.3 Failing test → green: overlapping events keep their lane as width classes in the single grid
+- [x] 2.4 Failing test → green: `interactive.resize` adds the labelled `data-dnd-resize` handle
+- [x] 2.5 Failing test → green: `interactive.slots` + `slotUrl` render slot links (label with day, resource and time) and non-link slots when `slotUrl` returns null; slots below events
+- [x] 2.6 Failing test → green: `locked` events render without dnd hooks
+- [x] 2.7 Failing test → green: `eventAttributes` merges attributes into event links, refusing `on*` and `style`
 
 ## 3. Script and CSS
 
