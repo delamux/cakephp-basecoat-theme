@@ -1,8 +1,8 @@
 ## 1. Safety net and steps
 
-- [ ] 1.1 Snapshot test: `week()` and `day()` without `interactive` render byte-for-byte the current output for the existing fixtures (15, 30, 60)
-- [ ] 1.2 Failing test → green: `slot` accepts 5, 10, 20 (and keeps 15, 30, 60); any other value throws the new message; a 06:00–22:00 day at 5 minutes renders `bc-cal-rows-192`
-- [ ] 1.3 Script in `bin/` that generates the row, span and rows-N classes up to 288 and the `bc-cal-slot-5/10/20` backgrounds into `webroot/css/basecoat-calendar.css`; extend `ROWS` / `ROW` / `SPAN` maps
+- [x] 1.1 Snapshot test: `week()` and `day()` without `interactive` render byte-for-byte the current output for the existing fixtures (15, 30, 60)
+- [x] 1.2 Failing test → green: `slot` accepts 5, 10, 20 (and keeps 15, 30, 60); any other value throws the new message; a 06:00–22:00 day at 5 minutes renders `bc-cal-rows-192`
+- [x] 1.3 Script in `bin/` that generates the row, span and rows-N classes up to 288 and the `bc-cal-slot-5/10/20` backgrounds into `webroot/css/basecoat-calendar.css`; extend `ROWS` / `ROW` / `SPAN` maps
 
 ## 2. Interactive grid (PHP)
 

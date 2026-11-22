@@ -46,7 +46,7 @@ class CalendarHelperTest extends HelperTestCase
             'days out of range' => [['days' => [1, 7]], 'days'],
             'days duplicate' => [['days' => [1, 1]], 'days'],
             'days not integers' => [['days' => ['1']], 'days'],
-            'slot' => [['slot' => 20], 'slot'],
+            'slot' => [['slot' => 7], 'slot'],
             'start off grid' => [['start' => '08:10'], 'start'],
             'start malformed' => [['start' => '8:00'], 'start'],
             'end before start' => [['start' => '10:00', 'end' => '09:00'], 'end'],
@@ -284,10 +284,10 @@ class CalendarHelperTest extends HelperTestCase
     public function testStylesheetCoversAllRowsAndSpans(): void
     {
         $css = (string)file_get_contents(dirname(__DIR__, 4) . '/webroot/css/basecoat-calendar.css');
-        foreach (['.bc-cal-row-1{', '.bc-cal-row-96{', '.bc-cal-span-96{', '.bc-cal-rows-96{', '.bc-cal-lanes-4.bc-cal-lane-4{', '.bc-cal-w-lg{', '.bc-cal-c-team{', '.bc-cal-cut-start{'] as $rule) {
+        foreach (['.bc-cal-row-1{', '.bc-cal-row-288{', '.bc-cal-span-288{', '.bc-cal-rows-288{', '.bc-cal-slot-5{', '.bc-cal-slot-10{', '.bc-cal-slot-20{', '.bc-cal-lanes-4.bc-cal-lane-4{', '.bc-cal-w-lg{', '.bc-cal-c-team{', '.bc-cal-cut-start{'] as $rule) {
             $this->assertStringContainsString($rule, $css);
         }
-        $this->assertStringNotContainsString('.bc-cal-row-97', $css);
+        $this->assertStringNotContainsString('.bc-cal-row-289', $css);
         // Columns have a definite width (otherwise no-wrap event text widens them under width:max-content)
         $this->assertMatchesRegularExpression('/\.bc-cal-col\{[^}]*;width:var\(--bc-cal-col\)/', $css);
         // sr-only text (absolute) stays inside the scroll box: events and the box are positioned
@@ -431,6 +431,36 @@ class CalendarHelperTest extends HelperTestCase
             'day 60' => ['day', 60, []],
             'day 30 without resources' => ['day', 30, ['resources' => []]],
         ];
+    }
+
+    public function testFinerSlots(): void
+    {
+        foreach ([5, 10, 15, 20, 30, 60] as $slot) {
+            $html = $this->helper()->week([$this->ev(1, '2026-11-18', '09:00', '10:00')], ['date' => '2026-11-18', 'slot' => $slot]);
+            $this->assertStringContainsString('bc-cal-slot-' . $slot . '"', $html);
+            $this->assertStringContainsString('bc-cal-span-' . intdiv(60, $slot) . ' ', (string)$this->placed($html, 'Event 1'));
+        }
+
+        $day = $this->helper()->day([$this->ev(1, '2026-11-18', '21:55', '22:00')], ['date' => '2026-11-18', 'start' => '06:00', 'end' => '22:00', 'slot' => 5]);
+        $this->assertStringContainsString('<ol class="bc-cal-body bc-cal-rows-192 bc-cal-slot-5">', $day);
+        $this->assertSame('bc-cal-event bc-cal-row-192 bc-cal-span-1 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($day, 'Event 1'));
+
+        $full = $this->helper()->day([$this->ev(1, '2026-11-18', '00:00', '24:00')], ['date' => '2026-11-18', 'start' => '00:00', 'end' => '24:00', 'slot' => 5]);
+        $this->assertStringContainsString('bc-cal-rows-288 ', $full);
+        $this->assertSame('bc-cal-event bc-cal-row-1 bc-cal-span-288 bc-cal-lanes-1 bc-cal-lane-1 bc-cal-c-none', $this->placed($full, 'Event 1'));
+    }
+
+    public function testGeneratedClassesAreUpToDate(): void
+    {
+        exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__, 4) . '/bin/build-calendar-css') . ' --check 2>&1', $output, $code);
+        $this->assertSame(0, $code, implode("\n", $output));
+    }
+
+    public function testInvalidSlotMessage(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Calendar option "slot" must be 5, 10, 15, 20, 30 or 60.');
+        $this->helper()->week([], ['date' => '2026-11-18', 'slot' => 7]);
     }
 
     public function testMonthDayUrlLinksTheDayNumber(): void
