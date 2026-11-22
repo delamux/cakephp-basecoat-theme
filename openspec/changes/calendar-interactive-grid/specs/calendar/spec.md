@@ -41,6 +41,10 @@ The Calendar helper SHALL, when `interactive.slots` is true and `slotUrl` is giv
 - **WHEN** it renders
 - **THEN** the 10:00 cells are `data-dnd-slot` elements without `href`
 
+#### Scenario: Invalid interactive options
+- **WHEN** `interactive` has an unknown key, `resize` without `move`, or `slots` without a callable `slotUrl`, or the view has more than 32 columns
+- **THEN** it throws `InvalidArgumentException`
+
 ### Requirement: Locked events
 The Calendar helper SHALL render an event with `'locked' => true` as a normal link without `data-dnd-item`, `data-dnd-row/col/span` or resize handle, also in interactive mode.
 
@@ -49,7 +53,7 @@ The Calendar helper SHALL render an event with `'locked' => true` as a normal li
 - **THEN** that event has no `data-dnd-item` and no `data-dnd-resize`, and the other events have them
 
 ### Requirement: Slot values in move and resize events
-The drag and drop script SHALL add `detail.slot = {start, end, column}` to `basecoat:move` and `basecoat:resize` when the grid has `data-dnd-row-text` and `data-dnd-col-values`, where `start` and `end` are the row texts at the new row and at row + span, and `column` is the value of the new column.
+The drag and drop script SHALL add `detail.slot = {start, end, column}` to `basecoat:move` and `basecoat:resize` (and `slot` to the `data-endpoint` POST payload) when the grid has `data-dnd-row-text` and `data-dnd-col-values`, where `start` and `end` are the row texts at the new row and at row + span, and `column` is the value of the new column.
 
 #### Scenario: Move to Tuesday 08:00
 - **GIVEN** an interactive week grid with 15-minute rows starting at 07:00 and an event of span 4

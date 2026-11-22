@@ -457,12 +457,15 @@ not after `time`, throws an `InvalidArgumentException` naming the field.
 | `today` | `null` | `Y-m-d`; its column header gets `aria-current="date"`. |
 | `days` | `[1,2,3,4,5,6,0]` | Week only. Weekdays 0–6 (0 = Sunday), no duplicates; the order is the column order. |
 | `start` / `end` | `'08:00'` / `'20:00'` | Visible hours, on a slot boundary; `end` may be `'24:00'`. |
-| `slot` | `30` | Minutes per row: `15`, `30` or `60`. |
+| `slot` | `30` | Minutes per row: `5`, `10`, `15`, `20`, `30` or `60` (up to 288 rows: 24 hours at 5 minutes). |
 | `resources` | `[]` | `key => name`. Day: one column each, in order; events with no or an unknown resource go to a last "Unassigned" column. Week: the name is shown on the event. |
 | `categories` | `[]` | `key => label`. `meeting`, `deadline`, `release` and `team` have a colour, other keys a neutral one. |
 | `columnWidth` | `'md'` | `sm` (9rem), `md` (12rem) or `lg` (16rem): every column gets that width at least, and the grid scrolls sideways when they do not fit. |
 | `dayUrl` | `null` | `fn (string $date): string\|array`; links the week's day headers (and the month's day numbers and "+N more"). |
 | `label` | "Week of …" / "Schedule for …" | Accessible name of the grid. |
+| `interactive` | `null` | `['move' => bool, 'resize' => bool, 'slots' => bool]`: the interactive grid (below). `resize` needs `move`. |
+| `slotUrl` | `null` | `fn (string $date, string $time, ?string $resource): string\|array\|null`; required with `interactive.slots`. Link of each empty slot (`$resource`: the column's resource key in the day, `null` in the week, for "Unassigned" and without resources); `null` renders a drop target that is not a link. |
+| `eventAttributes` | `null` | `fn (array $event): array` (the event as you passed it): attributes merged into each event's `<a>` in the week and day (e.g. `hx-get`, `data-*` for a menu). `on*`, `style` and `href` keys, `null` and `false` values are dropped; `true` renders an empty value. |
 | `class`, `attributes`, `assets` | | As in the other helpers. |
 
 **Layout rules.** Event times are rounded out to the slot for placement (09:10–09:40 fills 09:00–10:00
@@ -471,6 +474,45 @@ dashed edge; events wholly outside the hours are listed in the column header ("2
 a `<details>`). Overlapping events sit side by side in up to four lanes; the rest go to a "+N more"
 `<details>` in the header, so every event stays reachable by keyboard. The hour column and the header row
 stay fixed while the grid scrolls (it scrolls inside its own box, up to 75% of the viewport high).
+
+**Interactive week and day.** With `interactive` (and `basecoat-dnd.js` loaded, plus `interactivity.css` for
+the drag states) the body of `week()` / `day()` is one 2D grid instead of one column per day or resource:
+
+```php
+$this->Html->script('BasecoatTheme.basecoat-dnd', ['block' => true, 'defer' => true]);
+$this->Html->css('BasecoatTheme.interactivity', ['block' => true]);
+
+echo $this->Calendar->day($events, [
+    'date' => '2026-11-24',
+    'slot' => 15,
+    'resources' => ['l' => 'Luis A.', 'a' => 'Ana B.'],
+    'interactive' => ['move' => true, 'resize' => true, 'slots' => true],
+    'slotUrl' => fn (string $date, string $time, ?string $resource): array =>
+        ['action' => 'add', '?' => ['date' => $date, 'start' => $time, 'coach' => $resource]],
+    'eventAttributes' => fn (array $event): array => ['hx-get' => '/classes/menu/' . $event['id']],
+    'attributes' => ['data-endpoint' => $this->Url->build(['action' => 'move'])], // optional: POST each change
+]);
+```
+
+- `move`: every timed event (not `'locked' => true`) is a `data-dnd-item` (`data-id` = the event id,
+  `data-dnd-touch="press"`, its link is the handle): drag it to another time and day (week) or resource
+  (day) with the pointer, a 250 ms touch press, or the keyboard (focus it, Space, arrows, Space / Enter;
+  Escape cancels). Empty cells are `data-dnd-slot` drop targets named for announcements ("Tuesday 24
+  November 10:00, Luis A.").
+- `resize`: a bottom handle (`data-dnd-resize`, "Change the end of …") and Shift + Up / Down change the end.
+- `slots`: every cell is a link to `slotUrl(...)` (create an event there), or a plain drop target where
+  `slotUrl` returns `null`. Events come first in the DOM and stack above the slots.
+- `'locked' => true` on an event keeps it a plain link (no drag, no handle), e.g. past events.
+- After a move the event's times show the slot boundaries; lanes of overlapping events are those of the
+  server render (re-render after saving). Overlaps are announced and flagged on the dragged event.
+- `basecoat:move` / `basecoat:resize` (cancelable) carry `detail.slot = {start, end, column}`: `start` and
+  `end` as `H:i`, `column` the date (`Y-m-d`, week) or resource key (day; `""` for Unassigned and for a day
+  without resources); with `data-endpoint` the POST gets the same `slot`. `preventDefault()` puts the
+  event back (e.g. to confirm on the server and re-render).
+- The all-day row and the "+N more" / "outside hours" lists stay in the header, read-only; column
+  headers keep `<span class="bc-cal-name" id="…">` (`…-r0`, `…-r1` per resource in the day).
+- Up to 32 columns. Without `interactive` the output is exactly the read-only one. Without JavaScript the
+  events and the slots are plain links.
 
 **Month.** `month()` renders the `calendar` screen's table: whole weeks, Monday first, three chips a day
 and "+N more". Days are drop targets and chips are draggable with `basecoat-dnd.js` (see
@@ -869,6 +911,7 @@ reference of its data hooks, the tables below summarise them.
 | `data-dnd-touch="press"` | container, item or handle | Touch on the handle needs the 250ms press too, so a swipe still scrolls the page (calendar chips) |
 | `data-dnd-grid` | CSS grid | 2D mode. `data-dnd-classes='{"row": [...], "col": [...], "span": {"1": "row-span-1", ...}}'` (class per 0-based index / span), `data-dnd-rows`, `data-dnd-cols`, `data-dnd-resize-axis="row\|col"`, `data-dnd-span-max` |
 | `data-dnd-row-text='["06:00", …]'` / `data-dnd-col-text='["Rig", …]'` | grid | Text of each row boundary (rows + 1 entries) and of each column: bound text `{start}`, `{end}`, `{col}` |
+| `data-dnd-col-values='["2026-11-16", …]'` | grid | Value of each column (a date, a resource key): with `data-dnd-row-text`, grid `basecoat:move` / `basecoat:resize` details and POSTs get `slot: {start, end, column}` |
 | `data-dnd-slot` + `data-dnd-row` / `data-dnd-col` | empty grid cells | Pointer drop targets; `data-dnd-label` names the slot ("Monday 09:00, Room A") |
 | `data-dnd-row` / `data-dnd-col` / `data-dnd-span` | grid item | Current placement (0-based) |
 | `data-dnd-resize` | inside a grid item | Drag handle that changes the span (also Shift + arrows) |
@@ -907,7 +950,7 @@ Bubbling `CustomEvent`s; the cancelable ones revert the change when you call `pr
 
 | Event | On | `detail` |
 | --- | --- | --- |
-| `basecoat:move` (cancelable) | item | list: `{mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}`; grid: `{mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}` |
+| `basecoat:move` (cancelable) | item | list: `{mode: 'list', item, id, from, fromId, to, toId, index, fromIndex}`; grid: `{mode: 'grid', item, id, grid, row, col, span, from: {row, col, span}, collisions}` plus `slot: {start, end, column}` when the grid has `data-dnd-row-text` and `data-dnd-col-values` |
 | `basecoat:resize` (cancelable) | grid item | same as a grid move |
 | `basecoat:move-error` | item | move detail + `status`, `reason` (`'response'` or `'origin'`: POST failed or refused, change reverted) |
 | `basecoat:filter` | filter root | `{query, facet, facets, visible, total}` (`facets`: key => value) |
@@ -972,7 +1015,7 @@ each file — dnd: `instructions`, `grid-instructions`, `picked-up`, `moved`, `d
 Without `data-endpoint` everything is client-only (the baked screens and the catalog previews). Add
 `data-endpoint="<?= $this->Url->build(['action' => 'move']) ?>"` to a container, item, form or an
 ancestor to also POST each change as JSON — `{action: 'move', id, from, to, index, fromIndex}` (lists),
-`{action: 'move'|'resize', id, grid, row, col, span}` (grids), `{action: 'toggle', id, name, on}` (plus
+`{action: 'move'|'resize', id, grid, row, col, span}` (grids; plus `slot` with `data-dnd-col-values`), `{action: 'toggle', id, name, on}` (plus
 `also: ['answered', 'read']` when `data-toggle-also` switched chained toggles on), `{action: 'toggle-all',
 name, on: true, ids}` (`data-toggle-all`), `{action: 'archive', id}` (the `data-remove-item` value),
 `{action: 'send', id, text}` (`id`: the form's `data-id` / `id`) — with `X-CSRF-Token`
@@ -1155,6 +1198,12 @@ gets filters and an *Export CSV* link: see
 ## Upgrade notes
 
 Changes in this version that can affect existing apps:
+
+- **Interactive calendar week and day** (`interactive`, `slotUrl`, `eventAttributes` options, `locked`
+  events) and **5, 10 and 20 minute slots**. Opt-in: without `interactive` the HTML is unchanged. The
+  error for an invalid `slot` now reads "must be 5, 10, 15, 20, 30 or 60". `basecoat-calendar.css` grew
+  (rows up to 288, the interactive grid); its repetitive part is generated by `php bin/build-calendar-css`.
+  `basecoat-dnd.js` adds `slot` to grid events and POSTs when the grid has `data-dnd-col-values`.
 
 - **The `calendar` screen has week and day views** on the new `Calendar` helper. Re-bake it
   (`bin/cake bake screen calendar --force`) to get them; its data gains `resources`, `days`, `dayStart`,

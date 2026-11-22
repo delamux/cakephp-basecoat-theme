@@ -44,10 +44,12 @@ flagged with `data-dnd-collision` and announced.
 
 ### 3. Slots
 
-With `interactive.slots`, every row × column cell without an event start is rendered as an empty
+With `interactive.slots`, every row × column cell is rendered as an empty
 `<a class="bc-cal-slot" data-dnd-slot data-dnd-row data-dnd-col data-dnd-label="Tuesday 24 November 10:00, Luis A."
 href="…">` (link from `slotUrl`; a cell with `slotUrl` returning `null` is a plain `<span data-dnd-slot>`, a drop
 target but not a link). Slots sit under the events (lower stacking order) so clicking an event never hits a slot.
+Every cell gets a slot, also those under an event: grid mode looks the slot up by row and column for pointer drops
+and for the `{slot}` announcement, so a missing cell would drop on a neighbour and announce "Row r, column c".
 Without `interactive.slots`, cells are plain `<span data-dnd-slot>` only when `move` is on (drop targets).
 
 ### 4. Values in the events
@@ -69,6 +71,30 @@ line strong and the step lines soft, like 15 and 30 today.
 
 `eventAttributes` (`fn (array $event): array`) merges attributes into each event's `<a>` (refusing `on*` and `style`
 keys, like `data-dnd-attr`), so apps can add `hx-*` or menu-trigger hooks without overriding protected methods.
+
+## Implementation notes (adjustments made while building it)
+
+- Markup: `<div class="bc-cal-board bc-cal-cols-N">` holds `<div class="bc-cal-heads">` (one `.bc-cal-head` per
+  column, same `bc-cal-name` spans and ids as read-only), `<div class="bc-cal-alldays">` (one `ul.bc-cal-allday`
+  per column, only when there are all-day events) and the grid `<div class="bc-cal-grid-body bc-cal-rows-R
+  bc-cal-slot-S" data-dnd-grid …>`. `bc-cal-cols-N` sets `--bc-cal-n`, used for `repeat(N, minmax(0, 1fr))` in the
+  three rows and for the board width (`N × --bc-cal-col`), so the columns line up and have a definite width.
+- Events are `<div class="bc-cal-event …">` grid items; the event link carries `data-dnd-handle` (one tab stop,
+  as the month chips) and, when draggable, its times are `<span data-dnd-text="start">` / `"end"` so they follow
+  a move. Items carry `data-id` (the event id) and `data-dnd-label` (the title).
+- Events come before the slots in the DOM (tab order: events first) and stack above them with `z-index`.
+  Slot links also get `aria-label` (same text as `data-dnd-label`).
+- `interactive` takes only `move`, `resize`, `slots` (others throw); `resize` without `move` throws (grid mode
+  cannot resize an item it does not drag); `slots` without a callable `slotUrl` throws; at most 32 columns.
+- `slotUrl` gets `null` as resource in the week, for "Unassigned" and in a day without resources; the day
+  without resources has `data-dnd-col-values='[""]'`.
+- `eventAttributes` receives the event as the app passed it (its own keys included); `on*`, `style` and
+  `href` keys and `null` / `false` values are dropped. It also applies in read-only mode and to the events
+  listed in the header.
+- `basecoat-dnd.js` also adds `slot` to the endpoint POST payload (same object as `detail.slot`).
+- `.bc-cal-grid-body>.bc-cal-event[data-dnd-collision]` only shows the collision outline on the dragged event
+  (lanes overlap by design).
+- The read-only body moved into `columnsHtml()`; `board()` / `boardEvent()` render the interactive one.
 
 ## Risks / Trade-offs
 

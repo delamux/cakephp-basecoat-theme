@@ -21,7 +21,7 @@
 
 ## 4. Docs and release
 
-- [ ] 4.1 README: Calendar section (`interactive`, `slotUrl`, `locked`, `eventAttributes`, steps, event details) and drag and drop hooks table (`data-dnd-col-values`, `detail.slot`)
-- [ ] 4.2 Component catalog example of an interactive week and day (`composer docs`); new locale strings in resources/locales
+- [x] 4.1 README: Calendar section (`interactive`, `slotUrl`, `locked`, `eventAttributes`, steps, event details) and drag and drop hooks table (`data-dnd-col-values`, `detail.slot`)
+- [x] 4.2 Component catalog example of an interactive week and day (`composer docs`); new locale strings in resources/locales
 - [ ] 4.3 Browser check (pointer, keyboard, touch long press, light and dark, without JS)
 - [ ] 4.4 `composer test` and `composer test-js` green; tag a minor release and tell the new-crossfit change `interactive-class-calendar` (task 0.3)
