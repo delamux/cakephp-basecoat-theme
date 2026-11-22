@@ -16,8 +16,8 @@
 
 ## 3. Script and CSS
 
-- [ ] 3.1 Failing `node --test` → green: `basecoat:move` / `basecoat:resize` carry `detail.slot = {start, end, column}` when the grid has row texts and column values; `preventDefault()` reverts and posts nothing
-- [ ] 3.2 CSS for the single grid: `bc-cal-cols-N`, `bc-cal-c-N`, header row aligned with the body columns, slot cells, handle, lane widths, drag states (works with `interactivity.css`)
+- [x] 3.1 Failing `node --test` → green: `basecoat:move` / `basecoat:resize` carry `detail.slot = {start, end, column}` when the grid has row texts and column values; `preventDefault()` reverts and posts nothing
+- [x] 3.2 CSS for the single grid: `bc-cal-cols-N`, `bc-cal-c-N`, header row aligned with the body columns, slot cells, handle, lane widths, drag states (works with `interactivity.css`)
 
 ## 4. Docs and release
 

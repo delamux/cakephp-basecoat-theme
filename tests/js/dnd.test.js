@@ -219,3 +219,20 @@ test('createJsonCache parses once and clears past its limit', () => {
   assert.equal(cache.size(), 1);
   assert.equal(cache.parse('{oops'), null);
 });
+
+test('slotValues: start and end from the row texts, column from the column values', () => {
+  const rows = ['07:00', '07:15', '07:30', '07:45', '08:00', '08:15', '08:30', '08:45', '09:00'];
+  const cols = ['2026-11-16', '2026-11-17', '2026-11-18'];
+  assert.deepEqual(dnd.slotValues(rows, cols, { row: 4, col: 1, span: 4 }), { start: '08:00', end: '09:00', column: '2026-11-17' });
+  assert.deepEqual(dnd.slotValues(rows, ['l', 'a', ''], { row: 0, col: 2, span: 1 }), { start: '07:00', end: '07:15', column: '' }, '"" = no resource');
+  assert.equal(dnd.slotValues(rows, null, { row: 0, col: 0, span: 1 }), null, 'needs column values');
+  assert.equal(dnd.slotValues(null, cols, { row: 0, col: 0, span: 1 }), null, 'needs row texts');
+  assert.equal(dnd.slotValues(rows, cols, { row: 8, col: 0, span: 1 }), null, 'outside the row texts');
+  assert.equal(dnd.slotValues(rows, cols, { row: 0, col: 5, span: 1 }), null, 'outside the column values');
+});
+
+test('a cancelled calendar move reverts and posts nothing', () => {
+  const { result, log } = commitWith({ confirm: () => false, endpoint: '/classes/move' });
+  assert.equal(result.status, 'reverted');
+  assert.deepEqual(log, ['revert']);
+});
