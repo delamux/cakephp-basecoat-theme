@@ -397,6 +397,42 @@ class CalendarHelperTest extends HelperTestCase
         $this->assertSame('', (string)$this->View->fetch('css'), 'The month needs no calendar stylesheet');
     }
 
+    /**
+     * Read-only week and day output, frozen before the interactive grid was added: without
+     * `interactive` the HTML must stay byte-for-byte the same.
+     */
+    #[DataProvider('gridSnapshots')]
+    public function testReadOnlyGridMatchesSnapshot(string $view, int $slot, array $extra): void
+    {
+        $dir = dirname(__DIR__, 3) . '/test_files/';
+        $data = json_decode((string)file_get_contents($dir . 'calendar-grid.json'), true, 512, JSON_THROW_ON_ERROR);
+        $options = $extra + ['slot' => $slot] + $data['options'];
+        if ($view === 'week') {
+            $options['dayUrl'] = fn (string $d): string => '/calendar?view=day&date=' . $d;
+        }
+        $html = $this->helper()->{$view}($data['events'], $options);
+        $file = $dir . sprintf('calendar-%s-%d%s.html', $view, $slot, $extra ? '-' . implode('-', array_keys($extra)) : '');
+
+        $this->assertSame(rtrim((string)file_get_contents($file), "\n"), $html);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: int, 2: array<string, mixed>}>
+     */
+    public static function gridSnapshots(): array
+    {
+        return [
+            'week 15' => ['week', 15, []],
+            'week 30' => ['week', 30, []],
+            'week 60' => ['week', 60, []],
+            'week 30 workdays' => ['week', 30, ['days' => [1, 2, 3, 4, 5], 'columnWidth' => 'lg']],
+            'day 15' => ['day', 15, []],
+            'day 30' => ['day', 30, []],
+            'day 60' => ['day', 60, []],
+            'day 30 without resources' => ['day', 30, ['resources' => []]],
+        ];
+    }
+
     public function testMonthDayUrlLinksTheDayNumber(): void
     {
         $html = $this->helper()->month([], [
